@@ -1,5 +1,5 @@
-# Geometry and raster work only — scripts/fetch_flood.py, scripts/build_climate.py and the
-# kunta-ring simplification in scripts/build_dashboard.py.
+# Geometry, raster and spreadsheet work — scripts/fetch_flood.py, scripts/build_climate.py
+# and the kunta-ring simplification in scripts/build_dashboard.py.
 #
 # Nothing else in this repository needs these, and the dashboard build does not:
 # data/processed/climate.json is committed, so `make build` and the GitHub Actions
@@ -7,6 +7,8 @@
 #
 #   python3 -m pip install -r requirements-geo.txt
 #
+# Versions are the ones this was actually built and verified with on 2026-09-24, not a guess.
 shapely==2.1.2       # mapped-extent unions, kunta ∩ extent, ring simplification
-numpy==2.3.3         # the flood masks: 280 M pixels is not a pure-Python loop
-pillow==11.3.0       # decodes the publisher's PNG tiles and rasterises our own polygons
+numpy==2.5.3         # the flood masks: 280 M pixels is not a pure-Python loop
+pillow==12.3.0       # decodes the publisher's PNG tiles and rasterises our own polygons
+openpyxl==3.1.5      # STUK's radon spreadsheets, by kunta and by postal area

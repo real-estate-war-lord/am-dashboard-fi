@@ -2,7 +2,10 @@
 
 A single-page map of Finland's housing market and demographics, built only from open
 official data. Three levels — **kunta → postinumeroalue → osa-alue** — with prices, rents,
-income, demographics, construction, taxes, safety and the population outlook side by side.
+income, demographics, construction, taxes, safety, climate risk and the population outlook
+side by side, plus map layers for services, public buildings, infrastructure projects,
+schools, buildings and zoning, and a **Test property** sheet that reads all of it for one
+address.
 
 ![The macro map, old-flat prices per m²](docs/screenshot.png)
 
@@ -15,13 +18,24 @@ income, demographics, construction, taxes, safety and the population outlook sid
 | Kunnat | **308** (kuntajako 2026) |
 | Postinumeroalueet | **3 018** (Paavo `pno_tilasto_2026`) |
 | Osa-alueet | **306** — Helsinki 148, Espoo 88, Vantaa 61, Kauniainen 9 |
-| Indicators | **50** at kunta and postal level, **9** more at osa-alue level |
-| Groups | Demographics · Income & jobs · Housing stock · Market · Construction · Taxes · Safety · Outlook |
+| Indicators | **62** at kunta and postal level, **14** more at osa-alue level |
+| Groups | Demographics · Income & jobs · Housing stock · Market · Construction · Taxes · Safety · **Climate** · Outlook · **Growth signals** |
+| Addresses | **3 719 340** searchable, with no server |
+| Service points | **113 372** · **8 601** public buildings |
+| Buildings | **250 785** drawn, of 3 799 740 in the register |
+| Schools | **2 501**, with matriculation results for **338** lukios |
+| Infrastructure projects | **169** |
+| Map overlays | Climate risk · Infra projects · Public buildings · Services · Zoning · 1 km population grid |
 
 Every area has its own page, every indicator its own definition, source, period and a link
 to the publisher's own table. The Table view puts every area side by side and exports CSV;
 the Charts view plots any indicator for up to eight areas, yearly or quarterly, and exports
 PNG or CSV.
+
+**Test property** takes an address, a Google Maps link or a coordinate pair, resolves it to
+its kunta, postal area and osa-alue on our own boundaries, and reads everything the dashboard
+carries for those areas on one sheet — and **Compare** puts two of them side by side on
+aligned rows, read in each indicator's own direction, with no overall winner.
 
 ## The rule this project runs on
 
@@ -86,6 +100,20 @@ a misreading of its terms and is corrected in v1.1.
 
 The code in this repository is MIT (`LICENSE`). The data is not ours to license.
 
+## What Finland does not publish
+
+Each of these was asked of the publisher, and the answer is in the docs beside the layer:
+
+| | |
+|---|---|
+| **Comprehensive-school results** | There is no national peruskoulu exam published per school. Not suppressed — it does not exist. `docs/SCHOOLS_FI.md` |
+| **Energy certificates** | ARA's register is a paid X-Road service needing a *tietolupa*; `avoindata.fi` has 0 open datasets. `docs/BUILDINGS_FI.md` |
+| **Planned floor area** | Ryhti's plans-in-preparation collections return **0 features nationally**, and Helsinki's 78 plans in preparation carry no floor-area field. `docs/BUILDINGS_FI.md` |
+| **Sea-level scenarios** | No machine-readable national dataset; the only quantified figures are prose per sea basin. `docs/CLIMATE_FI.md` |
+| **Stormwater flood maps** | Asked of HSY's 397 layers and Helsinki's 304 — neither publishes one. `docs/CLIMATE_FI.md` |
+| **A keyless national GTFS** | Digitransit's national feed answers 401 without a registered key. `docs/SERVICES_FI.md` |
+| **Tenure or per-dwelling area in the building register** | Ryhti publishes neither, so neither is shown. `docs/BUILDINGS_FI.md` |
+
 ## Honest limits
 
 - **No days-on-market and no supply.** Only the commercial portals have them.
@@ -94,7 +122,14 @@ The code in this repository is MIT (`LICENSE`). The data is not ours to license.
 - **Crime only at kunta level.** Finland publishes no open crime data below municipality,
   and no quarterly municipal crime data at all.
 - **No comprehensive-school results.** Finland does not publish them. Upper-secondary
-  matriculation results exist and are a later phase.
+  matriculation results do exist and are in the dashboard, for the **338 of 380** lukios whose
+  name matches the school register exactly — the two publishers share no key.
+- **Flood hazard is mapped for designated areas only.** An area with no flood figure has
+  **not been assessed**, which is not the same as no flood hazard, and the Flood-mapped row
+  says how much of an area has been. The shares are screening indicators measured at 25 m
+  from the publisher's own zone polygons, not a property-level risk assessment.
+- **OpenStreetMap coverage is not uniform.** A rural area with no shop mapped is not the same
+  as an area with no shop, and every point says which publisher it came from.
 - **No municipal construction data anywhere.** Statistics Finland publishes dwellings
   started, completed and permitted by **maakunta** only, so every kunta shows its region's
   rate, marked ^.

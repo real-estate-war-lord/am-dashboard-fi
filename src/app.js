@@ -1605,7 +1605,17 @@ const INFRA_BY = {}; INFRA_ALL.forEach(f => INFRA_BY[f.properties.id] = f);
 /* The per-area project index arrives with the alignments in dist/infra.json — an area card
    that wants it triggers the same fetch the map does. */
 let INFRA_IDX = D.infra_index || {};
-const infraOf = (level, code) => (INFRA_IDX[`${level}:${code}`] || {}).projects || [];
+/* The index stores project IDS, not copies of each project — `{in: […], near: […]}` — so the
+   same project is not written out once per area it touches. The properties are resolved here
+   through INFRA_BY, which is the one place a project's facts live. */
+const infraOf = (level, code) => {
+  const e = INFRA_IDX[`${level}:${code}`];
+  if (!e) return [];
+  const ids = (e.in || []).concat(e.near || []);
+  const seen = new Set();
+  return ids.filter(id => !seen.has(id) && seen.add(id))
+    .map(id => (INFRA_BY[id] || {}).properties).filter(Boolean);
+};
 const openLabel = p => p.open_window || (p.open_year ? String(p.open_year) : "–");
 /* metres per degree, scaled for longitude at the geometry's latitude — enough for lengths and areas */
 function geomStats(f) {
@@ -4093,7 +4103,8 @@ function schoolsChartCard() {
 function projectEntity() { return INFRA_BY[PR.id] || null; }
 /* the postal codes and quarters a project serves, from the spatial index */
 function infraAreas(id, level) {
-  return Object.entries(INFRA_IDX).filter(([k, v]) => k.startsWith(level + ":") && v.projects.some(p => p.id === id))
+  return Object.entries(INFRA_IDX)
+    .filter(([k, v]) => k.startsWith(level + ":") && ((v.in || []).includes(id) || (v.near || []).includes(id)))
     .map(([k]) => k.split(":")[1]);
 }
 function vProject() {

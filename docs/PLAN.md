@@ -224,7 +224,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 | 13 | Infra projects | ✅ | `feat: infrastructure projects` |
 | 14 | Schools | ✅ | `feat: schools — register points and YTL matriculation results` |
 | 15 | Buildings, energy, zoning, grid | ✅ | `feat: buildings, zoning and the 1 km grid` |
-| 16 | Verify, docs, wrap-up | ☐ | |
+| 16 | Verify, docs, wrap-up | ✅ | `docs: v1.1 verification, docs and changelog` |
 
 ## 9. Status log, batch 2
 
@@ -424,6 +424,25 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
   reason written beside it in `scripts/build_dashboard.py`. **Open ⚠.**
 - `docs/BUILDINGS_FI.md`.
 
+### Phase 16 — Verify, docs, wrap-up ✅
+- `scripts/verify.py` now checks the layers the same way it checks the indicators: back to the
+  publisher, redo the arithmetic, compare. **88 checks, 0 disagreements.** The flood shares are
+  **recounted from the publisher's own raster tiles**, not read out of `climate.json`; the
+  matriculation means are recomputed from YTL's own candidate rows; `dw_pre1980` is recounted
+  from the raw Ryhti CSV; every curated infra budget is checked against the CSV of record.
+- `docs/verification/v1_1.csv`: 16 788 rows.
+- New docs: `CLIMATE_FI.md`, `SERVICES_FI.md`, `SCHOOLS_FI.md`, `BUILDINGS_FI.md`. Updated:
+  `SOURCES.md`, `DATA_MAP_FI.md` (a batch-2 scorecard), `PROBE_FI.md`, `RUNBOOK.md` (when to
+  rebuild each heavy layer), `README.md`, `CHANGELOG.md`, `BUILD_LOG.md` (13 open ⚠).
+- The refresh workflow now also rebuilds the two cheap layers (infra, schools) and says in
+  comments why the four heavy ones are left to `make`.
+- Requirements pinned to **the versions this was actually built with**, not a guess.
+- One real bug found in the final sweep: `infraAreas` and `infraOf` read `v.projects` from an
+  index that stores `{in, near}` id lists — the project datasheet threw on every project. Fixed
+  by resolving ids through `INFRA_BY` rather than denormalising a copy per area.
+- Final: validate ✓ 62 indicators · links ✓ **29/29** · test ✓ 38 py + 27 js · build ✓ 3.0 MB ·
+  fixture ✓ · verify ✓ 88/88.
+
 ## 10. Resume point, batch 2
 
-Phases 8b–15 committed. Every fetch has finished. Phase 16 (verify, docs, wrap-up) is all that remains.
+**Batch 2 is complete.** All nine phases (8b–16) are committed on `v1.1-layers`. Nothing merged, tagged or pushed.\n\n**Next action (a human's):** review `dist/index.html` on localhost (`make build && make serve`) against the checklist in the run summary, then decide whether to merge. The 13 open ⚠ are in `docs/BUILD_LOG.md`; the one that is a judgement call rather than a fact about a publisher is ⚠9, the page-size ceiling.

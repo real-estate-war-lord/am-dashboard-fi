@@ -1,10 +1,10 @@
-# Verification — v1.0
+# Verification — v1.1
 
 **Run 2026-09-24** by `scripts/verify.py`, which re-queries the publisher, redoes the arithmetic from the returned cells, and compares the result with what `data/processed/makro.json` actually carries. It does **not** read the build's own cached pulls: if the build were taking the wrong cell, dividing by the wrong denominator or joining the wrong vintage, these checks would disagree and the cached pulls would not.
 
-`57` checks · **57 agree**
+`88` checks · **88 agree**
 
-Full export: `docs/verification/v1_0.csv` — 14,341 rows, 308 kunnat × 48 indicators, long format (level; code; name; parent; indicator; label; unit; value; period; inherited_from; source; tables).
+Full export: `docs/verification/v1_1.csv` — 16,788 rows, 308 kunnat × 60 indicators, long format (level; code; name; parent; indicator; label; unit; value; period; inherited_from; source; tables).
 
 
 ## Kunnat — 5 × 4 indicators
@@ -31,6 +31,25 @@ Full export: `docs/verification/v1_0.csv` — 14,341 rows, 308 kunnat × 48 indi
 | Jyväskylä (179) | renters | Paavo 12f8 2024 | te_vuok_as 41172 ÷ te_taly 81042 × 100 | 50.80 | 50.80 | ✓ |
 | Jyväskylä (179) | unemp | Paavo 12f8 2024 | pt_tyott 11252 ÷ (pt_tyoll + pt_tyott) 74304 × 100 | 15.14 | 15.14 | ✓ |
 | Jyväskylä (179) | flats | Paavo 12f8 2024 | ra_kt_as 57630 ÷ ra_asunn 89222 × 100 | 64.59 | 64.59 | ✓ |
+| Helsinki (091) | radon_mean | STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx | column 'Keskiarvo Bq/m3' for Helsinki, read from the publisher's own file | 155.00 | 155.00 | ✓ |
+| Tampere (837) | radon_mean | STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx | column 'Keskiarvo Bq/m3' for Tampere, read from the publisher's own file | 347.00 | 347.00 | ✓ |
+| Turku (853) | radon_mean | STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx | column 'Keskiarvo Bq/m3' for Turku, read from the publisher's own file | 90.00 | 90.00 | ✓ |
+| Oulu (564) | radon_mean | STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx | column 'Keskiarvo Bq/m3' for Oulu, read from the publisher's own file | 45.00 | 45.00 | ✓ |
+| Jyväskylä (179) | radon_mean | STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx | column 'Keskiarvo Bq/m3' for Jyväskylä, read from the publisher's own file | 160.00 | 160.00 | ✓ |
+| Helsinki (091) | flood_sea_100 | SYKE WMS tiles in data/raw/syke_flood/ | flood-class pixels ÷ land pixels at 25 m, recounted from the publisher's own tiles | 5.26 | 5.26 | ✓ |
+| Espoo (049) | flood_sea_100 | SYKE WMS tiles in data/raw/syke_flood/ | flood-class pixels ÷ land pixels at 25 m, recounted from the publisher's own tiles | 3.02 | 3.02 | ✓ |
+| Turku (853) | flood_sea_100 | SYKE WMS tiles in data/raw/syke_flood/ | flood-class pixels ÷ land pixels at 25 m, recounted from the publisher's own tiles | 5.37 | 5.37 | ✓ |
+| Oulu (564) | flood_sea_100 | SYKE WMS tiles in data/raw/syke_flood/ | flood-class pixels ÷ land pixels at 25 m, recounted from the publisher's own tiles | 3.57 | 3.57 | ✓ |
+| Helsinki (091) | dw_pre1980 | Ryhti avoimet_rakennukset, data/raw/ryhti_bld/ | dwellings in buildings completed before 1980 ÷ dwellings in buildings with a published year, buildings with ≥ 2 dwellings, recounted from the raw CSV | 55.40 | 55.40 | ✓ |
+| Espoo (049) | dw_pre1980 | Ryhti avoimet_rakennukset, data/raw/ryhti_bld/ | dwellings in buildings completed before 1980 ÷ dwellings in buildings with a published year, buildings with ≥ 2 dwellings, recounted from the raw CSV | 26.50 | 26.50 | ✓ |
+| Tampere (837) | dw_pre1980 | Ryhti avoimet_rakennukset, data/raw/ryhti_bld/ | dwellings in buildings completed before 1980 ÷ dwellings in buildings with a published year, buildings with ≥ 2 dwellings, recounted from the raw CSV | 41.48 | 41.48 | ✓ |
+| Turku (853) | dw_pre1980 | Ryhti avoimet_rakennukset, data/raw/ryhti_bld/ | dwellings in buildings completed before 1980 ÷ dwellings in buildings with a published year, buildings with ≥ 2 dwellings, recounted from the raw CSV | 55.06 | 55.06 | ✓ |
+| Oulu (564) | dw_pre1980 | Ryhti avoimet_rakennukset, data/raw/ryhti_bld/ | dwellings in buildings completed before 1980 ÷ dwellings in buildings with a published year, buildings with ≥ 2 dwellings, recounted from the raw CSV | 31.79 | 31.79 | ✓ |
+| Helsinki (091) | services_points | data/processed/services/<kunta>.json | points counted in the file itself against the index's claim | 5 516.00 | 5 516.00 | ✓ |
+| Espoo (049) | services_points | data/processed/services/<kunta>.json | points counted in the file itself against the index's claim | 2 455.00 | 2 455.00 | ✓ |
+| Tampere (837) | services_points | data/processed/services/<kunta>.json | points counted in the file itself against the index's claim | 3 694.00 | 3 694.00 | ✓ |
+| Turku (853) | services_points | data/processed/services/<kunta>.json | points counted in the file itself against the index's claim | 4 019.00 | 4 019.00 | ✓ |
+| Oulu (564) | services_points | data/processed/services/<kunta>.json | points counted in the file itself against the index's claim | 2 389.00 | 2 389.00 | ✓ |
 
 ## Postal codes — 5 × price, sales, rent, income, unemployment
 

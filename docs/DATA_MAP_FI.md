@@ -124,3 +124,36 @@ Days-on-market and supply (only Oikotie/Etuovi, KVKL hintaseuranta not open) · 
 6. **Licence note per source** in `docs/SOURCES.md` (Tilastokeskus CC BY 4.0 requires the attribution "Lähde: Tilastokeskus").
 
 Sources: [StatFin asvu 13eb](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__asvu/statfin_asvu_pxt_13eb.px/) · [StatFin ashi 13mu](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__ashi/statfin_ashi_pxt_13mu.px/) · [ashi 13mt](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__ashi/statfin_ashi_pxt_13mt.px/) · [ashi 13mx](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__ashi/statfin_ashi_pxt_13mx.px/) · [Väestöennuste 2024 14wy](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__vaenn/statfin_vaenn_pxt_14wy.px/) · [Paavo](https://stat.fi/fi/palvelut/tilastodatapalvelut/paikkatietoaineistot/postinumeroalueittainen-paikkatieto-paavo) · [Paavo WFS](https://geo.stat.fi/geoserver/postialue/wfs?service=WFS&request=GetCapabilities&version=1.0.0) · [Rikos- ja pakkokeinotilasto](https://stat.fi/fi/tilasto/rpk) · [polrik discontinued](https://stat.fi/tilasto/polrik) · [Ryhti rakennustiedot](https://ckan.ymparisto.fi/dataset/rakennetun-ympariston-tietojarjestelman-rakennustiedot) · [Ryhti rajapinnat](https://github.com/sykefi/Ryhti-rajapintakuvaukset) · [SYKE open web services](https://www.syke.fi/en/environmental-data/open-web-services) · [Kelasto asumistuki](https://raportit.kela.fi/ibi_apps/WFServlet?IBIF_ex=NIT150AL) · [Aluesarjat](https://stat.hel.fi/pxweb/fi/Aluesarjat/) · [Helsinki forecast by area](https://avoindata.suomi.fi/data/fi/dataset/helsingin-vaesto-ja-asuntotuotantoennuste-alueittain) · [Suomen Pankki open data](https://www.suomenpankki.fi/en/statistics/open-data/)
+
+
+---
+
+# Batch 2 — what the layer phases actually found (v1.1)
+
+`docs/PROBE_FI.md` §"Batch 2" carries the routes; this is the spec's own scorecard. Where the
+spec and the live API disagreed, the API won and the difference is recorded here.
+
+| Spec asked for | What exists | Built? |
+|---|---|---|
+| DVV building-address file | discontinued 14.3.2025; **Ryhti `open_address`** is the same register, live, keyless — 3 861 495 rows | ✅ as Ryhti |
+| SYKE flood-hazard zones | 16 layers, return period in the **layer name**; 3.4 M + 4.0 M features, 5.6 GB bulk zips | ✅ measured from the publisher's WMS at 25 m |
+| Sea-level scenarios | no machine-readable national dataset; 453 Helsinki-only points | ❌ not built, logged |
+| Stormwater flood maps | HSY 397 layers, Helsinki 304 — neither publishes one | ❌ not built, logged |
+| STUK radon by area | **two open spreadsheets**, by kunta *and* by postal area | ✅ better than the spec hoped |
+| Ryhti buildings | 3 799 740, 7-code use classification, no tenure, no per-dwelling area | ✅ partially — only what it publishes |
+| Ryhti kaavat | status yes, **floor area no**; in-preparation collections **empty nationally** | ⚠ overlay only, no indicator |
+| ARA energy certificates | paid X-Road service, ARA *tietolupa* required | ❌ not built, logged |
+| HSL GTFS | `dev.hsl.fi/gtfs/hsl.zip`, keyless, 80 MB | ✅ |
+| Fintraffic national GTFS | Digitransit answers **401** without a registered key | ❌ OSM used instead, per point |
+| Helsinki Palvelukartta | keyless, 21 506 units, 4 municipalities | ✅ |
+| Geofabrik OSM extract | 767 MB, ODbL | ✅ 133 514 points extracted |
+| LIPAS | keyless API confirmed | ⏸ probed, not built — sports facilities were not in any phase's scope |
+| Väylävirasto project layers | `hanketiedot:tiehankkeet` (311) and `:ratahankkeet` (166), **with published alignments** | ✅ better than the spec hoped |
+| YTL lukio results | **candidate-level** open CSV per session, 2022K–2026K | ✅ aggregated with a 10-candidate floor |
+| School locations | Tilastokeskus `oppilaitokset`, 2 501, **with coordinates** | ✅ no geocoding needed |
+| Tilastokeskus 1 km grid | `vaestoruutu:vaki2025_1km`, 96 904 cells | ✅ as an overlay |
+
+**The one join with no key.** Tilastokeskus numbers a school `08888` and YTL numbers it `1488`;
+padding one into the other matches **0 of 387**. The join is exact normalised-name equality and
+nothing fuzzier — 338 of 380 lukios — because a near match would give one school another
+school's results and nothing downstream would reveal it.

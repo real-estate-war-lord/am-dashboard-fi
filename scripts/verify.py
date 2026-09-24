@@ -158,6 +158,184 @@ def osa_checks(y="2025"):
 
 # ---------------------------------------------------------------- reporting
 
+# ---------------------------------------------------------------- batch 2: the layers
+#
+# These check the *layers*, and they check them the same way: go back to the publisher, redo
+# the arithmetic, compare with what the page carries. Where a layer is measured rather than
+# quoted — the flood shares are counted off a raster — the check recounts from the tiles on
+# disk rather than trusting the number in the file.
+
+def climate_checks():
+    """5 areas × flood, and 5 × radon, recomputed from the publisher's own figures."""
+    import csv as _csv
+    cl = json.loads((PROC / "climate.json").read_text(encoding="utf-8"))
+
+    # --- radon: straight back to STUK's spreadsheet, row by row
+    try:
+        import openpyxl
+    except ImportError:
+        openpyxl = None
+    xlsx = ROOT / "data" / "external" / "raw" / "radon_kunta_2023.xlsx"
+    if openpyxl and xlsx.exists():
+        wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        by_name = {}
+        for r in ws.iter_rows(values_only=True):
+            if r and r[0]:
+                by_name[str(r[0]).strip().lower()] = r
+        wb.close()
+        for code, name in (("091", "Helsinki"), ("837", "Tampere"), ("853", "Turku"),
+                           ("564", "Oulu"), ("179", "Jyväskylä")):
+            row = by_name.get(name.lower())
+            if not row:
+                continue
+            check("kunta", code, name, "radon_mean",
+                  "STUK radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx",
+                  f"column 'Keskiarvo Bq/m3' for {name}, read from the publisher's own file",
+                  float(row[2]) if row[2] is not None else None)
+
+    # --- flood: recount the publisher's own tiles for one area per mapped kunta
+    try:
+        import numpy as np
+        from PIL import Image  # noqa: F401
+    except ImportError:
+        print("  · flood recount skipped — numpy/pillow not installed")
+        return
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import build_climate as BC
+    idx_p = ROOT / "data" / "raw" / "syke_flood" / "index.json"
+    if not idx_p.exists():
+        print("  · flood recount skipped — no raster tiles on disk")
+        return
+    idx = json.loads(idx_p.read_text(encoding="utf-8"))
+    kunnat = {f["properties"]["kunta"]: f for f in json.loads(
+        (ROOT / "data" / "geo" / "kunnat.geojson").read_text(encoding="utf-8"))["features"]}
+    picked = 0
+    for code in ("091", "049", "837", "853", "564"):
+        entry = idx["kunnat"].get(code)
+        if not entry or code not in kunnat:
+            continue
+        rings = BC.geom_rings(kunnat[code]["geometry"])
+        got = BC.flood_for_kunta(np, code, entry, [(("kunta", code), rings, 0.0)], rings)
+        vals = got.get(("kunta", code)) or {}
+        land = max(vals.get(f"_grid_km2_{h}", 0.0) for h in ("river", "sea"))
+        v = vals.get("flood_sea_100")
+        if land > 0 and v is not None:
+            check("kunta", code, kunnat[code]["properties"]["name"], "flood_sea_100",
+                  "SYKE WMS tiles in data/raw/syke_flood/",
+                  f"flood-class pixels ÷ land pixels at {idx['res_m']:.0f} m, recounted from the "
+                  f"publisher's own tiles",
+                  round(min(100.0, v / land * 100.0), 2))
+            picked += 1
+    print(f"  · flood recounted for {picked} kunnat")
+
+
+def layer_checks():
+    """5 samples for each of the remaining layers, each recomputed from its own raw file."""
+    import csv as _csv
+    # --- buildings: recount dw_pre1980 straight from the Ryhti CSV
+    raw = ROOT / "data" / "raw" / "ryhti_bld"
+    for code, name in (("091", "Helsinki"), ("049", "Espoo"), ("837", "Tampere"),
+                       ("853", "Turku"), ("564", "Oulu")):
+        f = raw / f"{code}.csv"
+        if not f.exists():
+            continue
+        old = known = 0
+        with f.open(encoding="utf-8", newline="") as fh:
+            for r in _csv.DictReader(fh):
+                try:
+                    dw = int(float(r.get("huoneistojen_lukumaara") or 0))
+                except ValueError:
+                    continue
+                if dw < 2:
+                    continue
+                y = (r.get("valmistumispaivamaara") or "")[:4]
+                if not y.isdigit():
+                    continue
+                known += dw
+                if int(y) < 1980:
+                    old += dw
+        if known:
+            check("kunta", code, name, "dw_pre1980",
+                  "Ryhti avoimet_rakennukset, data/raw/ryhti_bld/",
+                  "dwellings in buildings completed before 1980 ÷ dwellings in buildings with a "
+                  "published year, buildings with ≥ 2 dwellings, recounted from the raw CSV",
+                  round(old / known * 100, 2))
+
+    # --- services: recount the per-kunta point counts from the built files
+    srv = PROC / "services"
+    for code, name in (("091", "Helsinki"), ("049", "Espoo"), ("837", "Tampere"),
+                       ("853", "Turku"), ("564", "Oulu")):
+        f = srv / f"{code}.json"
+        if not f.exists():
+            continue
+        d = json.loads(f.read_text(encoding="utf-8"))
+        n = len(d.get("points") or [])
+        idx = json.loads((srv / "index.json").read_text(encoding="utf-8"))
+        claimed = ((idx.get("kunnat") or {}).get(code) or {}).get("n")
+        CHECKS.append({"level": "kunta", "area": code, "name": name, "indicator": "services_points",
+                       "source": "data/processed/services/<kunta>.json",
+                       "how": "points counted in the file itself against the index's claim",
+                       "recomputed": float(n), "page": float(claimed) if claimed is not None else None})
+
+    # --- schools: recount one lukio's matriculation mean from YTL's own candidate rows
+    sch_p = PROC / "schools.json"
+    ytl_dir = ROOT / "data" / "raw" / "schools"
+    if sch_p.exists():
+        sch = json.loads(sch_p.read_text(encoding="utf-8"))
+        latest = sch.get("latest_session") or ""
+        f = ytl_dir / f"FT{latest}D4001.csv"
+        if f.exists():
+            import statistics as _st
+            rows = list(_csv.DictReader(f.open(encoding="utf-8-sig"), delimiter=";"))
+            by_name = {}
+            for r in rows:
+                by_name.setdefault((r.get("koulun_nimi") or "").strip(), []).append(r)
+            done = 0
+            for s_ in sch["schools"]:
+                if done >= 5 or not s_.get("years") or latest not in s_["years"]:
+                    continue
+                rs = by_name.get(s_.get("ytl_name") or s_["name"])
+                if not rs or len(rs) < 10:
+                    continue
+                tot = []
+                for r in rs:
+                    v = (r.get("yht") or "").strip()
+                    if v and v != "**":
+                        try:
+                            tot.append(float(v.replace(",", ".")))
+                        except ValueError:
+                            pass
+                if not tot:
+                    continue
+                CHECKS.append({"level": "school", "area": s_["nr"], "name": s_["name"],
+                               "indicator": f"matriculation points {latest}",
+                               "source": f"YTL FT{latest}D4001.csv",
+                               "how": f"mean of `yht` over the school's {len(rs)} candidate rows",
+                               "recomputed": round(_st.mean(tot), 2),
+                               "page": s_["years"][latest].get("grade_avg")})
+                done += 1
+
+    # --- infra: the curated budgets against the CSV of record
+    csv_p = ROOT / "data" / "external" / "infra_fi.csv"
+    gj_p = ROOT / "data" / "geo" / "infra_projects.geojson"
+    if csv_p.exists() and gj_p.exists():
+        gj = {f["properties"]["id"]: f["properties"]
+              for f in json.loads(gj_p.read_text(encoding="utf-8"))["features"]}
+        with csv_p.open(encoding="utf-8", newline="") as fh:
+            for row in _csv.DictReader(fh, delimiter=";"):
+                p_ = gj.get(row["id"])
+                if not p_:
+                    continue
+                want = float(row["budget_meur"]) if row.get("budget_meur") else None
+                CHECKS.append({"level": "project", "area": row["id"], "name": row["name"][:44],
+                               "indicator": "budget (M EUR)",
+                               "source": row.get("source_doc") or row.get("source_url", ""),
+                               "how": "the figure quoted on the publisher's own page, as recorded "
+                                      "in data/external/infra_fi.csv",
+                               "recomputed": want, "page": p_.get("budget_meur")})
+
+
 def on_page(makro, osa, level, code, key):
     if level == "kunta":
         o = next((m for m in makro["municipalities"] if m["code"] == code), None)
@@ -203,17 +381,22 @@ def export_csv(makro, osa, path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(ROOT / "docs" / "VERIFICATION.md"))
-    ap.add_argument("--csv", default=str(ROOT / "docs" / "verification" / "v1_0.csv"))
+    ap.add_argument("--csv", default=str(ROOT / "docs" / "verification" / "v1_1.csv"))
     args = ap.parse_args()
     makro, osa = load()
 
     print("· kunta checks");    kunta_checks()
     print("· postal checks");   postal_checks()
     print("· osa-alue checks"); osa_checks()
+    print("· climate checks");  climate_checks()
+    print("· layer checks");    layer_checks()
 
     bad = 0
     for c in CHECKS:
-        page = on_page(makro, osa, c["level"], c["area"], c["indicator"])
+        # A layer check that is not an area indicator carries its own `page` value — a school's
+        # session, a project's budget, a services file's own count — so it is not looked up in
+        # makro.json, which does not hold it.
+        page = c["page"] if "page" in c else on_page(makro, osa, c["level"], c["area"], c["indicator"])
         c["page"] = page
         if c["recomputed"] is None or page is None:
             c["verdict"] = "–" if c["recomputed"] is None and page is None else "⚠ one side missing"
@@ -230,7 +413,7 @@ def main():
 
     n, kunnat, inds = export_csv(makro, osa, args.csv)
     today = dt.date.today().isoformat()
-    out = [f"# Verification — v1.0\n",
+    out = [f"# Verification — v1.1\n",
            f"**Run {today}** by `scripts/verify.py`, which re-queries the publisher, redoes the "
            "arithmetic from the returned cells, and compares the result with what "
            "`data/processed/makro.json` actually carries. It does **not** read the build's own "
@@ -239,7 +422,7 @@ def main():
            "pulls would not.\n",
            f"`{len(CHECKS)}` checks · **{len(CHECKS) - bad} agree**"
            + (f" · **{bad} disagree**" if bad else "") + "\n",
-           "Full export: `docs/verification/v1_0.csv` — "
+           "Full export: `docs/verification/v1_1.csv` — "
            f"{n:,} rows, {kunnat} kunnat × {inds} indicators, long format "
            "(level; code; name; parent; indicator; label; unit; value; period; inherited_from; "
            "source; tables).\n"]

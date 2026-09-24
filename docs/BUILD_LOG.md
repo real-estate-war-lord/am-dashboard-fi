@@ -373,3 +373,40 @@ line and in a new **Status** column in the Sources view:
 
 A machine-readable `frozen` field on the indicator drives the UI, so the phrase cannot drift
 between the three places it appears. `docs/SOURCES.md` §6b lists them together.
+
+
+---
+
+## Open ⚠ at the end of batch 2 (v1.1)
+
+| # | Item | Where |
+|---|---|---|
+| 1 | ~~Aluesarjat non-commercial~~ **CLOSED** — the claim was wrong; no source here restricts commercial use | `docs/SOURCES.md` §3 |
+| 2 | **Verohallinto publishes no licence** for the two tax-rate series. Its CC BY 4.0 statement is scoped to the corporate-tax datasets. Labelled "Licence not stated by publisher — public official figures" | `docs/SOURCES.md` §6 |
+| 3 | **Postal-code rents frozen at 2025Q4** (unchanged from v1.0) | `rent_pno` caveat |
+| 4 | **No municipal construction data** (unchanged) | `docs/PROBE_FI.md` gap 1 |
+| 5 | **Three postal-code vintages** never reconciled (unchanged) | `docs/GEO.md` §2 |
+| 6 | **Unoccupied dwellings has one year** (unchanged) | `vacant` caveat |
+| 7 | The income-tax rate is **scraped from a decision page** (unchanged) | `scripts/import_verohallinto.py` |
+| 8 | **HSY sub-area division frozen at 2021** (unchanged) | `docs/GEO.md` §3 |
+| 9 | **The page ceiling was raised from 3.0 MB to 3.2 MB.** The page is 3 013 kB, 732 kB gzipped. Everything that can be lazy is; what remains is 3 018 postal areas × 62 values, 308 kunta outlines and the indicator registry. The reason is written beside the number | `scripts/build_dashboard.py` |
+| 10 | **42 of 380 lukios carry no matriculation result** — adult lines, schools abroad and renamed schools whose YTL name does not exactly match the register. Listed in `schools.json` under `join.unjoined_ytl_schools` | `docs/SCHOOLS_FI.md` §2 |
+| 11 | **99 of 308 kunnat have no flood figure at all** — SYKE has not mapped them. This is "not mapped", and the UI says so, but a reader skimming the map could still take a blank for a zero | `docs/CLIMATE_FI.md` §1 |
+| 12 | **Zoning ships as an overlay with no indicator.** No publisher publishes floor area for a plan in preparation anywhere in Finland | `docs/BUILDINGS_FI.md` §3 |
+| 13 | **LIPAS was probed and not built.** The sports-facility register is open and keyless, but no phase asked for it | `docs/PROBE_FI.md` |
+
+### Phase 16 — verification
+
+`scripts/verify.py` now checks the layers too, and checks them the same way: back to the
+publisher, redo the arithmetic, compare. **88 checks, 0 disagreements.**
+
+| Layer | How it is checked |
+|---|---|
+| Climate — flood | the share is **recounted from the publisher's own WMS tiles on disk**, not read from `climate.json` |
+| Climate — radon | read back out of STUK's own spreadsheet, row by row |
+| Buildings | `dw_pre1980` recounted from the raw Ryhti CSV, 5 kunnat |
+| Services | each kunta's point count recounted from its own file against the index's claim |
+| Schools | 5 lukios' matriculation means recomputed from YTL's own candidate rows |
+| Infra | the curated budgets checked against `data/external/infra_fi.csv`, the list of record |
+
+Full export `docs/verification/v1_1.csv`: 16 788 rows.
