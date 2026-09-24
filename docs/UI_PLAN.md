@@ -129,7 +129,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   nearby in their own files; UTF-8 BOM `;` CSV; unit/magnitude assertion.
 - ☑ **P8 Number and label fixes** — EUR/m² and EUR/m²/month units; vs-median in pp or absolute, never
   % of a median; compound annual outlook rate; period label per indicator; `#n of N` everywhere; fi-FI.
-- ☐ **P9 Responsive** — ≤ 1024 px top bar + drawer; stacking; table scroll; legend pill; no overflow
+- ☑ **P9 Responsive** — ≤ 1024 px top bar + drawer; stacking; table scroll; legend pill; no overflow
   at 1366×768, 1440×900, 1536×864, 390×844.
 - ☐ **P10 Tests, screenshots, wrap-up** — `tests/ui_v2.spec.py` green, `docs/ui_v2/*.png` at 1440 and
   390, README screenshots, CHANGELOG v2.0 draft, this file final.
@@ -473,6 +473,27 @@ uses `.` and no grouping), every change signed, a change of a share in pp.
 **Also:** the lone `°` is gone from every surface. A table cell carries a `muni` tag and dims; a map
 popup says *From the kunta*; an exported chart says *(kunta)* and its footer explains it.
 
+### P9 — responsive ☑
+Commit: `fix: v2.0 P9 — a top bar and a drawer below 1024, and nothing that overflows`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 65/65.
+
+**Built**
+1. **No horizontal overflow on any of the ten routes at 1366×768, 1440×900, 1536×864 or 390×844.**
+   The root cause was one line of CSS that was not there: a grid item's default `min-width:auto` lets
+   its widest child set its width, so the 12 533 px Areas table made `main` — and with it the whole
+   page — 12 533 px wide, however many `overflow:auto` boxes were wrapped around it. `.app, main,
+   #body, .card, .studyrow` can all shrink now, and every table sits in a scroll box.
+2. **≤ 1024 px**: the sidebar is a 52 px top bar with a ☰ drawer (Esc closes it and focus returns to
+   the toggle — shipped in P1, asserted here); the study row, the map card and the toolbars stack.
+3. **≤ 700 px**: the chips and the Data tabs scroll sideways instead of wrapping into four rows above
+   the map; the tiles go to two columns; the page gutter is 16 px and card padding 12 px (the spec's
+   own mobile metrics), which is what makes the map 334 px wide on a 390 px phone; every popover is
+   capped at the viewport width.
+4. **The legends collapse behind one `Legend ▾` pill** on a phone — a legend card covers the map it
+   explains at that size.
+5. **One export affordance.** The two inline `⤓ Export CSV` buttons in the Areas and Projects
+   toolbars are gone; Export ▾ is the only one.
+
 ## 6. Next
 
-Start P9 — responsive.
+Start P10 — tests, screenshots and the wrap-up.

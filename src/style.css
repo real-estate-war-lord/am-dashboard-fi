@@ -2055,3 +2055,69 @@ body.has-full{overflow:hidden}
 .tag-muni.muni{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.05em;
   background:var(--inh-bg);color:var(--inh);border-radius:5px;padding:0 4px;margin-left:3px;vertical-align:1px}
 .olwin{margin-top:4px;font-family:var(--mono);font-size:10.5px}
+
+/* ===================================================================================
+   v2.0 P9 — responsive: a top bar and a drawer below 1024, and nothing that overflows
+   =================================================================================== */
+/* Nothing may make the page wider than the window. Three offenders in v1.1: a table that was
+   never in a scroll box, a breadcrumb whose last two parts could not shrink, and the chips row. */
+.card,.seclist,.mstrip,.tpmaptools,.datatabs{max-width:100%;min-width:0}
+.tbl{max-width:100%}
+.card>.tbl,.seclist .secbody>.tbl{display:block;overflow-x:auto}
+#hd,.crumbs{min-width:0}
+.crumbs b{min-width:0;overflow-wrap:anywhere}
+.crumbs .dim{overflow-wrap:anywhere}
+.iq{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.studyrow .panel .chart,.studyrow .panel svg{max-width:100%}
+.anfacts,.hl,.hero{min-width:0}
+
+@media (max-width:1024px){
+  /* the study row, the tools and the map card all become one column */
+  .studyrow{grid-template-columns:1fr}
+  .mstrip{grid-template-columns:1fr}
+  .mstrip-act{grid-column:1;padding-right:26px}
+  #mapcard .tools,.card-head.tools-only .tools{flex-wrap:wrap}
+  .msearch{flex:1 1 100%;max-width:none}
+  .topbar{flex-wrap:wrap;row-gap:6px}
+  #hdact{width:100%;justify-content:flex-end}
+}
+@media (max-width:700px){
+  /* the chips scroll sideways rather than wrapping into four rows above a 55vh map */
+  .iq{flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px;-webkit-overflow-scrolling:touch}
+  .iqb{flex:0 0 auto}
+  .datatabs{overflow-x:auto;flex-wrap:nowrap}
+  .dtab{flex:0 0 auto}
+  .tfilters{flex-wrap:wrap}
+  #lfmap{height:55vh;min-height:320px}
+  .studyrow .minimap #armap,.studyrow .minimap #anmap{min-height:320px}
+  .arhead .hl,.anhead .hl{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mstrip-k{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3)}
+  .anhead .anlab{font-size:22px}
+  .pnv{font-size:24px}
+  .crumbs b{font-size:16px}
+  .exmenu,.lypop,.ipkpop,.mqpop{max-width:calc(100vw - 24px)}
+  /* every legend on a map collapses behind one pill */
+  .mapwrap .maplegend,.mapwrap .maplegs{display:none}
+  .mapwrap.legs-open .maplegend,.mapwrap.legs-open .maplegs{display:flex}
+  .mapwrap.legs-open .maplegend{display:block}
+  .legpill{display:inline-flex}
+}
+.legpill{display:none;position:absolute;left:8px;bottom:8px;z-index:801;align-items:center;gap:5px;
+  height:26px;padding:0 10px;background:rgba(255,255,255,.95);border:1px solid var(--line);
+  border-radius:13px;font-family:var(--mono);font-size:11px;color:var(--ink);cursor:pointer}
+/* A grid item's default `min-width:auto` lets its widest child set its width, so one 12 533 px
+   table made `main` — and with it the whole page — 12 533 px wide however many overflow:auto
+   boxes were wrapped around it. The chain has to be able to shrink. */
+.app,main,#body,#body>*,.topbar,.card,.seclist,.studyrow,.studyrow>*{min-width:0}
+main{overflow-x:hidden}
+
+/* the spec's mobile metrics: a 16 px page gutter and 12 px card padding, so the map is as wide as
+   a phone can make it; and the legend pill's own rule has to come after the base one it overrides */
+@media (max-width:700px){
+  :root{--gutter:16px}
+  .card{padding:12px}
+  #mapcard{padding:8px}
+  .mstrip{padding:10px 12px}
+  #body{padding:10px var(--gutter) 48px}
+  .legpill{display:inline-flex}
+}

@@ -710,8 +710,6 @@ document.addEventListener("click", e => {
   if (g("[data-navclose]")) { navToggle(false); return; }
   if ((el = g("[data-go]"))) { navToggle(false); go(el.dataset.go); return; }
   if ((el = g("[data-tlevel]"))) { T.level = el.dataset.tlevel; if (!curInds().some(i => i.key === MK.ind)) MK.ind = curInds()[0].key; syncHash(); renderKeep(); return; }
-  if (g("[data-csv]")) { exportCsv(); return; }
-  if (g("[data-csv-pipe]")) { exportPipelineCsv(); return; }
   if (g("[data-back]")) { history.back(); return; }
   if ((el = g("[data-ancopy]"))) { tpAction("copy", el); return; }
   if ((el = g("[data-pipe]"))) { const f = INFRA_BY[el.dataset.pipe];
@@ -725,6 +723,9 @@ document.addEventListener("click", e => {
     go(hashFor()); return; }
   if ((el = g("[data-tpexample]"))) { const i = document.getElementById("tpq");
     if (i) { i.value = el.dataset.tpexample; i.focus(); } TP.toProp = true; tpGo(el.dataset.tpexample); return; }
+  if ((el = g("[data-legpill]"))) { const w = el.closest(".mapwrap");
+    const on = w.classList.toggle("legs-open"); el.setAttribute("aria-expanded", on ? "true" : "false");
+    el.textContent = on ? "Legend ▴" : "Legend ▾"; return; }
   if ((el = g("[data-lgfold]"))) { const k = el.dataset.lgfold; LEG_FOLD[k] = !LEG_FOLD[k]; mmFoldable(k); return; }
   if (g("[data-lyopen]")) { layersToggle(); return; }
   if (g("[data-cardfold]")) { UI.mapCard = !UI.mapCard; syncHash(); mkRefreshStrip(); return; }
@@ -955,6 +956,9 @@ function scaleOf(list, vk, fixed, ind) {
   const t = v => { if (v == null || isNaN(v)) return null; let c = 0; while (c < breaks.length && v > breaks[c]) c++; return n > 1 ? c / (n - 1) : .5; };
   return { t, lo: vals[0], hi: vals[vals.length - 1], breaks, classes: n, n: vals.length };
 }
+/* On a phone a legend card covers the map it explains, so every legend on a map hides behind one
+   pill and the reader opens them when they want them (spec §6). */
+const legendPill = () => `<button class="legpill" data-legpill aria-expanded="false">Legend ▾</button>`;
 function legendHtml(sc, ind, key, note) {
   /* class-break legend drawn on top of the map (bottom right) */
   const f = fmtTight(ind); const b = sc.breaks || []; const n = sc.classes || 0;
@@ -1590,7 +1594,7 @@ function vMakro() {
       <div id="mkquick">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
     <div id="mkexplain">${microMode() ? microExplain() : indExplain(ind)}</div>
     <div id="mkstrip">${muni && !microMode() ? muniStrip(muni) : ""}</div>
-    <div class="mapwrap" data-testid="map"><div id="lfmap"></div><div class="maplegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div>
+    <div class="mapwrap" data-testid="map"><div id="lfmap"></div>${legendPill()}<div class="maplegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div>
     ${srcNote(`<p class="cap">${muni ? "Click a polygon for its figures and a link to its page." : "Click a polygon for its figures; open a municipality with the search box above or from the popup. Table view lists everything side by side."} Colour classes: quintiles of the visible areas. Boundaries: Tilastokeskus (simplified, CC BY 4.0); basemap OpenStreetMap.${MK.srv ? ` <b>Services:</b> ${esc(srvAttribLine())}.` : ""}</p>`)}
   </div>`;
 }
@@ -1659,7 +1663,6 @@ function vTable() {
       ${T.level !== "osa_alue" ? `<select id="tregion" class="indsel"><option value="">All regions</option>${REGIONS.map(r => `<option value="${r}" ${T.region === r ? "selected" : ""}>${r}</option>`).join("")}</select>` : ""}
       <label class="hint">min. population <input id="tminpop" type="number" min="0" step="1000" value="${T.minPop}" style="width:90px"></label>
       <span class="hint" id="tcount">${tableRows().length} rows</span>
-      <button class="lk mini" data-csv>⤓ Export CSV</button>
     </div>
     <div class="scrollx"><table class="tbl compact wraphead" data-testid="areas-table" data-sortable><thead><tr>
       <th>${T.level === "osa_alue" ? "Osa-alue" : T.level === "postinumero" ? "Area" : "Municipality"}</th><th>${T.level === "postinumero" ? "Postal code" : "Code"}</th><th>${T.level === "osa_alue" ? "District" : T.level === "postinumero" ? "Municipality" : "Region"}</th><th class="num">Population</th>
@@ -2277,7 +2280,7 @@ function studyRow(e, ind, mapId, mapHint, extraLegends) {
     <div class="card panel minimap" data-testid="minimap">
       <div class="card-head"><h3>${esc(ind.short || ind.label)}</h3><span class="hint">${esc(mapHint || "")}</span>
         <button class="tbtn mmfull" data-testid="minimap-full" data-mmfull="${esc(mapId)}" title="Full screen (Esc closes)">⤢</button></div>
-      <div class="mapwrap"><div id="${esc(mapId)}"></div>
+      <div class="mapwrap"><div id="${esc(mapId)}"></div>${legendPill()}
         <div class="maplegs mmlegs">${extraLegends || ""}<div class="maplegend small" data-testid="legend" id="${esc(mapId)}legend"></div></div></div>
     </div></div>`;
 }
@@ -5041,7 +5044,7 @@ function vPipeline() {
       <select id="pptype" class="indsel"><option value="">All types</option>${types.map(x => `<option value="${x}" ${PIPE.type === x ? "selected" : ""}>${esc(INFRA_TYPE[x] || x)}</option>`).join("")}</select>
       <select id="ppstatus" class="indsel"><option value="">All statuses</option>${Object.keys(INFRA_ORDER).map(s => `<option value="${s}" ${PIPE.status === s ? "selected" : ""}>${esc(INFRA_ST[s].label)}</option>`).join("")}</select>
       <span class="hint">${rows.length} of ${INFRA_ALL.length} projects</span>
-      <button class="lk mini" data-csv-pipe>⤓ Export CSV</button></div></div>
+      </div></div>
     <div class="scrollx"><table class="tbl compact wraphead" data-testid="projects-table" data-sortable><thead><tr>
       <th>Project</th><th>Type</th><th>Status</th><th>Opening</th><th class="num">Budget<br><span class="dim">bn EUR</span></th><th>Agency</th><th>Municipalities</th></tr></thead>
       <tbody>${rows.map(f => { const p = f.properties; const kom = (p.kunnat || []).map(c => (byCode[c] || {}).name).filter(Boolean);

@@ -1210,6 +1210,117 @@ def _fi_numbers(page, base):
 
 
 # ===========================================================================
+# P9 — responsive
+# ===========================================================================
+
+
+@check("P9-no-overflow-1366", phase="P9", viewport="1366x768")
+def _no_overflow_1366(page, base):
+    """nothing makes the page wider than the window at 1366"""
+    _sweep_widths(page, base)
+
+
+@check("P9-no-overflow-1440", phase="P9", viewport="1440x900")
+def _no_overflow_1440(page, base):
+    """…nor at 1440"""
+    _sweep_widths(page, base)
+
+
+@check("P9-no-overflow-1536", phase="P9", viewport="1536x864")
+def _no_overflow_1536(page, base):
+    """…nor at 1536"""
+    _sweep_widths(page, base)
+
+
+@check("P9-no-overflow-390", phase="P9", viewport="390x844")
+def _no_overflow_390(page, base):
+    """…nor on a phone"""
+    _sweep_widths(page, base)
+
+
+def _sweep_widths(page, base):
+    bad = []
+    for name, route in ROUTES:
+        goto(page, base, route)
+        page.wait_for_timeout(700)
+        if not no_overflow(page):
+            sw = page.evaluate("document.documentElement.scrollWidth")
+            iw = page.evaluate("window.innerWidth")
+            who = page.evaluate("""() => { const out = [];
+                document.querySelectorAll('*').forEach(e => { const r = e.getBoundingClientRect();
+                  if (r.right > window.innerWidth + 1 && r.width > 0)
+                    out.push(e.tagName + '.' + String(e.className && e.className.baseVal !== undefined
+                      ? e.className.baseVal : e.className || '').slice(0, 28)); });
+                return out.slice(0, 3); }""")
+            bad.append((name, sw, iw, who))
+        if ERRORS:
+            bad.append((name, ERRORS[0]))
+    assert not bad, bad
+
+
+@check("P9-drawer", phase="P9", viewport="390x844")
+def _drawer(page, base):
+    """the sidebar becomes a 52 px top bar with a drawer that Esc closes"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(900)
+    assert page.eval_on_selector("[data-testid=sidebar]", "e => e.getBoundingClientRect().right <= 1")
+    tog = page.query_selector("[data-testid=nav-toggle]")
+    assert tog and tog.bounding_box()["height"] <= 56, tog.bounding_box() if tog else None
+    page.click("[data-testid=nav-toggle]")
+    page.wait_for_timeout(400)
+    assert page.eval_on_selector("[data-testid=sidebar]", "e => e.getBoundingClientRect().x >= -1")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert page.eval_on_selector("[data-testid=sidebar]", "e => e.getBoundingClientRect().right <= 1")
+    assert page.evaluate("document.activeElement.dataset.testid") == "nav-toggle", "focus did not return"
+    # the map still fills the width
+    box = boxes(page, "[data-testid=map]")[0]
+    assert box["w"] >= 320, box
+    assert box["x"] >= 0 and box["right"] <= 391, box
+
+
+@check("P9-stacks", phase="P9", viewport="390x844")
+def _stacks(page, base):
+    """the study row stacks, the table scrolls inside its card, the legends hide behind a pill"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2500)
+    panel = boxes(page, "[data-testid=chart-panel]")[0]
+    mini = boxes(page, "[data-testid=minimap]")[0]
+    assert panel["y"] < mini["y"], "the map is not below the chart"
+    assert panel["h"] >= 280 and mini["h"] >= 280, (panel["h"], mini["h"])
+
+    goto(page, base, "#data/areas/kunta")
+    page.wait_for_timeout(2200)
+    sc = page.eval_on_selector("[data-testid=areas-table]", "e => { const b = e.closest('.scrollx');"
+                               " return [b.scrollWidth > b.clientWidth, b.clientWidth]; }")
+    assert sc[0], "the wide table does not scroll inside its card"
+    assert sc[1] <= 390, sc
+
+    goto(page, base, "#map")
+    page.wait_for_timeout(1800)
+    pill = page.query_selector(".mapwrap .legpill")
+    assert pill, "no legend pill on a phone"
+    pill.scroll_into_view_if_needed()
+    assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetParent === null"), "legend shown by default"
+    pill.click()
+    page.wait_for_timeout(300)
+    assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetParent !== null"), "pill did not open it"
+
+
+@check("P9-one-export-affordance", phase="P9")
+def _one_export(page, base):
+    """Export ▾ is the only export control — no inline CSV buttons left beside it"""
+    for h in ["#data/areas/kunta", "#data/projects", "#data/sources"]:
+        goto(page, base, h)
+        page.wait_for_timeout(1200)
+        btns = page.eval_on_selector_all(
+            "button", "els => els.filter(e => !e.closest('.exmenu'))"
+                      ".map(e => e.textContent.trim())"
+                      ".filter(t => /export|csv/i.test(t))")
+        assert all("Export ▾" in t for t in btns), (h, btns)
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
