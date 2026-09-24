@@ -61,6 +61,11 @@ def check_source(ind, s, show, cache):
     # through the indicator's `num`/`den`, which scripts/fetch_statfin.py turns into the
     # contentscode selection. Both are checked here, the same way the fetcher reads them.
     sel = dict(s.get("vars") or {})
+    # the fetcher always asks for the whole area and time axes; the validator must know that
+    # or it reports a variable as unselected that every request in fact selects
+    for axis in (s.get("area_var"), s.get("time_var")):
+        if axis and axis in vars_ and axis not in sel:
+            sel[axis] = ["*"]
     if "contentscode" in vars_ and "contentscode" not in sel:
         known = set(vars_["contentscode"]["values"])
         implied = [c for c in list(ind.get("num") or []) + list(ind.get("den") or []) if c in known]

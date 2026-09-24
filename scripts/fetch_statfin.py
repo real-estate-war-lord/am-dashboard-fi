@@ -59,7 +59,9 @@ def plan(sel, meta_vars):
     def width(code):
         v = sel[code]
         return len(meta_vars[code]["values"]) if v == ["*"] else len(v)
-    splittable = [c for c in sel if sel[c] != ["*"]]
+    # only a variable with more than one value can be split; splitting a single-value
+    # selection would produce the same query again and recurse forever
+    splittable = [c for c in sel if sel[c] != ["*"] and len(sel[c]) > 1]
     if splittable:
         code = max(splittable, key=width)
         out = []
@@ -72,6 +74,8 @@ def plan(sel, meta_vars):
     # nothing left but the area and time axes: split time into runs
     time_code = next((c for c in sel if meta_vars[c].get("time")), None)
     if not time_code:
+        print(f"    ⚠ a single request still asks for {size(sel):,} cells and nothing is left to "
+              f"split — the publisher may refuse it (HTTP 403)")
         return [(sel, "all")]
     years = meta_vars[time_code]["values"]
     per = max(1, CELL_CAP // max(1, size({k: v for k, v in sel.items() if k != time_code})))

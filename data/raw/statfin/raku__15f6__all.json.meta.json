@@ -1,0 +1,33 @@
+{
+ "table": "raku/15f6",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/raku/15f6.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__raku/15f6.px/",
+ "query": {
+  "asunnon_kaytolo_3_20190101": [
+   "SSS",
+   "0"
+  ],
+  "talotyyppi_4_20210101": [
+   "SSS"
+  ],
+  "rak_valm_v_10_20210101": [
+   "SSS"
+  ],
+  "contentscode": [
+   "asunto_lkm"
+  ],
+  "alue_23_20260101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-09-16T12:00:00Z",
+ "label": "Dwellings by Region 2026, Type of building, Year of construction, Dwelling occupancy, Year and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for vacant",
+ "cells": 618
+}

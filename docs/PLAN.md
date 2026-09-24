@@ -61,7 +61,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 1 | Probe | ✅ | `chore: FI endpoint probe` |
 | 2 | Geometry | ✅ | `data: Finnish boundary layers` |
 | 3 | Area indicators (rows 1–11) | ✅ | `feat: area indicators` |
-| 4 | Market indicators (rows 12–21) | ☐ | |
+| 4 | Market indicators (rows 12–21) | ✅ | `feat: market indicators` |
 | 5 | Taxes (rows 29–30) | ☐ | |
 | 6 | Safety + Outlook (rows 31–33) | ☐ | |
 | 7 | Osa-alue level (row 34) | ☐ | |
@@ -114,8 +114,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - **Size:** the first build was 3.3 MB. Split into two lazy payloads — `dist/area/<kunta>.json` (detailed postal rings + history) and `dist/monthly.json` — bringing the page to 2 810 kB with makro.json at 2 212 kB.
 - Checks: validate ✓ · links ✓ 6/6 · test ✓ 24+15 · build ✓ · fixture ✓ · 8 of 8 spot-checks reconcile exactly against the published cells.
 
+### Phase 4 — Market indicators ✅
+- 14 more indicators: old-flat price €/m² and sales (kerrostalo and rivitalo separately, postal and kunta), free-market rent, ARA rent, rent y/y and rent observations, the discontinued postal-code rent series, unoccupied dwellings, total and intermunicipal net migration, and dwellings completed / started / permitted per 1 000 dwellings. **28 indicators live.**
+- Yearly | Quarterly toggle wired to the publisher's own quarterly series (`histq`), and a new **^** marker for a figure published for a coarser area than the row — rents and construction exist per maakunta for most of the country.
+- Three things the spec assumed and the data refused: no building-type total in the price tables (solved by a sales-weighted mean of published classes), no municipal construction data anywhere in StatFin (maakunta figures, marked ^), and `ashi/12dg` entirely null (not registered).
+- **Size:** kunta history moved to `dist/hist.json`; the page is 2 137 kB with a hard 3 MB guard in the build.
+- Checks: validate ✓ · links ✓ 14/14 · test ✓ 24+15 · build ✓ · fixture ✓ · 9 spot-checks reconcile exactly.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 4 — market indicators (rows 12–21): prices (`ashi` 13mt/13mu/13mx), rents (`asvu` 15fa live + the frozen 13eb), production (`raku`, maakunta only), stock and vacancy (`raku/15f6`), net migration (`muutl`).
+**Next action:** Phase 5 — taxes (rows 29–30): `import_verohallinto.py`, property-tax % and municipal income-tax % per kunta, group "Taxes".

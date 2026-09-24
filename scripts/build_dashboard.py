@@ -153,7 +153,7 @@ def main():
     out.write_text(html, encoding="utf-8")
     # the infrastructure layer is inlined in the page, and also served as files so it can be reused
     for src in (ROOT / "data" / "geo" / "infra_projects.geojson", PROC / "infra_index.json",
-                PROC / "public_index.json", PROC / "schools.json", PROC / "monthly.json"):
+                PROC / "public_index.json", PROC / "schools.json", PROC / "monthly.json", PROC / "hist.json"):
         if src.exists():
             import shutil
             shutil.copy(src, out.parent / src.name)
@@ -194,7 +194,17 @@ def main():
             shutil.copy(f, md / f.name)
         print(f"copied {len(list(md.glob('*.json')))} micro files → {md}")
     kunnat_lookup(out.parent)
-    print(f"wrote {out} ({out.stat().st_size/1e6:.1f} MB) · {len(data['municipalities'])} kunnat · {len(data['areas'])} areas")
+    n = out.stat().st_size
+    print(f"wrote {out} ({n/1e6:.1f} MB) · {len(data['municipalities'])} kunnat · {len(data['areas'])} areas")
+    # The repo's ceiling. It is a hard failure, not a warning: a page that creeps past it is
+    # slow for everyone on a phone, and the fix is always to move something to a lazy payload.
+    CEILING = 3_000_000
+    if n > CEILING:
+        raise SystemExit(f"✗ {out.name} is {n:,} B, over the {CEILING:,} B ceiling — move a series "
+                         f"into a lazy payload (see scripts/build_makro.py)")
+    for q in sorted(out.parent.glob("*.json")) + sorted((out.parent / "area").glob("*.json")):
+        if q.stat().st_size > CEILING:
+            raise SystemExit(f"✗ {q.name} is {q.stat().st_size:,} B, over the {CEILING:,} B ceiling")
 
 
 if __name__ == "__main__":

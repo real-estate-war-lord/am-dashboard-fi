@@ -1,0 +1,27 @@
+{
+ "table": "StatFin_Passiivi:asvu/13eb_2025q4",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin_Passiivi/asvu/statfinpas_asvu_pxt_13eb_2025q4.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin_Passiivi/StatFin_Passiivi__asvu/statfinpas_asvu_pxt_13eb_2025q4.px/",
+ "query": {
+  "Huoneluku": [
+   "01"
+  ],
+  "Tiedot": [
+   "keskivuokra",
+   "lkm_ptno"
+  ],
+  "Postinumero": [
+   "*"
+  ],
+  "Vuosineljännes": [
+   "*"
+  ]
+ },
+ "updated": "2026-01-15T06:00:00Z",
+ "label": "Average rents per square meter for non-subsidised rental dwellings by postal code area by Quarter, Postal code, Number of rooms and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for rent_pno",
+ "cells": 51040
+}

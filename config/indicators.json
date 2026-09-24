@@ -1,5 +1,5 @@
 {
-  "_doc": "Indicator registry for the Finland edition. One indicator = one entry in `indicators`. **The hard-data rule: every entry here is an official published figure or plain arithmetic on official figures — a difference, a share, a sum, a per-1,000. No entry may use an assumption, a fitted trend, a cap or a model of our own.** FIELDS — `key`: the id used in makro.json, the URL hash and the CSV export. `label` / `short` / `unit`: UI text. `level`: the finest geography the indicator natively exists at — 'kunta' | 'postinumero' | 'osa_alue'; a coarser value shown on a finer polygon is marked ° in the UI. `group`: which section of the indicator select it sits in (GROUP_ORDER in src/app.js: Demographics, Income & jobs, Housing stock, Market, Construction, Taxes, Safety, Outlook, Schools, Growth signals). `hue`: RGB target for the choropleth ramp (paper #E8EDE7 → hue). `fmt`: a key of FMT in src/app.js. `direction`: 'higher_better' | 'lower_better' | 'neutral' — which end of the scale is favourable; 'neutral' is never coloured good/bad and never carries the '↓ lower is better' note. `desc` / `note` / `warn`: the ⓘ details, the glossary line and the caveat. `chip: true` puts the indicator in the quick-pick chip row. SOURCES — `sources` is the list the fetcher pulls, one entry per level: {`src`: 'statfin' | 'paavo' | 'aluesarjat' | 'kela' | 'vero' | 'hri', `table`: '<db>/<id>' for StatFin (e.g. 'ashi/13mt'), `vars`: {<variable code>: [<value codes>]} exactly as the PxWeb metadata spells them, `geo`: the level this source serves, `area_var`: the PxWeb variable holding the area code, `contents`: the contentscode value the number comes from}. A variable left out of `vars` is returned as its total only when the PxWeb metadata says elimination=true — scripts/validate_config.py checks that for every entry. `src_verify` is the list behind the 'Verify at source' link; each entry carries `geo`, and either `table` ('<db>/<id>', which becomes the pxdata.stat.fi table page) or a full `url` for a file source. VINTAGES — a StatFin area variable carries its classification year in its own name (`postinumeroalue_4_20220101`, `alue_2026`). It is recorded verbatim in `vars`, and two tables on different vintages are never joined silently: docs/GEO.md lists which vintage each table is on and what we do about it. CALCS — `calc` names the post-processing in scripts/build_makro.py: 'passthrough', 'share_of_total', 'yoy_pct', 'per_1000_dwellings', 'ratio_pct', 'sum4q', 'rolling4q_per_1000_pop', 'rolling4q_per_1000_dwellings', 'rolling4q_yoy_pct', 'forecast'. `select` narrows the rows a calc sees; a value may be a list of codes, in which case matching rows are summed. `history_from` is the first year of the yearly history in Charts; `map_from` the first year the map/table year selector offers. SUPPRESSION — Paavo suppresses areas under 30 residents / 10 households and StatFin's ashi and asvu suppress cells with too few observations. A suppressed cell is null and is shown as '–'. It is never read as 0, and an area we do not cover reads 'Not covered yet' rather than a number.",
+  "_doc": "Indicator registry for the Finland edition. One indicator = one entry in `indicators`. **The hard-data rule: every entry here is an official published figure or plain arithmetic on official figures — a difference, a share, a sum, a per-1,000. No entry may use an assumption, a fitted trend, a cap or a model of our own.** FIELDS — `key`: the id used in makro.json, the URL hash and the CSV export. `label` / `short` / `unit`: UI text. `level`: the finest geography the indicator natively exists at — 'kunta' | 'postinumero' | 'osa_alue'; a coarser value shown on a finer polygon is marked ° in the UI. `group`: which section of the indicator select it sits in (GROUP_ORDER in src/app.js: Demographics, Income & jobs, Housing stock, Market, Construction, Taxes, Safety, Outlook, Schools, Growth signals). `hue`: RGB target for the choropleth ramp (paper #E8EDE7 → hue). `fmt`: a key of FMT in src/app.js. `direction`: 'higher_better' | 'lower_better' | 'neutral' — which end of the scale is favourable; 'neutral' is never coloured good/bad and never carries the '↓ lower is better' note. `desc` / `note` / `warn`: the ⓘ details, the glossary line and the caveat. `chip: true` puts the indicator in the quick-pick chip row. SOURCES — `sources` is the list the fetcher pulls, one entry per level: {`src`: 'statfin' | 'paavo' | 'aluesarjat' | 'kela' | 'vero' | 'hri', `table`: '<db>/<id>' for StatFin (e.g. 'ashi/13mt'), `vars`: {<variable code>: [<value codes>]} exactly as the PxWeb metadata spells them, `geo`: the level this source serves, `area_var`: the PxWeb variable holding the area code, `contents`: the contentscode value the number comes from}. A variable left out of `vars` is returned as its total only when the PxWeb metadata says elimination=true — scripts/validate_config.py checks that for every entry. `src_verify` is the list behind the 'Verify at source' link; each entry carries `geo`, and either `table` ('<db>/<id>', which becomes the pxdata.stat.fi table page) or a full `url` for a file source. VINTAGES — a StatFin area variable carries its classification year in its own name (`postinumeroalue_4_20220101`, `alue_2026`). It is recorded verbatim in `vars`, and two tables on different vintages are never joined silently: docs/GEO.md lists which vintage each table is on and what we do about it. CALCS — `calc` names the post-processing in scripts/build_makro.py: 'passthrough', 'share_of_total', 'yoy_pct', 'per_1000_dwellings', 'ratio_pct', 'sum4q', 'rolling4q_per_1000_pop', 'rolling4q_per_1000_dwellings', 'rolling4q_yoy_pct', 'forecast'. `select` narrows the rows a calc sees; a value may be a list of codes, in which case matching rows are summed. `history_from` is the first year of the yearly history in Charts; `map_from` the first year the map/table year selector offers. SUPPRESSION — Paavo suppresses areas under 30 residents / 10 households and StatFin's ashi and asvu suppress cells with too few observations. A suppressed cell is null and is shown as '–'. It is never read as 0, and an area we do not cover reads 'Not covered yet' rather than a number. A source entry may carry `cells`: {published code: the indicator's code}, for when the same figure is spelled differently in two tables — ashi/13mt names blocks of flats by room count while ashi/13mx names them 3, and neither table is wrong.",
   "history_years": 12,
   "indicators": [
     {
@@ -780,6 +780,1001 @@
       ],
       "note": "Kela counts recipient households (saajaruokakunta) at the end of the month; Paavo counts household-dwelling units (asuntokunta) at 31 December. The two are close but not identical concepts, so read the share as an order of magnitude, not a precise ratio.",
       "warn": "Kela's monthly recipient count and Paavo's annual household count are different concepts measured at different dates."
+    },
+    {
+      "key": "price_m2",
+      "label": "Old flats, price per m²",
+      "short": "Price",
+      "unit": "€ / m²",
+      "fmt": "eur0",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "chip": true,
+      "desc": "Average price per square metre of old dwellings in housing companies (kerrostalo, all room counts), from realised transactions. The yearly figure is the published annual one; the quarterly series behind the Yearly | Quarterly toggle is the publisher's own quarterly table.",
+      "calc": "weighted_mean",
+      "num": [
+        "1|keskihinta_aritm_nw",
+        "2|keskihinta_aritm_nw",
+        "3|keskihinta_aritm_nw"
+      ],
+      "weight": [
+        "1|lkm_julk20",
+        "2|lkm_julk20",
+        "3|lkm_julk20"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mu",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mt",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_q",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "ashi/13mx",
+          "area_var": "kunta_1_20150101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_5_20111209",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_5_20111209": [
+              "0",
+              "1",
+              "3"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          },
+          "cells": {
+            "3|keskihinta_aritm_nw": "1|keskihinta_aritm_nw",
+            "3|lkm_julk20": "1|lkm_julk20"
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "ashi/13mx"
+        },
+        {
+          "geo": "postinumero",
+          "table": "ashi/13mt"
+        }
+      ],
+      "source": "Tilastokeskus ashi 13mu (postinumero, yearly) · 13mt (postinumero, quarterly) · 13mx (kunta, yearly)",
+      "tables": [
+        "ashi/13mt",
+        "ashi/13mu",
+        "ashi/13mx"
+      ],
+      "note": "ashi publishes the arithmetic mean price per square metre and the number of sales for every building-type class. A class total is the sales-weighted mean of its classes — exactly the arithmetic mean over the underlying transactions, since the weight is each class's own transaction count. No class is estimated: a suppressed class is left out of both sums and the area reads – when nothing is left. At kunta level the same figure comes from 13mx, whose building-type classification differs (0 = all types, 1 = terraced, 3 = blocks of flats); the blocks-of-flats class is used, so the two levels mean the same thing.",
+      "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
+    },
+    {
+      "key": "price_sales",
+      "label": "Sales of old flats",
+      "short": "Sales",
+      "unit": "per year",
+      "fmt": "int",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Number of realised transactions behind the price above (kerrostalo, all room counts). A price is only as good as the count under it, so the two are always shown together.",
+      "calc": "sum",
+      "num": [
+        "1|lkm_julk20",
+        "2|lkm_julk20",
+        "3|lkm_julk20"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mu",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mt",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_q",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "ashi/13mx",
+          "area_var": "kunta_1_20150101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_5_20111209",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_5_20111209": [
+              "0",
+              "1",
+              "3"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          },
+          "cells": {
+            "3|lkm_julk20": "1|lkm_julk20"
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "ashi/13mx"
+        },
+        {
+          "geo": "postinumero",
+          "table": "ashi/13mu"
+        }
+      ],
+      "source": "Tilastokeskus ashi 13mu / 13mt / 13mx (asset transfer tax data from 2020)",
+      "tables": [
+        "ashi/13mt",
+        "ashi/13mu",
+        "ashi/13mx"
+      ],
+      "note": "Counts come from asset transfer tax data from 2020 onwards (lkm_julk20). Where the publisher suppressed a class, that class is missing from the count as well as from the price.",
+      "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
+    },
+    {
+      "key": "price_rt",
+      "label": "Terraced houses, price per m²",
+      "short": "Rivitalo",
+      "unit": "€ / m²",
+      "fmt": "eur0",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Average price per square metre of old terraced houses (rivitalo) in housing companies.",
+      "calc": "weighted_mean",
+      "num": [
+        "5|keskihinta_aritm_nw"
+      ],
+      "weight": [
+        "5|lkm_julk20"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mu",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "ashi/13mt",
+          "area_var": "postinumeroalue_4_20220101",
+          "time_var": "timeperiod_q",
+          "key_vars": [
+            "talotyyppi_6_20131021",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_6_20131021": [
+              "1",
+              "2",
+              "3",
+              "5"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          }
+        },
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "ashi/13mx",
+          "area_var": "kunta_1_20150101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "talotyyppi_5_20111209",
+            "contentscode"
+          ],
+          "vars": {
+            "talotyyppi_5_20111209": [
+              "0",
+              "1",
+              "3"
+            ],
+            "contentscode": [
+              "keskihinta_aritm_nw",
+              "lkm_julk20"
+            ]
+          },
+          "cells": {
+            "1|keskihinta_aritm_nw": "5|keskihinta_aritm_nw",
+            "1|lkm_julk20": "5|lkm_julk20"
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "ashi/13mx"
+        },
+        {
+          "geo": "postinumero",
+          "table": "ashi/13mu"
+        }
+      ],
+      "source": "Tilastokeskus ashi 13mu / 13mt (postinumero) · 13mx (kunta)",
+      "tables": [
+        "ashi/13mt",
+        "ashi/13mu",
+        "ashi/13mx"
+      ],
+      "note": "Terraced houses are far fewer transactions than flats, so this is suppressed in many areas. A missing figure means too few sales to publish, not cheap housing.",
+      "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
+    },
+    {
+      "key": "rent",
+      "label": "Free-market rent",
+      "short": "Rent",
+      "unit": "€ / m² / month",
+      "fmt": "eur1",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "chip": true,
+      "desc": "Average rent per square metre per month for non-subsidised (vapaarahoitteiset) rental dwellings, all room counts, from the publisher's quarterly rent statistics.",
+      "calc": "passthrough",
+      "num": [
+        "1|SSS|asvu_keskineliovuokra"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "asvu/15fa",
+          "area_var": "alue_44_20260101",
+          "time_var": "timeperiod_q",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rahoitus_2_20260101",
+            "huoneluku_5_20260101",
+            "contentscode"
+          ],
+          "vars": {
+            "rahoitus_2_20260101": [
+              "1"
+            ],
+            "huoneluku_5_20260101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "asvu_keskineliovuokra",
+              "asvu_keskineliovuokra_lkm",
+              "asvu2025_vm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "asvu/15fa"
+        }
+      ],
+      "source": "Tilastokeskus asvu 15fa (rents, quarterly)",
+      "tables": [
+        "asvu/15fa"
+      ],
+      "note": "Published for 27 municipalities and for every maakunta. A kunta with no figure of its own shows its maakunta's, marked ^ — that is a regional average, not a measurement of that municipality.",
+      "warn": "Postal-code rents (asvu 13eb) were discontinued: the last quarter ever published is 2025Q4. This kunta-level series is the live replacement, and the two are not the same geography."
+    },
+    {
+      "key": "rent_obs",
+      "label": "Rent observations",
+      "short": "Rent obs.",
+      "unit": "dwellings",
+      "fmt": "int",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Number of rental dwellings behind the rent above. A rent from a handful of dwellings is not the same fact as a rent from thousands.",
+      "calc": "passthrough",
+      "num": [
+        "1|SSS|asvu_keskineliovuokra_lkm"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "asvu/15fa",
+          "area_var": "alue_44_20260101",
+          "time_var": "timeperiod_q",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rahoitus_2_20260101",
+            "huoneluku_5_20260101",
+            "contentscode"
+          ],
+          "vars": {
+            "rahoitus_2_20260101": [
+              "1"
+            ],
+            "huoneluku_5_20260101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "asvu_keskineliovuokra",
+              "asvu_keskineliovuokra_lkm",
+              "asvu2025_vm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "asvu/15fa"
+        }
+      ],
+      "source": "Tilastokeskus asvu 15fa",
+      "tables": [
+        "asvu/15fa"
+      ],
+      "note": "Where the rent is inherited from the maakunta (^), so is this count.",
+      "warn": ""
+    },
+    {
+      "key": "rent_ara",
+      "label": "Government-subsidised (ARA) rent",
+      "short": "ARA rent",
+      "unit": "€ / m² / month",
+      "fmt": "eur1",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Average rent per square metre per month for government-subsidised (arava- and korkotuki-financed, 'ARA') rental dwellings, all room counts.",
+      "calc": "passthrough",
+      "num": [
+        "2|SSS|asvu_keskineliovuokra"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "asvu/15fa",
+          "area_var": "alue_44_20260101",
+          "time_var": "timeperiod_q",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rahoitus_2_20260101",
+            "huoneluku_5_20260101",
+            "contentscode"
+          ],
+          "vars": {
+            "rahoitus_2_20260101": [
+              "2"
+            ],
+            "huoneluku_5_20260101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "asvu_keskineliovuokra",
+              "asvu_keskineliovuokra_lkm",
+              "asvu2025_vm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "asvu/15fa"
+        }
+      ],
+      "source": "Tilastokeskus asvu 15fa",
+      "tables": [
+        "asvu/15fa"
+      ],
+      "note": "The funding code for government-subsidised rents is 2 in this table and 0 in the discontinued archive table — the codes are inverted between them, so the two must never be spliced by code.",
+      "warn": ""
+    },
+    {
+      "key": "rent_yoy",
+      "label": "Rent change, year on year",
+      "short": "Rent y/y",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Annual change of the rent index for non-subsidised rental dwellings, as published (2025 = 100). Not computed here — this is the publisher's own figure.",
+      "calc": "passthrough",
+      "num": [
+        "1|SSS|asvu2025_vm"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "asvu/15fa",
+          "area_var": "alue_44_20260101",
+          "time_var": "timeperiod_q",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rahoitus_2_20260101",
+            "huoneluku_5_20260101",
+            "contentscode"
+          ],
+          "vars": {
+            "rahoitus_2_20260101": [
+              "1"
+            ],
+            "huoneluku_5_20260101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "asvu_keskineliovuokra",
+              "asvu_keskineliovuokra_lkm",
+              "asvu2025_vm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "asvu/15fa"
+        }
+      ],
+      "source": "Tilastokeskus asvu 15fa, annual change of the rent index",
+      "tables": [
+        "asvu/15fa"
+      ],
+      "note": "The index was rebased to 2025 = 100. Its level is not comparable with the older 2015 = 100 series without chaining, which this dashboard does not do.",
+      "warn": ""
+    },
+    {
+      "key": "rent_pno",
+      "label": "Free-market rent by postal code (discontinued)",
+      "short": "Rent (postal)",
+      "unit": "€ / m² / month",
+      "fmt": "eur1",
+      "group": "Market",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Average rent per square metre per month for non-subsidised rental dwellings by postal code area. Statistics Finland stopped publishing this table; the last quarter is 2025Q4 and there will be no more. It is kept because nothing replaces it below kunta level, and it is labelled with its own end date everywhere it appears.",
+      "calc": "weighted_mean",
+      "num": [
+        "01|keskivuokra",
+        "02|keskivuokra",
+        "03|keskivuokra"
+      ],
+      "weight": [
+        "01|lkm_ptno",
+        "02|lkm_ptno",
+        "03|lkm_ptno"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "StatFin_Passiivi:asvu/13eb_2025q4",
+          "area_var": "Postinumero",
+          "time_var": "Vuosineljännes",
+          "key_vars": [
+            "Huoneluku",
+            "Tiedot"
+          ],
+          "vars": {
+            "Huoneluku": [
+              "01",
+              "02",
+              "03"
+            ],
+            "Tiedot": [
+              "keskivuokra",
+              "lkm_ptno"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "postinumero",
+          "table": "StatFin_Passiivi:asvu/13eb_2025q4"
+        }
+      ],
+      "source": "Tilastokeskus asvu 13eb (discontinued; archived at 2025Q4)",
+      "tables": [
+        "StatFin_Passiivi:asvu/13eb_2025q4"
+      ],
+      "note": "Room-count classes are combined as a mean weighted by each class's own number of observations — the same arithmetic as the price above. The table covers 580 postal areas, a third of the price table's and a fifth of Paavo's.",
+      "warn": "Discontinued. The last published quarter is 2025Q4 and this series is frozen; it is never extended and never blended with the live kunta-level rent."
+    },
+    {
+      "key": "vacant",
+      "label": "Dwellings with no permanent residents",
+      "short": "Unoccupied",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Dwellings with no permanent residents as a share of the whole dwelling stock (asunnot joissa ei vakituisia asukkaita ÷ kaikki asunnot).",
+      "calc": "share_pct",
+      "num": [
+        "0"
+      ],
+      "den": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "raku/15f6",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "asunnon_kaytolo_3_20190101"
+          ],
+          "vars": {
+            "asunnon_kaytolo_3_20190101": [
+              "SSS",
+              "0"
+            ],
+            "talotyyppi_4_20210101": [
+              "SSS"
+            ],
+            "rak_valm_v_10_20210101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "asunto_lkm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "raku/15f6"
+        }
+      ],
+      "source": "Tilastokeskus raku 15f6 (dwelling stock by occupancy)",
+      "tables": [
+        "raku/15f6"
+      ],
+      "note": "A dwelling with no permanent residents may be a holiday home, a second home, a dwelling between tenancies or genuinely empty. The statistic does not separate them.",
+      "warn": "One year only: this table publishes 2025 and nothing earlier. There is no history."
+    },
+    {
+      "key": "migration",
+      "label": "Net migration",
+      "short": "Net migration",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Demographics",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "desc": "Total net migration — intermunicipal net migration plus net immigration — per 1 000 inhabitants. The numerator is the publisher's own 'total net migration' cell; the division by population is ours.",
+      "calc": "per_1000",
+      "num": [
+        "muutl-koknetmuutto"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "muutl/11ae",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_y",
+          "vars": {
+            "contentscode": [
+              "muutl-koknetmuutto",
+              "muutl-vm43_netto",
+              "muutl-vm4142",
+              "muutl-vaesto"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "muutl/11ae"
+        }
+      ],
+      "source": "Tilastokeskus muutl 11ae (vital statistics)",
+      "tables": [
+        "muutl/11ae"
+      ],
+      "note": "Per 1 000 inhabitants of the same year, using the population cell published in the same table, so numerator and denominator always come from one release.",
+      "warn": "",
+      "den": [
+        "muutl-vaesto"
+      ]
+    },
+    {
+      "key": "migration_dom",
+      "label": "Intermunicipal net migration",
+      "short": "Domestic net",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Demographics",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "desc": "Net migration between Finnish municipalities only, per 1 000 inhabitants — the part of the flow that is people moving within Finland.",
+      "calc": "per_1000",
+      "num": [
+        "muutl-vm43_netto"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "muutl/11ae",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_y",
+          "vars": {
+            "contentscode": [
+              "muutl-koknetmuutto",
+              "muutl-vm43_netto",
+              "muutl-vm4142",
+              "muutl-vaesto"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "muutl/11ae"
+        }
+      ],
+      "source": "Tilastokeskus muutl 11ae",
+      "tables": [
+        "muutl/11ae"
+      ],
+      "note": "Shown beside total net migration so the domestic and international parts of the flow can be told apart instead of being read as one number.",
+      "warn": "",
+      "den": [
+        "muutl-vaesto"
+      ]
+    },
+    {
+      "key": "completions_1000",
+      "label": "Dwellings completed",
+      "short": "Completions",
+      "unit": "per 1,000 dwellings",
+      "fmt": "per1000",
+      "group": "Construction",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        150,
+        90,
+        30
+      ],
+      "desc": "New dwellings completed in the last twelve months per 1 000 existing dwellings. The numerator is the publisher's own moving annual total.",
+      "calc": "per_1000_dwellings",
+      "num": [
+        "3|raku-uusiAsuntoLkm_lvs"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "raku/156f",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_m",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rakennusvaihe_1_20250101",
+            "contentscode"
+          ],
+          "vars": {
+            "rakennusvaihe_1_20250101": [
+              "1",
+              "2",
+              "3"
+            ],
+            "rakennus_6_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "raku-uusiAsuntoLkm_lvs"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "raku/156f"
+        }
+      ],
+      "source": "Tilastokeskus raku 156f (building and dwelling production, monthly, by region)",
+      "tables": [
+        "raku/156f"
+      ],
+      "note": "**Published by maakunta only.** Statistics Finland publishes no municipal building and dwelling production at all — the discontinued ras tables were regional too. Every kunta therefore shows its maakunta's rate, marked ^. It is a regional rate, not that municipality's own construction. The denominator is the dwelling stock published by Paavo for the same maakunta (the sum of its kunnat's published stocks), latest year.",
+      "warn": "Maakunta level. Two municipalities in the same maakunta always show the same number."
+    },
+    {
+      "key": "starts_1000",
+      "label": "Dwellings started",
+      "short": "Starts",
+      "unit": "per 1,000 dwellings",
+      "fmt": "per1000",
+      "group": "Construction",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        150,
+        90,
+        30
+      ],
+      "desc": "New dwellings started in the last twelve months per 1 000 existing dwellings (publisher's moving annual total).",
+      "calc": "per_1000_dwellings",
+      "num": [
+        "2|raku-uusiAsuntoLkm_lvs"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "raku/156f",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_m",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rakennusvaihe_1_20250101",
+            "contentscode"
+          ],
+          "vars": {
+            "rakennusvaihe_1_20250101": [
+              "1",
+              "2",
+              "3"
+            ],
+            "rakennus_6_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "raku-uusiAsuntoLkm_lvs"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "raku/156f"
+        }
+      ],
+      "source": "Tilastokeskus raku 156f",
+      "tables": [
+        "raku/156f"
+      ],
+      "note": "Maakunta level — see 'Dwellings completed'. Starts lead completions by roughly one to two years, which is why both are shown. The denominator is the dwelling stock published by Paavo for the same maakunta (the sum of its kunnat's published stocks), latest year.",
+      "warn": "Maakunta level. Two municipalities in the same maakunta always show the same number."
+    },
+    {
+      "key": "permits_1000",
+      "label": "Dwellings permitted",
+      "short": "Permits",
+      "unit": "per 1,000 dwellings",
+      "fmt": "per1000",
+      "group": "Construction",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        150,
+        90,
+        30
+      ],
+      "desc": "New dwellings granted a building permit in the last twelve months per 1 000 existing dwellings (publisher's moving annual total).",
+      "calc": "per_1000_dwellings",
+      "num": [
+        "1|raku-uusiAsuntoLkm_lvs"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "raku/156f",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_m",
+          "inherit": "maakunta",
+          "key_vars": [
+            "rakennusvaihe_1_20250101",
+            "contentscode"
+          ],
+          "vars": {
+            "rakennusvaihe_1_20250101": [
+              "1",
+              "2",
+              "3"
+            ],
+            "rakennus_6_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "raku-uusiAsuntoLkm_lvs"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "raku/156f"
+        }
+      ],
+      "source": "Tilastokeskus raku 156f",
+      "tables": [
+        "raku/156f"
+      ],
+      "note": "Maakunta level — see 'Dwellings completed'. A permit is the earliest published signal of future supply; not every permit is built. The denominator is the dwelling stock published by Paavo for the same maakunta (the sum of its kunnat's published stocks), latest year.",
+      "warn": "Maakunta level. Two municipalities in the same maakunta always show the same number."
     }
   ],
   "osa": {
@@ -790,6 +1785,10 @@
     "passthrough": "the published cell itself: num[0]",
     "share_pct": "sum(num) / sum(den) * 100 — both from the same table, area and period",
     "ratio_pct": "sum(num) / sum(den) * 100 where den is a list that includes num (a rate whose denominator the publisher does not publish, e.g. unemployed / (employed + unemployed))",
-    "yoy_pct": "(v[t] / v[t-1] - 1) * 100 on num[0]"
+    "yoy_pct": "(v[t] / v[t-1] - 1) * 100 on num[0]",
+    "weighted_mean": "Σ(num[i] × weight[i]) ÷ Σ(weight[i]) — a mean weighted by each class's own published count, which is exact when num is itself a mean per unit",
+    "sum": "Σ(num) over the listed cells",
+    "per_1000_dwellings": "Σ(num) ÷ the area's dwelling stock × 1000; the stock is Paavo's latest published count for that area",
+    "per_1000": "Σ(num) ÷ Σ(den) × 1000, both from the same table, area and period"
   }
 }

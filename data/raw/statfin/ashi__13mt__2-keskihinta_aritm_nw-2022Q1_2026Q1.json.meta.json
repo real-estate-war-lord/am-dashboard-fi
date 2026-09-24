@@ -1,0 +1,42 @@
+{
+ "table": "ashi/13mt",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/ashi/13mt.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__ashi/13mt.px/",
+ "query": {
+  "talotyyppi_6_20131021": [
+   "2"
+  ],
+  "contentscode": [
+   "keskihinta_aritm_nw"
+  ],
+  "postinumeroalue_4_20220101": [
+   "*"
+  ],
+  "timeperiod_q": [
+   "2022Q1",
+   "2022Q2",
+   "2022Q3",
+   "2022Q4",
+   "2023Q1",
+   "2023Q2",
+   "2023Q3",
+   "2023Q4",
+   "2024Q1",
+   "2024Q2",
+   "2024Q3",
+   "2024Q4",
+   "2025Q1",
+   "2025Q2",
+   "2025Q3",
+   "2025Q4",
+   "2026Q1"
+  ]
+ },
+ "updated": "2026-05-19T05:00:00Z",
+ "label": "Prices per square meter of old dwellings in housing companies and numbers of transactions by postal code area, quarterly by Quarter, Postal code, Building type and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for price_m2, price_rt, price_sales",
+ "cells": 29308
+}

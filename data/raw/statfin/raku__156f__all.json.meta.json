@@ -1,0 +1,31 @@
+{
+ "table": "raku/156f",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/raku/156f.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__raku/156f.px/",
+ "query": {
+  "rakennusvaihe_1_20250101": [
+   "1",
+   "2",
+   "3"
+  ],
+  "rakennus_6_20180101": [
+   "SSS"
+  ],
+  "contentscode": [
+   "raku-uusiAsuntoLkm_lvs"
+  ],
+  "alue_23_20260101": [
+   "*"
+  ],
+  "timeperiod_m": [
+   "*"
+  ]
+ },
+ "updated": "2026-09-22T05:00:00Z",
+ "label": "New production of buildings and dwellings by Construction stage, Region 2026, Month, Classification of Buildings 2018 and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for completions_1000, permits_1000, starts_1000",
+ "cells": 22740
+}

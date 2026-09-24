@@ -1,0 +1,32 @@
+{
+ "table": "asvu/15fa",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/asvu/15fa.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__asvu/15fa.px/",
+ "query": {
+  "rahoitus_2_20260101": [
+   "1",
+   "2"
+  ],
+  "huoneluku_5_20260101": [
+   "SSS"
+  ],
+  "contentscode": [
+   "asvu_keskineliovuokra",
+   "asvu_keskineliovuokra_lkm",
+   "asvu2025_vm"
+  ],
+  "alue_44_20260101": [
+   "*"
+  ],
+  "timeperiod_q": [
+   "*"
+  ]
+ },
+ "updated": "2026-07-16T05:00:00Z",
+ "label": "Rent index (2025=100) and average rents per square meter by Type of funding, Number of rooms, Area, Quarter and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for rent, rent_ara, rent_obs, rent_yoy",
+ "cells": 3060
+}

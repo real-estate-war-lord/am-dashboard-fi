@@ -1,0 +1,26 @@
+{
+ "table": "muutl/11ae",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/muutl/11ae.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__muutl/11ae.px/",
+ "query": {
+  "contentscode": [
+   "muutl-koknetmuutto",
+   "muutl-vm43_netto",
+   "muutl-vm4142",
+   "muutl-vaesto"
+  ],
+  "alue_23_20260101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-05-27T05:00:00Z",
+ "label": "Vital statistics by Year, Area and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for migration, migration_dom",
+ "cells": 44496
+}

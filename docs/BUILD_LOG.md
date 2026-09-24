@@ -133,3 +133,47 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | Monthly unemployment and annual Paavo unemployment are different definitions | Registered as two indicators, each with its own caveat saying so, rather than one series spliced from two sources. |
 | Verify-at-source URLs returned HTTP 500 | The `statfin_<db>_pxt_<id>.px` spelling that appears in older links is dead; the PxWeb UI wants the same id the API uses (`.../StatFin__vaerak/11re.px/`). Fixed in `statfin.ui_url`, in `srcUrl()` in the page, and in the 24 stamps already written. `make links` now sweeps all six clean. |
 | `validate_config.py` did not know the `num`/`den` → contentscode convention the fetcher uses | Taught it the same rule, and it now also fails when a code in `num`/`den` matches no value of any variable and no other source provides it. |
+
+---
+
+## Phase 4 — Market indicators (rows 12–21)
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ 28 indicators, 11 StatFin tables |
+| `make links` | ✓ 14 of 14 |
+| `make fetch` | ✓ 48 pulls in `data/raw/statfin` |
+| `make build` | ✓ `makro.json` 1 537 kB · `hist.json` 849 kB · `monthly.json` 1 123 kB · 308 area files · `index.html` **2 137 kB** |
+| `make test` | ✓ 24 python + 15 node |
+| Spot-check | ✓ every market figure reconciles (below) |
+| Screenshots | ✓ `docs/screenshots/v10m-*.png`, `v10q-*.png` |
+
+### Spot-check, phase 4
+
+| Area | Indicator | Published cells | Recomputed | On the page |
+|---|---|---|---|---|
+| 00100 | price, kerrostalo 2025 | (7 371×136 + 7 254×152 + 7 353×132) ÷ 420 | 7 323 €/m² | 7 323 €/m² |
+| 00100 | sales 2025 | 136 + 152 + 132 | 420 | 420 |
+| 00100 | price, quarterly 2026Q1 | 13mt | 7 165 €/m² | 7 165 €/m² (chart) |
+| 091 | free-market rent 2026Q2 | 15fa, funding 1 | 21,34 €/m² | 21,3 €/m² |
+| 091 | ARA rent 2026Q2 | 15fa, funding 2 | 15,30 €/m² | 15,3 €/m² |
+| 091 | rent y/y 2026Q2 | 15fa, published | −0,2 % | −0,2 % |
+| 091 | unoccupied dwellings 2025 | 46 457 ÷ 410 ### | 11,33 % | 11,3 % |
+| 091 | completions per 1 000 dw. | 9 226 ÷ 973 670 × 1000 (Uusimaa) | 9,48 | 9,5 ^ |
+| 261 Kittilä | completions per 1 000 dw. | 570 ÷ 108 694 × 1000 (Lappi) | 5,24 | 5,2 ^ |
+
+### Decisions logged in phase 4
+
+| ⚠ | Decision |
+|---|---|
+| `ashi/13mt` and `13mu` publish **no building-type total** — only three room-count classes of blocks of flats and one terraced total | The kerrostalo figure is the **sales-weighted mean** of the three room-count classes, using each class's own published transaction count. That is exactly the arithmetic mean over the underlying transactions, not an approximation, because the published figure is itself an arithmetic mean per transaction. Written into the indicator's definition so no reader mistakes it for a plain average. |
+| `ashi/13mx` spells building types differently from `13mt` (0 total / 1 terraced / 3 blocks of flats, versus room-count classes) | A source entry may carry `cells`, a per-table rename onto the indicator's own code names. Without it, the kunta price was silently a mix of terraced houses and flats — caught by a spot-check, not by a test. |
+| Headline price: the published annual figure, or a rolling four-quarter mean? | **The published annual figure.** It exists at both levels, needs no arithmetic at all, and is far less suppressed than a single quarter. The publisher's own quarterly series rides along behind the Yearly \| Quarterly toggle, so nothing is lost — 00100 reads 7 323 €/m² for 2025 and its chart ends at 7 165 €/m² for 2026Q1. |
+| Postal-code prices are on the **2022** postal classification (1 724 areas), the map on the **2026** one (3 018) | Only areas whose code exists in both carry a price; 701 of 3 018 have one for 2025. The rest read `–`. No figure is ever borrowed from a neighbouring or a predecessor area. Stated in the indicator's caveat and in `docs/GEO.md`. |
+| `asvu/13eb` — the postal-code rent table — is discontinued, frozen at 2025Q4 | Registered as its own indicator, `rent_pno`, labelled "discontinued" in its own label, with its end date in its caveat. It is never extended and never blended with the live kunta series. 580 postal areas. |
+| Rents and construction are published for 27 kunnat / 19 maakunnat, not 308 | Where a kunta has no figure of its own it shows its **maakunta's**, marked **^**, and the indicator records how many areas inherited. A rate inherited this way is computed on the maakunta's own denominator — an early version divided the maakunta's completions by the kunta's dwelling stock and made Kittilä look like it was building 157 dwellings per 1 000. Caught by a sanity read, fixed, and now spot-checked. |
+| **Statistics Finland publishes no municipal building and dwelling production at all** | Not a gap we can close: `raku/156f` and `15f7` are by maakunta, and the discontinued `ras` tables were too. The three construction indicators are maakunta figures shown on kunnat with ^, and their caveat says "two municipalities in the same maakunta always show the same number". |
+| `ashi/12dg` (new dwellings by sub-area) | **Not registered.** Every one of its 24 sub-area codes returns null for every year and building type. A table of nulls is not a source. |
+| `raku/15f6` publishes one year | Unoccupied dwellings has no history. Said so in the caveat rather than reaching into the frozen `asas` archive, which is on a different classification. |
+| The page passed 3 MB again as market rows landed | **Kunta history moved to `dist/hist.json`**, fetched when a chart, an area page or any period other than the latest asks for a series. The build now records each indicator's own period list, so the year selector and the chart axis are right before any history is fetched. The page is 2 137 kB, with room for phases 5–8. `build_dashboard.py` now fails the build if any dist file passes 3 MB, rather than warning. |
+| The observed-population series was inline for every kunta but read by one area page at a time | Moved into that kunta's own lazy file. |

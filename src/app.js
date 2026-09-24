@@ -68,6 +68,12 @@ const IND_Q = IND_OSA.concat(SAFETY.filter(i => !osaOwn(i.key)));
    safety shares, and unemployment — their values carry ^ instead of the ° of a municipality value */
 const peruspiiriLevel = i => !!i && !!i.geo_level && i.geo_level !== "osa_alue";
 const peruspiiriMark = i => peruspiiriLevel(i) ? " ^" : "";
+/* ^ also means "this figure is published for a coarser area than the one you are looking at":
+   rents and building production exist per maakunta for most of the country, and the value a
+   kunta shows is then its region's, not its own measurement. The build records which keys an
+   area inherited (`inh`), so the mark is per area, not per indicator. */
+const inhMark = (o, key) => (o && o.inh && o.inh.indexOf(key) >= 0) ? " ^" : "";
+const inhLevel = key => { const i = indOf(key); return (i && i.inherited && i.inherited.level) || ""; };
 const indOf = key => IND.concat(IND_OSA).find(i => i.key === key) || null;
 const lowerBetter = key => { const i = indOf(key); return !!i && i.direction === "lower_better"; };
 /* `neutral` is a third direction beside higher_better / lower_better: neither end is better, so the
@@ -169,7 +175,9 @@ function pnoLoad(kunta, then) {
   PNO.busy[k] = true;
   fetch(`area/${encodeURIComponent(k)}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(d => {
-      (d.areas || []).forEach(row => { const a = byNr[row.nr]; if (!a) return; a.rings = row.rings || []; a.hist = row.hist || {}; });
+      (d.areas || []).forEach(row => { const a = byNr[row.nr]; if (!a) return; a.rings = row.rings || []; a.hist = row.hist || {}; a.histq = row.histq || {}; });
+      /* the kunta's own observed-population series rides along — the Outlook chart needs it */
+      const m = byCode[k]; if (m && d.pop_hist) m.pop_hist = d.pop_hist;
       PNO.loaded[k] = true; delete PNO.busy[k];
       if (then) then();
     })
@@ -177,8 +185,41 @@ function pnoLoad(kunta, then) {
   return false;
 }
 const pnoReady = k => !!PNO.loaded[String(k || "")];
+const PNO_WANT = {};
+function pnoWant(k) {
+  const key = String(k || "");
+  if (!key || PNO.loaded[key] || PNO.err[key] || PNO_WANT[key]) return;
+  PNO_WANT[key] = true;
+  pnoLoad(key, () => { delete PNO_WANT[key]; renderKeep(); });
+}
 /* every kunta whose polygons the current screen needs */
 function pnoNeed(codes, then) { (codes || []).filter(Boolean).forEach(c => pnoLoad(c, then)); }
+
+/* Every kunta's history in one fetch. The map and the table at the latest period need none of
+   it, so it stays out of the page until something actually asks for a series: a chart, an area
+   page, the "Δ since" column, or any period other than the latest. */
+const HIST = { done: false, busy: false, err: false, waiting: false };
+function histLoad(then) {
+  if (HIST.done || HIST.busy || HIST.err) return HIST.done;
+  HIST.busy = true;
+  fetch("hist.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      Object.entries(d.kunta || {}).forEach(([code, row]) => {
+        const m = byCode[code]; if (!m) return;
+        m.hist = Object.assign(m.hist || {}, row.hist || {});
+        if (row.histq) m.histq = Object.assign(m.histq || {}, row.histq);
+      });
+      HIST.done = true; HIST.busy = false; if (then) then();
+    })
+    .catch(() => { HIST.err = true; HIST.busy = false; if (then) then(); });
+  return false;
+}
+/* asked for from deep inside a render, where re-rendering immediately would recurse */
+function histWant() {
+  if (HIST.done || HIST.err || HIST.waiting) return;
+  HIST.waiting = true;
+  histLoad(() => { HIST.waiting = false; renderKeep(); });
+}
 
 const MONTHLY_KEYS = new Set(((D.meta && D.meta.monthly_keys) || []));
 const isMonthly = key => MONTHLY_KEYS.has(key);
@@ -277,12 +318,28 @@ const chartLink = (key, type, code) => `charts?ind=${encodeURIComponent(key)}&a=
 /* link into the one-property Analysis sheet */
 const analysisLink = (lat, lon, label) => `analysis?a=${Number(lat).toFixed(5)},${Number(lon).toFixed(5)}` + (label ? `&la=${encodeURIComponent(label)}` : "");
 /* value of indicator k for municipality/area o in the selected year (latest = live field, else history) */
-const V = (o, k, y) => { const yr = y || MK.year; if (!o) return null; if (!yr || yr === LATEST) return o[k] ?? null; const h = o.hist && o.hist[k]; return h && h[yr] != null ? h[yr] : null; };
+/* An area's value for a period. The latest period is on the object itself; anything else is
+   in a lazy payload, so asking for it asks for the file and renders – until it lands. */
+const V = (o, k, y) => {
+  const yr = y || MK.year;
+  if (!o) return null;
+  if (!yr || yr === LATEST) return o[k] ?? null;
+  if (!o.hist) { if (o.code) histWant(); else if (o.muni) pnoWant(o.muni); return null; }
+  const h = o.hist[k];
+  return h && h[yr] != null ? h[yr] : null;
+};
+/* the quarterly series behind the Yearly | Quarterly toggle */
+const Q = (o, k, t) => { const h = o && o.histq && o.histq[k]; return h && h[t] != null ? h[t] : null; };
+const hasQ = (o, k) => !!(o && o.histq && o.histq[k]);
 /* first year a year selector offers (registry `map_from`; Safety: 2008, the first full rolling year) — Charts go further back */
 const mapFrom = k => String((IND.find(i => i.key === k) || {}).map_from || "");
-const yearsForPool = (k, pool) => YEARS.filter(y => y >= mapFrom(k)).filter(y => y === LATEST || pool.some(m => m.hist && m.hist[k] && m.hist[k][y] != null));
+/* Which periods an indicator has is recorded by the build, so the year selector and the chart
+   axis are right before any history has been fetched. */
+const yearsOf = k => { const i = indOf(k); return (i && i.years) || []; };
+const quartersOf = k => { const i = indOf(k); return (i && i.quarters) || []; };
+const yearsForPool = (k, pool) => yearsOf(k).filter(y => y >= mapFrom(k));
 /* years with actual history for charts and sparklines — the lagging "latest" value is not repeated as a later year */
-const histYears = (k, pool) => YEARS.filter(y => pool.some(m => m.hist && m.hist[k] && m.hist[k][y] != null));
+const histYears = (k, pool) => yearsOf(k);
 function curPool() { if (S.view === "area") { const e = areaEntity(); return e ? e.peers : MUNI; } if (S.view === "table" && T.level === "osa_alue") return OSA ? OSA.areas : MUNI; return osaMode() ? OSA.areas : MUNI; }
 const yearsFor = k => projOf(k) ? [] : yearsForPool(k, curPool());
 const curInds = () => { if (S.view === "area") { const e = areaEntity(); return e ? e.inds : IND; } if (S.view === "table") return T.level === "osa_alue" ? IND_Q : IND; return osaMode() ? IND_Q : IND; };
@@ -402,6 +459,8 @@ const RENDER = { makro: vMakro, table: vTable, area: vArea, charts: vCharts, sou
 function render() {
   /* a monthly indicator's series is not in the page — ask for it once, then re-render */
   if (isMonthly(MK.ind) && !MON.data && !MON.err) monLoad(() => renderKeep());
+  if (["area", "charts"].includes(S.view) && !HIST.done && !HIST.err) histLoad(() => renderKeep());
+  if (S.view === "makro" && MK.year && MK.year !== LATEST) histWant();
   if (S.view === "area" && AR.type === "postinumero" && byNr[AR.code] && !pnoReady(byNr[AR.code].muni))
     pnoLoad(byNr[AR.code].muni, () => renderKeep());
   if (S.view === "area" && AR.type === "kunta" && !pnoReady(AR.code)) pnoLoad(AR.code, () => renderKeep());
@@ -905,6 +964,9 @@ function fmtCell(i, v, fallback, mark) {
   if (v == null || isNaN(v)) return `<td class="num">–</td>`;
   return `<td class="num" data-v="${v}">${fmtOf(i)(v)}${fallback ? " °" : mark || ""}</td>`;
 }
+/* one place decides which mark a value carries: ° inherited from the parent area, ^ published
+   for a coarser area than this one */
+const markFor = (o, i, type) => (type === "osa_alue" ? peruspiiriMark(i) : "") || inhMark(o, i.key);
 function deltaCell(o, i, pool) {
   const y0 = yearsForPool(i.key, pool || curPool())[0]; if (!y0 || y0 === MK.year) return `<td class="num dim">–</td>`;
   const a = V(o, i.key, y0), b = V(o, i.key); if (a == null || b == null) return `<td class="num dim">–</td>`;
@@ -932,13 +994,13 @@ function tableBodyHtml() {
     const lead = `<tr class="clickrow" data-go="${withQ(pageOf(r))}"><th><span class="thn">${esc(r.name)} <span class="go">›</span></span><button class="tch" data-go="${chartLink(ind.key, T.level, T.level === "postinumero" ? r.nr : r.code)}" title="Open in Charts">↗</button></th>`;
     if (T.level === "osa_alue") return `${lead}<td class="dim">${esc(r.code)}</td><td class="dim">${esc(r.peruspiiri || "")}</td><td class="num dim" data-v="${r.pop || 0}">${r.pop != null ? nf(r.pop, 0) : "–"}</td>
       ${qCell(r, ind)}${y0 && y0 !== MK.year ? deltaCell(r, ind, pool) : ""}${cols.filter(i => i.key !== ind.key).map(i => qCell(r, i)).join("")}</tr>`;
-    const cell = i => { const own = V(r, i.key); return own != null ? fmtCell(i, own, false) : (T.level === "postinumero" ? fmtCell(i, V(m, i.key), true) : fmtCell(i, null, false)); };
+    const cell = i => { const own = V(r, i.key); return own != null ? fmtCell(i, own, false, inhMark(r, i.key)) : (T.level === "postinumero" ? fmtCell(i, V(m, i.key), true, inhMark(m, i.key)) : fmtCell(i, null, false)); };
     return `${lead}<td class="dim">${T.level === "postinumero" ? esc(r.nr) : esc(r.code)}</td><td class="dim">${T.level === "postinumero" ? esc(m.name || "") : esc(r.region || "")}</td>
       <td class="num dim" data-v="${r.pop || 0}">${r.pop != null ? nf(r.pop, 0) : "–"}</td>
       ${cell(ind)}${y0 && y0 !== MK.year ? deltaCell(r, ind, pool) : ""}${cols.filter(i => i.key !== ind.key).map(cell).join("")}</tr>`; }).join("");
 }
 /* a quarter's own value, or Helsinki's for indicators the quarter layer does not have (°) */
-function qCell(r, i) { const own = V(r, i.key); return own != null || osaOwn(i.key) ? fmtCell(i, own, false, peruspiiriMark(i)) : fmtCell(i, V(osaParent(r), i.key), true); }
+function qCell(r, i) { const own = V(r, i.key); const par = osaParent(r); return own != null || osaOwn(i.key) ? fmtCell(i, own, false, markFor(r, i, "osa_alue")) : fmtCell(i, V(par, i.key), true, inhMark(par, i.key)); }
 function renderTableBody() {
   const tb = document.getElementById("tbody"); if (!tb) return;
   tb.innerHTML = tableBodyHtml();
@@ -964,7 +1026,7 @@ function vTable() {
       <th class="num hi" data-best="${best(ind)}">${esc(ind.label)}<br><span class="dim">${esc(ind.unit || "")}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
       ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num" data-best="${best(i)}">${esc(i.label)}${lowerBetter(i.key) ? " ↓" : ""}<br><span class="dim">${esc(i.unit || "")}</span></th>`).join("")}</tr></thead>
       <tbody id="tbody">${tableBodyHtml()}</tbody></table></div>
-    <p class="cap">Sorted by the selected indicator, best first (↓ = lower is better); click a column header to re-sort, a row to open the area's page, ↗ to chart it. ° = municipality value shown on a postal code or quarter.${isSafety(curInd()) ? "" : " Safety columns appear when a Safety indicator is selected."} Rows: ${T.level === "postinumero" ? "postal codes (street-level codes merged by name)" : T.level === "osa_alue" ? "Helsinki-region osa-alueet (osa-alueet), source Aluesarjat" : "municipalities"}.</p>
+    <p class="cap">Sorted by the selected indicator, best first (↓ = lower is better); click a column header to re-sort, a row to open the area's page, ↗ to chart it. ° = kunta value shown on a postal code or osa-alue · ^ = figure published for a coarser area than the row (a maakunta rent, a maakunta construction rate).${isSafety(curInd()) ? "" : " Safety columns appear when a Safety indicator is selected."} Rows: ${T.level === "postinumero" ? "postal codes (street-level codes merged by name)" : T.level === "osa_alue" ? "Helsinki-region osa-alueet (osa-alueet), source Aluesarjat" : "municipalities"}.</p>
     ${srcNote()}
   </div>`;
 }
@@ -1063,7 +1125,7 @@ function tileHtml(e, i, on) {
   const s = tileStats(e, i); if (!s) return "";
   return `<div class="tile ${on ? "on" : ""}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)} — click to focus the chart and map">
     <button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button>
-    <span class="tl">${esc(i.label)}${s.cur.own ? (e.type === "osa_alue" ? peruspiiriMark(i) : "") : " °"}</span>
+    <span class="tl">${esc(i.label)}${s.cur.own ? markFor(e.o, i, e.type) : " °"}</span>
     <div class="tv"><b>${fmtOf(i)(s.cur.v)}</b>${s.yoy != null ? `<i class="${cls(s.yoy, i.key)}">${sign(s.yoy, x => nf(x, 1))}${s.unit} y/y</i>` : ""}</div>
     ${tileSpark(s.ys, s.own, s.med, i)}
     <div class="tm">${s.rk ? `<span>#${s.rk.r} of ${s.rk.n}</span>` : `<span class="dim">municipality value</span>`}${s.vsMed != null ? `<span><i class="${cls(s.vsMed, i.key)}">${sign(s.vsMed, x => nf(x, 1))}${s.unit}</i> vs median</span>` : ""}</div>
@@ -1074,7 +1136,7 @@ function headlineHtml(e) {
   const inds = HL_KEYS.map(k => e.inds.find(i => i.key === k)).filter(i => i && eVal(e, i.key).v != null).slice(0, 5);
   if (!inds.length) return "";
   return `<div class="hl">${inds.map(i => { const s = tileStats(e, i); return `<button class="hlc ${MK.ind === i.key ? "on" : ""}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)} — click to focus the chart and map">
-    <span>${esc(i.short || i.label)}${s.cur.own ? (e.type === "osa_alue" ? peruspiiriMark(i) : "") : " °"}</span><b>${fmtOf(i)(s.cur.v)}</b>
+    <span>${esc(i.short || i.label)}${s.cur.own ? markFor(e.o, i, e.type) : " °"}</span><b>${fmtOf(i)(s.cur.v)}</b>
     <em>${s.yoy != null ? `<i class="${cls(s.yoy, i.key)}">${sign(s.yoy, x => nf(x, 1))}${s.unit}</i> y/y` : ""}${s.rk ? `${s.yoy != null ? " · " : ""}#${s.rk.r} of ${s.rk.n}` : ""}</em></button>`; }).join("")}</div>`;
 }
 function multiLine(series, ind, ys) {
@@ -1198,7 +1260,7 @@ function areaCompareTable(e) {
       const d = first == null ? null : isPct(i) ? cur.v - first : (first ? (cur.v / first - 1) * 100 : null);
       const rk = cur.own ? rankOf(e.o, i.key, e.peers) : null; const med = median(e.peers.map(p => V(p, i.key)));
       return `<tr class="clickrow ${i.key === ind.key ? "hi" : ""}" data-arind="${esc(i.key)}"><th><span class="thn">${esc(i.label)} <span class="dim">${esc(i.unit || "")}</span></span><button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
-        ${fmtCell(i, cur.v, !cur.own, e.type === "osa_alue" ? peruspiiriMark(i) : "")}${e.muni ? (muniCmp(e, i.key) ? fmtCell(i, V(e.muni, i.key), false) : `<td class="num dim" title="different definition at municipality level">n/c</td>`) : ""}${fmtCell(i, med, false)}
+        ${fmtCell(i, cur.v, !cur.own, markFor(e.o, i, e.type))}${e.muni ? (muniCmp(e, i.key) ? fmtCell(i, V(e.muni, i.key), false) : `<td class="num dim" title="different definition at municipality level">n/c</td>`) : ""}${fmtCell(i, med, false)}
         <td class="num" data-v="${rk ? rk.r : ""}">${rk ? `#${rk.r} / ${rk.n}` : "–"}</td>
         <td class="num ${goodBad(d, i.key)}" data-v="${d ?? ""}">${d != null ? sign(d, x => nf(x, 1)) + (isPct(i) ? " pp" : " %") + ` <span class="dim">(${y0})</span>` : "–"}</td>
         <td class="dim">${asofText(i)}</td></tr>`; }).join("")}</tbody></table></div>`;
@@ -1506,7 +1568,7 @@ function infraLegendHtml(n) {
 /* ---------- Leaflet layers (macro map) ---------- */
 function lfPopup(a, muni) {
   /* two levels: the selected indicator big + four headline figures and the ways onward; every value behind "all values" */
-  const row = (i, v, own) => `<span class="lfrow"><span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(v)}${own ? (isQ ? peruspiiriMark(i) : "") : " °"}</b></span>`;
+  const row = (i, v, own) => `<span class="lfrow"><span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(v)}${own ? markFor(a, i, isQ ? "osa_alue" : "") : " °"}</b></span>`;
   const LI = curInds(); const ind = curInd(); const isQ = a.peruspiiri != null;
   const val = i => { const v = V(a, i.key); if (v != null) return { v, own: true }; if (muni && V(muni, i.key) != null) return { v: V(muni, i.key), own: false }; return null; };
   const peers = isQ ? OSA.areas : AREAS; const sel = val(ind);
@@ -1518,7 +1580,7 @@ function lfPopup(a, muni) {
   const n = LI.filter(i => val(i)).length; const type = isQ ? "osa_alue" : "postinumero", code = isQ ? a.code : a.nr;
   return `<div class="lfpop"><b>${esc(a.nr || a.code)} ${esc(a.name)}</b>${MK.year !== LATEST ? ` <span class="tag">${MK.year}</span>` : ""}
     <span class="dim">${a.peruspiiri ? esc(a.peruspiiri) + " · " : ""}${muni ? esc(muni.name) : ""}${a.pop != null ? " · " + nf(a.pop, 0) + " inhabitants" : ""}</span>
-    ${sel ? `<div class="lfbig"><span>${esc(ind.label)}${sel.own ? (isQ ? peruspiiriMark(ind) : "") : " °"}</span><b>${fmtOf(ind)(sel.v)}</b><em>${rk ? `#${rk.r} of ${rk.n} ${sel.own ? (isQ ? "osa-alueet" : "postal codes") : "municipalities"}` : ""}</em></div>` : `<div class="lfbig dim"><span>${esc(ind.label)}</span><b>–</b></div>`}
+    ${sel ? `<div class="lfbig"><span>${esc(ind.label)}${sel.own ? markFor(a, ind, isQ ? "osa_alue" : "") : " °"}</span><b>${fmtOf(ind)(sel.v)}</b><em>${rk ? `#${rk.r} of ${rk.n} ${sel.own ? (isQ ? "osa-alueet" : "postal codes") : "municipalities"}` : ""}</em></div>` : `<div class="lfbig dim"><span>${esc(ind.label)}</span><b>–</b></div>`}
     ${ind.note_short ? `<p class="cap">${esc(ind.note_short)}</p>` : ""}
     ${outlookLine(a, isQ ? "osa_alue" : "postinumero") || (muni ? outlookLine(muni, "kunta") : "")}
     ${isQ && a.fc_growth != null ? osaFcCaveat("osa_alue") : ""}
@@ -2450,10 +2512,12 @@ function chartAdd(id, text) {
 function chartInd() { return IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))).find(i => i.key === CH.ind) || IND[0]; }
 /* Finland as a whole (Tilastokeskus area 000) where the build has it — drawn as a dashed reference line */
 const NAT = D.national || null;
-/* quarterly series: indicator.q_periods + entity.q[key] (built for the rolling-4Q Safety calcs); any indicator
-   that has one gets the Yearly | Quarterly toggle */
-const qPeriods = i => (i && i.q_periods) || [];
-const isQ = p => /K\d$/.test(p);
+/* Quarterly series: the build records an indicator's quarters in `quarters` and an area's
+   quarterly values in `histq`, both published figures. Any indicator that has them gets the
+   Yearly | Quarterly toggle. The quarterly series lives in the same lazy payloads as the
+   annual one, so the toggle works once a chart or an area page has loaded. */
+const qPeriods = i => (i && i.quarters) || [];
+const isQuarter = p => /Q\d$/.test(String(p));
 /* the charted indicators: the selected one plus overlays of the same group and unit format */
 const overlayCands = main => IND.filter(i => i.key !== main.key && i.group === main.group && i.fmt === main.fmt);
 function chartInds() { const main = chartInd(), c = overlayCands(main); return [main].concat(CH.ov.map(k => c.find(i => i.key === k)).filter(Boolean)); }
@@ -2461,9 +2525,9 @@ const chartQ = () => CH.fq === "q" && chartInds().every(i => qPeriods(i).length 
 /* value of indicator i for entity o at a year ("2025") or a quarter ("2025K3") */
 function chVal(o, i, p) {
   if (!o) return null;
-  if (!isQ(p)) return V(o, i.key, p);
-  const k = qPeriods(i).indexOf(p), arr = o.q && o.q[i.key];
-  return k >= 0 && arr ? arr[k] ?? null : null;
+  if (!isQuarter(p)) return V(o, i.key, p);
+  if (!o.histq) { if (o.code) histWant(); else if (o.muni) pnoWant(o.muni); return null; }
+  return Q(o, i.key, p);
 }
 /* periods on the x axis: each indicator's own reach (min year in its series), years or quarters, cut to from/to */
 function chartYears() {
@@ -2507,7 +2571,7 @@ function chartSeries() {
 /* series breaks from the registry (`breaks`), placed on the axis: "2013K3" → that quarter or year 2013, "2023" → 2023 / 2023K1 */
 function chartBreaks(inds, ys) {
   const seen = new Map(); inds.forEach(i => (i.breaks || []).forEach(b => { if (!seen.has(b.at)) seen.set(b.at, b); }));
-  return [...seen.values()].map(b => ({ ...b, idx: ys.indexOf(isQ(ys[0] || "") ? (isQ(b.at) ? b.at : b.at + "K1") : b.at.slice(0, 4)) })).filter(b => b.idx >= 0);
+  return [...seen.values()].map(b => ({ ...b, idx: ys.indexOf(isQuarter(ys[0] || "") ? (isQuarter(b.at) ? b.at : b.at + "Q1") : b.at.slice(0, 4)) })).filter(b => b.idx >= 0);
 }
 /* self-contained SVG (inline styles, title, legend) so the same markup renders on screen and rasterises to PNG */
 function chartSvg(withTitle) {
@@ -2564,7 +2628,7 @@ function chartSvgDist(withTitle) {
 /* "2026K2" → "2026 Q2" for display; years pass through */
 const fmtP = p => String(p).replace(/K(\d)$/, " Q$1");
 function chartSvgLine(withTitle) {
-  const { ind, inds, ys, series } = chartSeries(); const q = isQ(ys[0] || "");
+  const { ind, inds, ys, series } = chartSeries(); const q = isQuarter(ys[0] || "");
   const W = 1200, H = 640, L0 = 96, R = 30, T0 = withTitle ? 84 : 24, B = 150;
   const all = series.flatMap(s_ => s_.pts.map(p => p.v)).filter(v => v != null);
   const F = "Inter, 'Helvetica Neue', Arial, sans-serif", M = "'IBM Plex Mono', Menlo, monospace";
@@ -2597,7 +2661,7 @@ function vCharts() {
   const quick = [["Top 5 municipalities", MUNI.slice().sort((a, b) => (b.pop || 0) - (a.pop || 0)).slice(0, 5).map(m => "kunta:" + m.code)],
                  ["Helsinki region metro", ["101", "147", "157", "159", "173", "230"].filter(c => byCode[c]).map(c => "kunta:" + c)],
                  ["Big four", ["101", "751", "461", "851"].filter(c => byCode[c]).map(c => "kunta:" + c)]];
-  const { series } = chartSeries(); const q = isQ(ys[0] || "");
+  const { series } = chartSeries(); const q = isQuarter(ys[0] || "");
   const hasNat = !!NAT && (NAT[ind.key] != null || !!(NAT.hist && NAT.hist[ind.key]));
   /* §4: a Helsinki-region osa-alue carries KK's projection and a municipality carries DST's. They may be
      read side by side — they must not be read as one series, and the gap has to be stated. */
@@ -2610,7 +2674,7 @@ function vCharts() {
       <select id="chind" class="indsel">${groups.map(gn => `<optgroup label="${esc(gn)}">${L.filter(i => (i.group || "Other") === gn).map(i => `<option value="${i.key}" ${CH.ind === i.key ? "selected" : ""}>${esc(optLabel(i))}</option>`).join("")}</optgroup>`).join("")}</select>
       <select id="chy0" class="indsel"><option value="">from ${YEARS[0]}</option>${YEARS.map(y => `<option value="${y}" ${CH.y0 === y ? "selected" : ""}>${y}</option>`).join("")}</select>
       <select id="chy1" class="indsel"><option value="">to ${LATEST}</option>${YEARS.map(y => `<option value="${y}" ${CH.y1 === y ? "selected" : ""}>${y}</option>`).join("")}</select>
-      ${qPeriods(ind).length > 1 ? `<div class="seg" title="Quarterly: each point is the rolling sum of the 4 quarters ending there">${[["year", "Yearly"], ["q", "Quarterly"]].map(([f, l]) => `<button class="sg ${CH.fq === f ? "on" : ""}" data-chfq="${f}">${l}</button>`).join("")}</div>` : ""}
+      ${qPeriods(ind).length > 1 ? `<div class="seg" title="Quarterly: the publisher's own quarterly figure for each point">${[["year", "Yearly"], ["q", "Quarterly"]].map(([f, l]) => `<button class="sg ${CH.fq === f ? "on" : ""}" data-chfq="${f}">${l}</button>`).join("")}</div>` : ""}
       <label class="hint" style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="chmed" ${CH.median ? "checked" : ""}> median</label>
       ${hasNat ? `<label class="hint" style="display:flex;align-items:center;gap:5px" title="Finland as a whole (Tilastokeskus area 000), dashed"><input type="checkbox" id="chnat" ${CH.nat ? "checked" : ""}> Finland</label>` : ""}
       <div class="seg">${[["auto", "Auto"], ["line", "Line"], ["bar", "Bars"], ["dist", "Distribution"]].map(([m, l]) => `<button class="sg ${CH.mode === m ? "on" : ""}" data-chmode="${m}">${l}</button>`).join("")}</div>
@@ -2629,7 +2693,7 @@ function vCharts() {
     <div class="chartbox">${ents.length ? chartSvg(true) : `<div class="chempty"><b>Nothing to plot yet</b><p>Type a municipality, postal code or Helsinki-region osa-alue in the box above (up to 8), or start with a set:</p>
       <div class="tools">${quick.map(([l, ids]) => `<button class="lk" data-chadd="${ids.join("|")}">+ ${l}</button>`).join("")}</div>
       <p class="dim">Tip: every area page and table row has a ↗ that opens it here with the indicator pre-selected.</p></div>`}</div>
-    <p class="cap">${esc(ind.desc || "")} ${ind.warn ? "⚠ " + esc(ind.warn) : ""} ${q ? "Quarterly: each point is the rolling sum of the 4 quarters ending in that quarter." : "Same sub-period each year (e.g. Q3 or July); values are those shown in the dashboard."}${hasNat && CH.nat ? " Dashed line in a series colour = Finland as a whole." : ""}</p>
+    <p class="cap">${esc(ind.desc || "")} ${ind.warn ? "⚠ " + esc(ind.warn) : ""} ${q ? "Quarterly: the publisher's own figure for each quarter, as published." : "Yearly: the publisher's own annual figure — the same figure the map and table show."}${hasNat && CH.nat ? " Dashed line in a series colour = Finland as a whole." : ""}</p>
   </div>
   ${chartMode() === "line" && ents.length && series.length ? `<div class="card"><div class="card-head"><h3>Data</h3><span class="hint">${esc(ind.unit || "")}</span></div>
     <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>${q ? "Osa-alue" : "Year"}</th>${series.map(s_ => `<th class="num">${esc(s_.name)}</th>`).join("")}</tr></thead>
@@ -2653,7 +2717,7 @@ function chartCsv() {
   if (chartMode() === "bar") { const ind = chartInd(); const ents = CH.areas.map(chEntity).filter(Boolean);
     downloadCsv([["area", ind.key].join(";")].concat(ents.map(e => [e.name, V(e.o, ind.key) ?? (e.type === "postinumero" && e.muni ? V(e.muni, ind.key) : "") ?? ""].join(";"))), `chart_${ind.key}_latest.csv`); return; }
   const { ind, ys, series } = chartSeries();
-  downloadCsv([[isQ(ys[0] || "") ? "quarter" : "year"].concat(series.map(s_ => s_.name)).join(";")].concat(ys.map((yy, i) => [yy].concat(series.map(s_ => s_.pts[i].v ?? "")).map(v => String(v).replace(/;/g, ",")).join(";"))), `chart_${ind.key}.csv`);
+  downloadCsv([[isQuarter(ys[0] || "") ? "quarter" : "year"].concat(series.map(s_ => s_.name)).join(";")].concat(ys.map((yy, i) => [yy].concat(series.map(s_ => s_.pts[i].v ?? "")).map(v => String(v).replace(/;/g, ",")).join(";"))), `chart_${ind.key}.csv`);
 }
 
 
