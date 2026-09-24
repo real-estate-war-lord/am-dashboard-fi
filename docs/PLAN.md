@@ -58,7 +58,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | # | Phase | State | Commit |
 |---|---|---|---|
 | 0 | Plan + clean skeleton | ✅ | `feat: Finland skeleton` |
-| 1 | Probe | ☐ | |
+| 1 | Probe | ✅ | `chore: FI endpoint probe` |
 | 2 | Geometry | ☐ | |
 | 3 | Area indicators (rows 1–11) | ☐ | |
 | 4 | Market indicators (rows 12–21) | ☐ | |
@@ -93,8 +93,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - New: `scripts/statfin.py` (throttled, retrying, stamped PxWeb client), Finnish `validate_config.py` and `check_source_links.py`, a Finland fixture generator, `scripts/shot.sh`, Pages + monthly refresh workflows, `docs/{BUILD_LOG,DATA_FOLDERS,SOURCES,GEO,RUNBOOK}.md`.
 - Checks: `make validate` ✓ · `make test` ✓ (21 tests) · `make build` ✓ · `make fixture` ✓ 0.8 MB, renders; screenshots in `docs/screenshots/`.
 
+### Phase 1 — Probe ✅
+- `scripts/probe_fi.py` probes 84 routes across StatFin, StatFin_Passiivi, the three WFS services, Aluesarjat, Kelasto, Verohallinto and avoindata.fi, and writes `docs/PROBE_FI.md` (name | HTTP | s | bytes | result) between markers so the hand-written findings survive a re-run.
+- Seven of `docs/DATA_MAP_FI.md`'s assumptions did not survive the live API; each is recorded with the route that replaced it. Biggest: **no PxWebApi v2**, **`ras`/`asas`/`rakke`/`astuki` are gone**, and **postal-code rent (`asvu/13eb`) is frozen at 2025Q4**.
+- Ten gaps written down plainly, including: no kunta-level construction data exists anywhere in StatFin, `ashi/12dg` is entirely null, and there are three incompatible postal-code universes (1 724 / 580 / 3 018).
+- All five reference values answer and match by hand: Helsinki 694 392; 00100 price 7 167 €/m² on 35 sales; 00100 rent 29,43 €/m² on 746 observations.
+- Checks: `make probe` ✓ · `make validate` ✓ · `make test` ✓ · `make build` ✓ · `make fixture` ✓.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 1 — write `scripts/probe_fi.py` and `docs/PROBE_FI.md` from the four live probes already run (demography, market, geo, Aluesarjat/Kela/Vero).
+**Next action:** Phase 2 — geometry. `scripts/fetch_geo_fi.py` + `fetch_paavo.py` → `data/geo/{maakunnat,kunnat,postinumerot,osa_alueet}.geojson`.

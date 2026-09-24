@@ -60,16 +60,30 @@ def split_table(name):
     return database, db, tid
 
 
+def api_id(database, db, tid):
+    """The id the API path wants.
+
+    Live StatFin serves short ids ("13mt.px"). The frozen StatFin_Passiivi serves the long
+    form ("statfinpas_asvu_pxt_13eb_2025q4.px") — the same spelling its table page uses. The
+    config always names a table the short way and this fills in the rest.
+    """
+    if database.endswith("Passiivi") and not tid.startswith("statfinpas_"):
+        return f"statfinpas_{db}_pxt_{tid}"
+    return tid
+
+
 def table_url(name):
     database, db, tid = split_table(name)
-    return f"{HOST}/{LANG}/{database}/{db}/{tid}.px"
+    return f"{HOST}/{LANG}/{database}/{db}/{api_id(database, db, tid)}.px"
 
 
 def ui_url(name):
     """The published table page a reader can open — the 'Verify at source' destination."""
     database, db, tid = split_table(name)
-    prefix = "statfinpas" if database.endswith("Passiivi") else "statfin"
-    return f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/{prefix}_{db}_pxt_{tid}.px/"
+    if database.endswith("Passiivi"):
+        return (f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/"
+                f"{api_id(database, db, tid)}.px/")
+    return f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/statfin_{db}_pxt_{tid}.px/"
 
 
 def _open(req):

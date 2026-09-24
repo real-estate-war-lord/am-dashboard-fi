@@ -92,6 +92,12 @@ class TableNames(unittest.TestCase):
                          "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__ashi/"
                          "statfin_ashi_pxt_13mt.px/")
 
+    def test_archive_api_path_uses_the_long_id(self):
+        """Live StatFin serves '13mt.px'; the frozen archive serves the long spelling."""
+        self.assertEqual(statfin.table_url("StatFin_Passiivi:asvu/13eb_2025q4"),
+                         "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin_Passiivi/asvu/"
+                         "statfinpas_asvu_pxt_13eb_2025q4.px")
+
     def test_archive_url_uses_the_archive_prefix(self):
         self.assertEqual(statfin.ui_url("StatFin_Passiivi:asvu/13eb_2025q4"),
                          "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin_Passiivi/"

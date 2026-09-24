@@ -28,3 +28,29 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | The BBR / services / public-buildings / infra / schools code paths | Kept, dormant (each renders nothing while its data key is null), as the ground rules require for batch 2. Every Danish register *name* in their UI text was replaced with a neutral one, so no dormant string can claim a Danish source. |
 | `config/indicators.json` starts empty | Deliberate: nothing is registered before it is probed. `validate_config.py` says so explicitly instead of failing. |
 | `make build` has no `build_makro.py` yet | The target is `build_dashboard.py` alone in phase 0 and gains `build_makro.py` in phase 3, so `make build` is green in every phase rather than red until the data lands. |
+
+---
+
+## Phase 1 — Probe
+
+| Check | Result |
+|---|---|
+| `make probe` (84 routes) | 74 answered, 10 ✗ — every ✗ is kept in `docs/PROBE_FI.md` with what replaced it |
+| Reference values | 5 of 5 answer: Helsinki 694 392 · 00100 price 7 167 €/m² (35 sales) · 00100 rent 29,43 €/m² (746 obs) · Helsinki free rent 26,73 · Helsinki ARA rent 18,48 |
+| `make validate` | ✓ (still no indicators registered — phase 3) |
+| `make test` | ✓ 22 python + 15 node |
+| `make build`, `make fixture` | ✓ |
+
+### Decisions logged in phase 1
+
+| ⚠ | Decision |
+|---|---|
+| No PxWebApi v2 exists (three candidate hosts, all 404) | `scripts/statfin.py` stays a v1 client and the docstring records the probe. |
+| `ras`, `asas`, `rakke`, `astuki` all return HTTP 400 — the four database names in the spec are gone | Replaced by `raku` and `asku`; the frozen originals are reachable in `StatFin_Passiivi` and are used where the live table has no history. Every substitution is in `docs/PROBE_FI.md` §"What the probe changed about the plan". |
+| `asvu/13eb` — postal-code rent, the indicator that made Finland's market layer unique — is **gone from live StatFin** and frozen at 2025Q4 | Both are carried: the frozen postal series (labelled with its own end date, 2025Q4, and never extended) and the live kunta-level `asvu/15fa`. Phase 4 decides which is the headline; neither is silently spliced into the other. |
+| `asvu/15fa` publishes ARA rent as funding code `2`, the archive `11x4` as code `0` — the codes are **inverted** | Both recorded verbatim in the config. Never assume a funding code means the same thing in two tables. |
+| `ashi/12dg` (new dwellings by sub-area) returns null for all 24 sub-areas | Not registered. A table of nulls is not a source. |
+| `raku/156f` and `raku/15f7` are maakunta-level only — no kunta-level construction exists anywhere | Logged as gap 1. Phase 4 either publishes it at maakunta level with the level stated, or drops it. |
+| `rpk/13ex` takes ~10 s per small request | Phase 6 chunks by year; the client already throttles. |
+| Partial probe runs were overwriting the full table in the doc | `probe_fi.py --only …` now prints instead of writing unless `--force` is given, and the generated block is spliced between markers so the hand-written findings survive a re-run. |
+| StatFin returned HTTP 429 mid-probe and the first run reported live tables as missing | `get()` now waits out a 429/503 and retries up to four times; a rate limit can no longer be reported as a dead route. |
