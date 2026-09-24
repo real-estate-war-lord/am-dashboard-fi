@@ -1,0 +1,26 @@
+{
+ "table": "rpk/13h4",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/rpk/13h4.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__rpk/13h4.px/",
+ "query": {
+  "rikokset_74_20211209": [
+   "101T103a0101"
+  ],
+  "contentscode": [
+   "rik_1000"
+  ],
+  "alue_28_20210101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-05-27T05:00:00Z",
+ "label": "Offences recorded by year of reporting by Year, Area, Offence group and specifier for criminal act and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for crime_1000, crime_trend, drugs_1000, property_1000, vandalism_1000, violence_1000",
+ "cells": 15180
+}

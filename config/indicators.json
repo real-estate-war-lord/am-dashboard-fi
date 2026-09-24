@@ -2033,6 +2033,2041 @@
       ],
       "note": "Rates fell sharply in 2023 when health and social services moved to the hyvinvointialueet and the state took the funding with them — a 2022 rate and a 2023 rate are not comparable, and this series starts at the current decision. Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
       "warn": "One year only: Verohallinto publishes the rate as an annual decision, not as a time series, so there is no history here."
+    },
+    {
+      "key": "fc_growth",
+      "label": "Projected population change 2026→2040",
+      "short": "Outlook 2040",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change in the number of inhabitants from 2026 to 2040, %. Both figures are cells of Väestöennuste 2024; the percentage between them is plain arithmetic.",
+      "calc": "proj_growth",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": ""
+    },
+    {
+      "key": "fc_abs",
+      "label": "Projected change in residents 2026→2040",
+      "short": "Outlook, residents",
+      "unit": "residents",
+      "fmt": "int",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change in the number of inhabitants from 2026 to 2040, in people. A percentage alone does not tell a reader how many.",
+      "calc": "proj_abs",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": ""
+    },
+    {
+      "key": "fc_growth_5y",
+      "label": "Projected population change 2026→2031",
+      "short": "Outlook 5 yr",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change over the first five years of the projection, %.",
+      "calc": "proj_growth_5y",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": ""
+    },
+    {
+      "key": "fc_pop_rate_5y",
+      "label": "Projected population change, per year",
+      "short": "Outlook rate",
+      "unit": "residents per 1,000 / yr",
+      "fmt": "per1000",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change over the first five years, expressed as residents per 1 000 inhabitants per year. Persons, not dwellings: nothing here converts one into the other, because that would need an assumption about household size.",
+      "calc": "proj_rate_5y",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": ""
+    },
+    {
+      "key": "fc_0_6",
+      "label": "Projected change, aged 0–6",
+      "short": "0–6",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change from 2026 to 2040 in the number of children aged 0–6 — the ages before comprehensive school, and the ones that drive demand for daycare.",
+      "calc": "proj_group",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": "",
+      "group_key": "a0_6"
+    },
+    {
+      "key": "fc_7_15",
+      "label": "Projected change, aged 7–15",
+      "short": "7–15",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change from 2026 to 2040 in the number of children of comprehensive-school age (7–15 in Finland).",
+      "calc": "proj_group",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": "",
+      "group_key": "a7_15"
+    },
+    {
+      "key": "fc_20_34",
+      "label": "Projected change, aged 20–34",
+      "short": "20–34",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change from 2026 to 2040 in the number of people aged 20–34 — the ages that form new households and drive rental demand.",
+      "calc": "proj_group",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": "",
+      "group_key": "a20_34"
+    },
+    {
+      "key": "fc_20_34_rel",
+      "label": "Projected 20–34 share vs Finland",
+      "short": "20–34 vs FI",
+      "unit": "pp",
+      "fmt": "signdec1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "The area's projected share of 20–34 year-olds in 2040, minus the same share for Finland as a whole, in percentage points. Both shares are computed from the same projection.",
+      "calc": "proj_share_rel",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": "",
+      "group_key": "a20_34"
+    },
+    {
+      "key": "fc_80p",
+      "label": "Projected change, aged 80+",
+      "short": "80+",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Outlook",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Projected change from 2026 to 2040 in the number of people aged 80 or over.",
+      "calc": "proj_group",
+      "num": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaenn/14wx",
+          "area_var": "alue_23_20240101",
+          "time_var": "timeperiod_y",
+          "projection": true,
+          "ages": {
+            "a0_6": [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006"
+            ],
+            "a7_15": [
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015"
+            ],
+            "a20_34": [
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034"
+            ],
+            "a80p": [
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ]
+          },
+          "keep_total": true,
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS",
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "020",
+              "021",
+              "022",
+              "023",
+              "024",
+              "025",
+              "026",
+              "027",
+              "028",
+              "029",
+              "030",
+              "031",
+              "032",
+              "033",
+              "034",
+              "080",
+              "081",
+              "082",
+              "083",
+              "084",
+              "085",
+              "086",
+              "087",
+              "088",
+              "089",
+              "090",
+              "091",
+              "092",
+              "093",
+              "094",
+              "095",
+              "096",
+              "097",
+              "098",
+              "099",
+              "100-"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaesto_e24"
+            ]
+          },
+          "key_vars": [
+            "ikaryhma_10_20180101"
+          ]
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaenn/14wx"
+        }
+      ],
+      "proj": {
+        "publisher": "Tilastokeskus",
+        "vintage": "Väestöennuste 2024",
+        "published": "2024-10-24",
+        "table": "vaenn/14wx",
+        "from": "2026",
+        "to": "2040",
+        "relative_label": "vs Finland",
+        "caveat": "A projection is a calculation of what the population would be if the observed trends in births, deaths and migration continued. It is the publisher's scenario, not a forecast of what will happen, and it takes no account of housing policy, zoning or a new employer arriving."
+      },
+      "source": "Tilastokeskus vaenn 14wx, Väestöennuste 2024 (published 2024-10-24)",
+      "tables": [
+        "vaenn/14wx"
+      ],
+      "note": "Väestöennuste 2024, published 2024-10-24. One vintage, not a series: there is no history to scroll through, and the figure does not change until Tilastokeskus publishes a new projection. The projected part of every chart is drawn dashed.",
+      "warn": "",
+      "group_key": "a80p"
+    },
+    {
+      "key": "crime_1000",
+      "label": "Reported offences",
+      "short": "Crime",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "All offences against the penal code, per 1 000 inhabitants — the publisher's own rate, not a division of ours.",
+      "calc": "passthrough",
+      "num": [
+        "101T504X406|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4 (offences per 1 000 population in the area)",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °. About a quarter of this total is traffic offences, which say as much about enforcement as about a neighbourhood; the thematic rates below are the ones to compare areas on.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "violence_1000",
+      "label": "Violent offences",
+      "short": "Violence",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Crimes against life and health per 1 000 inhabitants.",
+      "calc": "passthrough",
+      "num": [
+        "201T223|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4 (offences per 1 000 population in the area)",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "property_1000",
+      "label": "Property offences",
+      "short": "Property crime",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Offences against property per 1 000 inhabitants — theft, burglary, fraud and the rest.",
+      "calc": "passthrough",
+      "num": [
+        "101T161|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4 (offences per 1 000 population in the area)",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "vandalism_1000",
+      "label": "Criminal damage",
+      "short": "Vandalism",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Damage to property (vahingonteko) per 1 000 inhabitants.",
+      "calc": "passthrough",
+      "num": [
+        "131T132|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4 (offences per 1 000 population in the area)",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "drugs_1000",
+      "label": "Narcotics offences",
+      "short": "Narcotics",
+      "unit": "per 1,000 inh.",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Narcotics offences per 1 000 inhabitants.",
+      "calc": "passthrough",
+      "num": [
+        "451_452_456T458|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4 (offences per 1 000 population in the area)",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °. Narcotics offences are almost entirely found by the police rather than reported by a victim, so this measures enforcement as much as it measures use.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "burglary_1000dw",
+      "label": "Dwelling burglary",
+      "short": "Burglary",
+      "unit": "per 1,000 dwellings",
+      "fmt": "per1000",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Thefts through unlawful breaking into a dwelling, per 1 000 dwellings. Burglary is a crime against a home, so the denominator is homes, not people — the count is the publisher's, the division by the dwelling stock is ours.",
+      "calc": "per_1000_dwellings",
+      "num": [
+        "101T103a0101|rikokset_lkm"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13ex",
+          "area_var": "alue_23_20230101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T103a0101"
+            ],
+            "contentscode": [
+              "rikokset_lkm"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13ex"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13ex (offences known to the authorities) ÷ Paavo dwelling stock",
+      "tables": [
+        "rpk/13ex"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °. The code used is the publisher's 'Thefts, through unlawful breaking into other residence' — breaking into a permanent dwelling, excluding summer houses, which the publisher counts separately.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "crime_trend",
+      "label": "Reported offences, year on year",
+      "short": "Crime y/y",
+      "unit": "%",
+      "fmt": "signpct1",
+      "group": "Safety",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Change in the rate of penal-code offences per 1 000 inhabitants against the previous year, %.",
+      "calc": "yoy_pct",
+      "num": [
+        "101T504X406|rik_1000"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "rpk/13h4",
+          "area_var": "alue_28_20210101",
+          "time_var": "timeperiod_y",
+          "key_vars": [
+            "rikokset_74_20211209",
+            "contentscode"
+          ],
+          "vars": {
+            "rikokset_74_20211209": [
+              "101T504X406",
+              "201T223",
+              "101T161",
+              "101T103a0101",
+              "131T132",
+              "451_452_456T458"
+            ],
+            "contentscode": [
+              "rik_1000"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "rpk/13h4"
+        }
+      ],
+      "source": "Tilastokeskus rpk 13h4",
+      "tables": [
+        "rpk/13h4"
+      ],
+      "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °. One year against one year: in a small municipality a handful of offences moves this a long way, so read it beside the level, not on its own.",
+      "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
     }
   ],
   "osa": {
@@ -2047,6 +4082,12 @@
     "weighted_mean": "Σ(num[i] × weight[i]) ÷ Σ(weight[i]) — a mean weighted by each class's own published count, which is exact when num is itself a mean per unit",
     "sum": "Σ(num) over the listed cells",
     "per_1000_dwellings": "Σ(num) ÷ the area's dwelling stock × 1000; the stock is Paavo's latest published count for that area",
-    "per_1000": "Σ(num) ÷ Σ(den) × 1000, both from the same table, area and period"
+    "per_1000": "Σ(num) ÷ Σ(den) × 1000, both from the same table, area and period",
+    "proj_growth": "(pop[to] / pop[from] - 1) × 100 on the projection's own cells",
+    "proj_abs": "pop[to] - pop[from]",
+    "proj_growth_5y": "(pop[from+5] / pop[from] - 1) × 100",
+    "proj_rate_5y": "(pop[from+5] - pop[from]) ÷ 5 ÷ pop[from] × 1000 — residents per 1 000 per year",
+    "proj_group": "(group[to] / group[from] - 1) × 100 for the age band named by `group_key`",
+    "proj_share_rel": "the area's group share at `to` minus Finland's, in percentage points"
   }
 }

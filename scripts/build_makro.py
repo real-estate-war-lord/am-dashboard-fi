@@ -82,7 +82,7 @@ def safe(name):
 _cache = {}
 
 
-def cells(table, key_vars=None, area_v=None, time_v=None):
+def cells(table, key_vars=None, area_v=None, time_v=None, keep_totals=False):
     """Every pull of one table, merged: {area: {period: {code: value}}} plus the stamps.
 
     `code` is the **cell key**: the values of the dimensions named in the source's
@@ -95,7 +95,7 @@ def cells(table, key_vars=None, area_v=None, time_v=None):
     With no `key_vars` the key is the contentscode, or the one other multi-valued dimension
     when the table has no contentscode.
     """
-    ck = (table, tuple(key_vars or ()), area_v, time_v)
+    ck = (table, tuple(key_vars or ()), area_v, time_v, keep_totals)
     if ck in _cache:
         return _cache[ck]
     prefix = safe(table) + "__"
@@ -131,7 +131,7 @@ def cells(table, key_vars=None, area_v=None, time_v=None):
                 kv = multi[:1]
         for r in statfin.rows(ds):
             a = norm_area(r[area_var])
-            if a in TOTALS:
+            if a in TOTALS and not keep_totals:
                 continue
             t = str(r[time_var])
             code = "|".join(str(r[v]) for v in kv) if kv else "value"
@@ -224,6 +224,76 @@ def kela_cells(src):
 def kela_stamp():
     p = EXT / "kela_asumistuki.csv.meta.json"
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+
+# ---------------------------------------------------------------- the projection
+
+PROJ_CALCS = {"proj_growth", "proj_abs", "proj_growth_5y", "proj_rate_5y", "proj_group",
+              "proj_share_rel"}
+_proj_cache = {}
+
+
+def projection(src):
+    """{area: {year: {"pop": n, "groups": {band: n}}}} plus the national row.
+
+    Väestöennuste 2024 is one vintage, not a series of releases: every figure in the Outlook
+    group comes from this single published projection, and nothing is fitted, extrapolated or
+    blended with anything else. The age bands are sums of the projection's own single-year
+    cells — a sum of published cells, which is all the hard-data rule allows and all that is
+    needed.
+    """
+    key = (src["table"], json.dumps(src.get("ages") or {}, sort_keys=True))
+    if key in _proj_cache:
+        return _proj_cache[key]
+    # the whole-country row is kept here on purpose: "the area's 20–34 share versus Finland's"
+    # needs Finland's own projected share, from the same projection, not from anywhere else
+    raw, stamps, _ = cells(src["table"], src.get("key_vars"), src.get("area_var"),
+                           src.get("time_var"), keep_totals=True)
+    bands = src.get("ages") or {}
+    out = {}
+    for area, per_year in raw.items():
+        rows = {}
+        for year, codes in per_year.items():
+            pop = codes.get("SSS")
+            groups = {}
+            for band, ages in bands.items():
+                got = [codes.get(a) for a in ages]
+                groups[band] = sum(v for v in got if v is not None) if any(
+                    v is not None for v in got) else None
+            rows[year] = {"pop": pop, "groups": groups}
+        out[area] = rows
+    _proj_cache[key] = (out, stamps)
+    return out, stamps
+
+
+def proj_value(ind, rows, nat, proj):
+    """One number for one area — a vintage, not a series, so there is no history to return."""
+    calc = ind["calc"]
+    a, b = str(proj.get("from")), str(proj.get("to"))
+    five = str(int(a) + 5)
+    p0 = (rows.get(a) or {}).get("pop")
+    p1 = (rows.get(b) or {}).get("pop")
+    p5 = (rows.get(five) or {}).get("pop")
+    if calc == "proj_growth":
+        return None if not p0 or p1 is None else (p1 / p0 - 1) * 100.0
+    if calc == "proj_abs":
+        return None if p0 is None or p1 is None else p1 - p0
+    if calc == "proj_growth_5y":
+        return None if not p0 or p5 is None else (p5 / p0 - 1) * 100.0
+    if calc == "proj_rate_5y":
+        return None if not p0 or p5 is None else (p5 - p0) / 5.0 / p0 * 1000.0
+    gk = ind.get("group_key")
+    g0 = ((rows.get(a) or {}).get("groups") or {}).get(gk)
+    g1 = ((rows.get(b) or {}).get("groups") or {}).get(gk)
+    if calc == "proj_group":
+        return None if not g0 or g1 is None else (g1 / g0 - 1) * 100.0
+    if calc == "proj_share_rel":
+        nb = (nat.get(b) or {})
+        np_, ng = nb.get("pop"), (nb.get("groups") or {}).get(gk)
+        if not p1 or g1 is None or not np_ or ng is None:
+            return None
+        return g1 / p1 * 100.0 - ng / np_ * 100.0
+    return None
 
 
 # ---------------------------------------------------------------- the calcs
@@ -426,7 +496,7 @@ def main():
     for ind in inds:
         entry = {k: ind[k] for k in ("key", "label", "short", "unit", "fmt", "group", "direction",
                                      "level", "hue", "desc", "source") if k in ind}
-        for k in ("note", "warn", "chip", "src_verify", "tables"):
+        for k in ("note", "warn", "chip", "src_verify", "tables", "proj", "group_key"):
             if ind.get(k):
                 entry[k] = ind[k]
         entry["asof"] = {}
@@ -436,6 +506,44 @@ def main():
         # merge every source that serves the same level before computing: an indicator whose
         # numerator and denominator come from two publishers (Kela ÷ Paavo) needs both cells
         # in the same {area: {period: {code: value}}} before the division can happen.
+        # An Outlook indicator is one vintage of one published projection. It has no history,
+        # so it never goes through the per-period machinery.
+        if ind.get("calc") in PROJ_CALCS:
+            src = next((x for x in ind.get("sources", []) if x.get("projection")), None)
+            if src:
+                rows_by_area, stamps = projection(src)
+                for st in stamps:
+                    if st:
+                        sources_meta[st.get("table") or str(len(sources_meta))] = st
+                nat = rows_by_area.get("SSS") or {}
+                proj = ind.get("proj") or {}
+                hit = 0
+                for code, o in KUNTA.items():
+                    rows = rows_by_area.get(code)
+                    if not rows:
+                        continue
+                    v = proj_value(ind, rows, nat, proj)
+                    if v is None:
+                        continue
+                    o[ind["key"]] = round(v, DP.get(ind.get("fmt", ""), 3))
+                    hit += 1
+                    if "fc_pop" not in o:
+                        o["fc_pop"] = {y: r["pop"] for y, r in sorted(rows.items())
+                                       if r["pop"] is not None}
+                        o["fc_groups"] = {y: {k: g for k, g in (rows.get(y) or {}).get("groups", {}).items()
+                                              if g is not None}
+                                          for y in (str(proj.get("from")), str(proj.get("to")))
+                                          if rows.get(y)}
+                entry["coverage"]["kunta"] = hit
+                entry["asof"]["kunta"] = str(proj.get("to") or "")
+                say(f"  {ind['key']:12} {'kunta':12} {hit:>5} own · projection "
+                    f"{proj.get('from')}→{proj.get('to')} · {proj.get('vintage')}")
+            entry["years"].sort()
+            entry["quarters"].sort()
+            if not entry["quarters"]:
+                entry.pop("quarters")
+            out_inds.append(entry)
+            continue
         by_geo, inherit_from = {}, None
         for src in ind.get("sources", []):
             inherit_from = inherit_from or src.get("inherit")
@@ -585,6 +693,10 @@ def main():
     # the observed-population series is only read by the Outlook chart on one area page at a
     # time, so it travels in that kunta's lazy file rather than in every page load
     pop_hist = {c: o.pop("pop_hist") for c, o in KUNTA.items() if o.get("pop_hist")}
+    # the projected series and the age split are read by one area page at a time, like the
+    # observed series they are drawn beside
+    fc_pop = {c: o.pop("fc_pop") for c, o in KUNTA.items() if o.get("fc_pop")}
+    fc_groups = {c: o.pop("fc_groups") for c, o in KUNTA.items() if o.get("fc_groups")}
     # Every kunta's full history in one file. The map and the table at the latest period need
     # none of it; a chart, an area page, the "Δ since" column or any earlier year needs all of
     # it at once, so it is one fetch rather than 308.
@@ -671,7 +783,9 @@ def main():
                  "histq": AREA[nr]["histq"]} for nr in sorted(nrs)]
         p = adir / f"{kunta}.json"
         p.write_text(json.dumps({"kunta": kunta, "built": meta["built"], "areas": rows,
-                                 "pop_hist": pop_hist.get(kunta, {})},
+                                 "pop_hist": pop_hist.get(kunta, {}),
+                                 "fc_pop": fc_pop.get(kunta, {}),
+                                 "fc_groups": fc_groups.get(kunta, {})},
                                 ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         biggest = max(biggest, p.stat().st_size)
     say(f"wrote {len(by_kunta)} per-kunta files in {adir.relative_to(ROOT)} "

@@ -63,7 +63,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 3 | Area indicators (rows 1–11) | ✅ | `feat: area indicators` |
 | 4 | Market indicators (rows 12–21) | ✅ | `feat: market indicators` |
 | 5 | Taxes (rows 29–30) | ✅ | `feat: municipal tax rates` |
-| 6 | Safety + Outlook (rows 31–33) | ☐ | |
+| 6 | Safety + Outlook (rows 31–33) | ✅ | `feat: safety and outlook` |
 | 7 | Osa-alue level (row 34) | ☐ | |
 | 8 | Verify, docs, wrap-up | ☐ | |
 
@@ -128,8 +128,14 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - New: `scripts/import_verohallinto.py`, `config/sources.json`, and a generic `csv` source type in the engine.
 - Checks: validate ✓ · links ✓ · test ✓ · build ✓ 2 224 kB · all six Helsinki rates match the published decision.
 
+### Phase 6 — Safety + Outlook ✅
+- **Safety** (7 indicators, kunta, lower_better with direction-aware ranks and colours): reported offences, violence, property crime, vandalism, narcotics, dwelling burglary per 1 000 dwellings, and the y/y trend. The per-1 000 rates are the publisher's own (`rpk/13h4`), not ours.
+- **Outlook** (9 indicators from Väestöennuste 2024, `vaenn/14wx`, published 2024-10-24): change 2026→2040 in per cent and in people, the five-year change and rate, the 0–6, 7–15, 20–34 and 80+ bands, and the 20–34 share against Finland's own projected share. Observed solid, projected dashed, split at "2025 · today".
+- **50 indicators live.** Finland publishes no open crime data below kunta and no quarterly municipal crime data at all — both said plainly rather than worked around.
+- Checks: validate ✓ · test ✓ · build ✓ 2 310 kB · fixture ✓ · 11 spot-checks reconcile exactly.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 6 — Safety (`rpk`, kunta, lower_better, direction-aware ranks) + Outlook (Väestöennuste 2024 `vaenn/14wx`, dashed projected segment, Helsinki city forecast by osa-alue).
+**Next action:** Phase 7 — osa-alue level (row 34): Aluesarjat indicators for Helsinki, Espoo, Vantaa and Kauniainen, the Helsinki city forecast by area, and the kunta → postinumero → osa-alue breadcrumb.

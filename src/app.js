@@ -177,7 +177,8 @@ function pnoLoad(kunta, then) {
     .then(d => {
       (d.areas || []).forEach(row => { const a = byNr[row.nr]; if (!a) return; a.rings = row.rings || []; a.hist = row.hist || {}; a.histq = row.histq || {}; });
       /* the kunta's own observed-population series rides along — the Outlook chart needs it */
-      const m = byCode[k]; if (m && d.pop_hist) m.pop_hist = d.pop_hist;
+      const m = byCode[k];
+      if (m) { if (d.pop_hist) m.pop_hist = d.pop_hist; if (d.fc_pop) m.fc_pop = d.fc_pop; if (d.fc_groups) m.fc_groups = d.fc_groups; }
       PNO.loaded[k] = true; delete PNO.busy[k];
       if (then) then();
     })
@@ -779,14 +780,16 @@ function yearSelect() {
   if (cur && cur.proj) {
     return `<span class="projwin" title="${esc((cur.proj.publisher || "") + " " + (cur.proj.table || "") + " — a single vintage, not a series")}">${esc(projWindow(cur))}</span>`;
   }
+  /* Indicators end in different years — Paavo runs two years behind, the tax rates are already
+     on 2026 — so "latest" is a sentinel meaning "the newest period this indicator has", and the
+     option says which year that actually is. Picking it never mixes two indicators' years. */
   const ys = yearsFor(MK.ind);
   if (ys.length < 2) return "";
-  const hy = ys.filter(y => y !== LATEST); const lastHist = hy[hy.length - 1];
-  const pool = curPool();
-  /* rolling indicators (Safety) have no calendar value for the latest year but their live window ends in it */
-  const a = curInd().asof || {}; const endYr = (String(a.kunta || a.postinumero || a.osa_alue || "").split("→").pop().split("–").pop().match(/\d{4}/) || [""])[0];
-  const label = y => y === LATEST ? (lastHist && lastHist !== LATEST && endYr !== LATEST && !pool.some(m => m.hist && m.hist[MK.ind] && m.hist[MK.ind][LATEST] != null) ? `latest (${lastHist} data)` : `${y} (latest)`) : y;
-  return `<select id="yearsel" class="indsel" aria-label="Year">${ys.filter(y => !(y === lastHist && label(LATEST).startsWith("latest ("))).map(y => `<option value="${y}" ${MK.year === y ? "selected" : ""}>${label(y)}</option>`).join("")}</select>`;
+  const own = ys[ys.length - 1];
+  const opts = ys.slice(0, -1).map(y => [y, y])
+    .concat([[LATEST, own === LATEST ? `${own} (latest)` : `latest (${own} data)`]]);
+  return `<select id="yearsel" class="indsel" aria-label="Year">${opts.map(([v, l]) =>
+    `<option value="${esc(v)}" ${MK.year === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
 }
 
 /* geometry helpers: largest ring, centroid */
@@ -1161,7 +1164,8 @@ function multiLine(series, ind, ys) {
    osa-alueet) as a solid line, and the projection (vaenn / the city run) as a dashed one from the last observed
    year. A vertical marker separates them, the card carries a "Projection" badge, and every
    projected point says so in its own tooltip — a projected point must never read as an actual. */
-const AGE_LABELS = { a0_5: "0–5", a6_16: "6–16", a17_19: "17–19", a20_34: "20–34", a35_64: "35–64", a65_79: "65–79", a80p: "80+" };
+/* the Finnish school ages: 0–6 before school, 7–15 comprehensive school */
+const AGE_LABELS = { a0_6: "0–6", a7_15: "7–15", a20_34: "20–34", a80p: "80+" };
 function popOutlookChart(o, opts) {
   const hist = o.pop_hist || {}, proj = o.fc_pop || {};
   const group = opts && opts.group;
@@ -1216,9 +1220,9 @@ function outlookCard(e) {
   const pr = (g && g.proj) || {};
   const who = pr.publisher || "Tilastokeskus";
   const actualSrc = isQ ? "Aluesarjat" : "Tilastokeskus vaerak";
-  const tiles = ["fc_growth", "fc_20_34_rel", "fc_0_5", "fc_80p", "fc_pop_rate_5y"]
+  const tiles = ["fc_growth", "fc_20_34_rel", "fc_0_6", "fc_80p", "fc_pop_rate_5y"]
     .map(k => list.find(i => i.key === k)).filter(i => i && o[i.key] != null).slice(0, 5);
-  const ageRows = ["a0_5", "a6_16", "a20_34", "a80p"].map(gk => {
+  const ageRows = ["a0_6", "a7_15", "a20_34", "a80p"].map(gk => {
     const a = (o.fc_groups || {})[pr.from || "2026"], b = (o.fc_groups || {})[pr.to || "2040"];
     if (!a || !b || a[gk] == null || !a[gk]) return "";
     const pct = (b[gk] - a[gk]) / a[gk] * 100;

@@ -1,0 +1,29 @@
+{
+ "table": "vaenn/14wx",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vaenn/14wx.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__vaenn/14wx.px/",
+ "query": {
+  "ikaryhma_10_20180101": [
+   "095"
+  ],
+  "sukupuoli_9_20180101": [
+   "SSS"
+  ],
+  "contentscode": [
+   "vaesto_e24"
+  ],
+  "alue_23_20240101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2024-10-24T05:00:00Z",
+ "label": "Population projection 2024: Population 31 Dec by Area, Year, Sex, Age and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for fc_0_6, fc_20_34, fc_20_34_rel, fc_7_15, fc_80p, fc_abs, fc_growth, fc_growth_5y, fc_pop_rate_5y",
+ "cells": 6820
+}

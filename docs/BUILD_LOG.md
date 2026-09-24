@@ -202,3 +202,31 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | 199 of 308 kunnat have an undeveloped-site rate | Not every municipality sets one. A missing rate is shown as `–` with a caveat saying it is not a rate of zero. |
 | Verohallinto states no open licence on the tax-rate pages | Recorded honestly in `docs/SOURCES.md` and in `config/sources.json`: the figures are used with the attribution "Lähde: Verohallinto" and are not republished as an open-licensed dataset. |
 | A third file-based source after Kela | Generalised into a `csv` source type in `build_makro.py` that names its own columns, so the next file source needs no new engine code. |
+
+---
+
+## Phase 6 — Safety + Outlook (rows 31–33)
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ 50 indicators |
+| `make fetch` | ✓ `rpk/13h4` 6 pulls · `rpk/13ex` 1 · `vaenn/14wx` 53 |
+| `make build` | ✓ `index.html` 2 310 kB |
+| `make test`, `make fixture` | ✓ |
+| Spot-check, Safety | ✓ Helsinki 2025: crime **133,26**, violence **11,38**, property **77,38** per 1 000 — the publisher's own rates, unchanged; y/y 133,26 ÷ 118,47 − 1 = **+12,48 %**; burglary 424 ÷ 398 541 × 1000 = **1,06** per 1 000 dwellings |
+| Spot-check, Outlook | ✓ Helsinki 706 283 → 810 580 = **+14,77 %**, **+104 297** residents; five-year 749 128 ÷ 706 283 − 1 = **+6,07 %**; 20–34 share 23,26 % vs Finland 18,15 % = **+5,12 pp** |
+| Screenshots | ✓ `v10safe-*.png`, `v10out-*.png` |
+
+### Decisions logged in phase 6
+
+| ⚠ | Decision |
+|---|---|
+| Should the per-1 000 crime rate be computed here? | **No.** `rpk/13h4` publishes offences per 1 000 population in the area, so the published rate is used unchanged. A published figure always beats our own arithmetic on it. |
+| Which "all offences" total? | `101T504X406` "1 Offences against penal code", not the broader `101T603`, which also counts traffic infractions and minor public-order matters. About a quarter of even the penal-code total is traffic offences, which the indicator's own note says out loud, pointing readers at the thematic rates instead. |
+| Burglary per 1 000 **dwellings**, as the spec asks | The count comes from `rpk/13ex` (`101T103a0101`, "Thefts, through unlawful breaking into other residence" — a permanent dwelling, excluding the summer houses the publisher counts separately) and the denominator is Paavo's dwelling stock. The division is ours and says so. |
+| "Quarterly series if published" | **There is none.** The only quarterly table in `rpk` is `13iv`, which has no area variable at all; sub-annual municipal data exists only monthly (`13it`) and is marked preliminary from 2026M01. The annual series (final through 2025) is what is shown, and `docs/SOURCES.md` says plainly that Finland publishes no open crime data below kunta level. |
+| The crime rate counts offences where they happened, against the population registered there | Said in every Safety indicator's note, in the publisher's own words. A city centre carries offences against people who do not live there, and the note tells the reader to read it as where crime is recorded, not as how dangerous residents' lives are. |
+| Which age bands for the Outlook? | The Finnish school ages: **0–6** (before school, the daycare cohort) and **7–15** (comprehensive school), not the Danish 0–5 / 6–16. Plus 20–34 and 80+. Each band is a sum of the projection's own single-year cells. |
+| Väestöennuste 2024 is one vintage, not a series | The Outlook indicators return one number and no history, the year selector is replaced by the projection window, and the projected part of every chart is dashed with a "2025 · today" marker between observed and projected. The publication date (2024-10-24) is read from the table's own `updated` field, not from the table listing, which carries a later bulk re-stamp. |
+| `fc_20_34_rel` needs Finland's own projected share | The whole-country row is kept for the projection only — the comparison comes from the same projection as the area's own figure, never from a different source. |
+| Indicators now end in different years (Paavo 2024, taxes 2026) | "Latest" became a sentinel meaning *this indicator's newest period*, and the year selector says which year that is — "latest (2025 data)". Picking it can never mix two indicators' years. |

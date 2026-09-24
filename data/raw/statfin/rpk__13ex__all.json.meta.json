@@ -1,0 +1,26 @@
+{
+ "table": "rpk/13ex",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/rpk/13ex.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__rpk/13ex.px/",
+ "query": {
+  "rikokset_74_20211209": [
+   "101T103a0101"
+  ],
+  "contentscode": [
+   "rikokset_lkm"
+  ],
+  "alue_23_20230101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-05-27T05:00:00Z",
+ "label": "Offences recorded and their solving by Year, Municipality, Offence group and specifier for criminal act and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for burglary_1000dw",
+ "cells": 14306
+}
