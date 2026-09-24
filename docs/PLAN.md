@@ -222,7 +222,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 | 11 | Climate risk | ✅ | `feat: climate risk — SYKE flood hazard and STUK radon` |
 | 12 | Services + Public buildings | ✅ | `feat: services and public buildings` |
 | 13 | Infra projects | ✅ | `feat: infrastructure projects` |
-| 14 | Schools | ☐ | |
+| 14 | Schools | ✅ | `feat: schools — register points and YTL matriculation results` |
 | 15 | Buildings, energy, zoning, grid | ☐ | |
 | 16 | Verify, docs, wrap-up | ☐ | |
 
@@ -363,6 +363,31 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 - **Size:** the page hit 3.30 MB against a 3.00 MB ceiling. Fixed properly rather than by
   shaving: the 140 kB of alignments moved to a lazy `dist/infra.json`, fetched the first time
   anything wants to draw one. Page 2.9 MB.
+
+### Phase 14 — Schools ✅
+- **2 501 school points** from Tilastokeskus's `oppilaitokset` register, **with the register's
+  own coordinates** — nothing geocoded. It publishes no kunta code, so every school is placed by
+  point-in-polygon on our own rings: 2 498 of 2 501 land in a kunta.
+- **YTL publishes an open candidate-level file** per exam session — one row per candidate, with
+  the school, the subject grades and the total on its own 0–7 scale. Nine sessions answer
+  (2022K–2026K); 2026S is not published yet and is skipped, not guessed.
+- **Suppression is the point.** A school session under **10 candidates**, or a subject fewer
+  than 10 of its candidates sat, is suppressed, because a mean over three candidates describes
+  three people. YTL's own `**` is read the same way. Null, never zero.
+- **The two publishers share no key**: Tilastokeskus says `08888`, YTL says `1488`, and padding
+  one into the other matches **0 of 387**. The join is **exact normalised-name equality and
+  nothing fuzzier** — a near match would give one school another's results and nothing would
+  reveal it. **338 of 380 lukios joined**; the 46 unjoined (adult lines, schools abroad,
+  renamed schools) are listed in the payload and carry no result rather than someone else's.
+- **"Finland publishes no comprehensive-school results"** is said in the school popup, the
+  datasheet, the school list and the charts — 2 167 of the 2 501 schools are a point with a
+  name and a type, and that is not a suppressed figure.
+- The figure is honest about itself everywhere it appears: `yht` is a *sum* over the exams a
+  candidate sat, so a school whose candidates sit more exams scores higher for that reason
+  alone, it tracks intake at least as much as teaching, and **Finland publishes no measure of
+  intake** to set against it — so unlike Denmark there is no socioeconomic-reference column.
+- The whole Danish school vocabulary retired: FP9, bundne prøver, socioeconomic reference,
+  trivsel, klassekvotient, folkeskole, BBR campus matching. `docs/SCHOOLS_FI.md`.
 
 ## 10. Resume point, batch 2
 

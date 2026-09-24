@@ -467,8 +467,8 @@ function crumbs() {
     if (m) { if (microMode()) { c.push([m.name, `map/${m.code}` + q]); tail = "Buildings"; kind = "building register"; } else { tail = m.name; kind = osaMode() ? "osa-alueet" : "postal codes"; } }
     else { tail = "Map"; kind = "municipalities and postal codes"; } }
   else if (S.view === "project") { const f = projectEntity(); c.push(["Pipeline", "pipeline"]); tail = f ? f.properties.name : "Project"; kind = f ? (INFRA_TYPE[f.properties.type] || f.properties.type) : ""; }
-  else if (S.view === "school") { const s = SCH_BY[SC.nr]; if (s && byCode[s.kom]) c.push([s.kunta, `area/kunta/${s.kom}` + q]); tail = s ? s.name : "School"; kind = s ? (SCH_TYPE[s.type] || s.type) : "Opetushallitus"; }
-  else if (S.view === "schoollist") { tail = "Schools"; kind = "sorted by FP9 grade"; }
+  else if (S.view === "school") { const s = SCH_BY[SC.nr]; if (s && byCode[s.kom]) c.push([s.kunta, `area/kunta/${s.kom}` + q]); tail = s ? s.name : "School"; kind = s ? (SCH_TYPE[s.type] || s.type) : "Tilastokeskus"; }
+  else if (S.view === "schoollist") { tail = "Schools"; kind = "lukios sorted by matriculation points"; }
   else if (S.view === "analysis") { c.push(["Map", "map" + q]); tail = AN.label || TP_LABEL; kind = "test property"; }
   else { tail = viewOf(S.view)[1]; kind = { table: "every area side by side", charts: "PNG and CSV export", sources: "every table, licence and definition", pipeline: `${INFRA_ALL.length} projects · budget, status, opening year` }[S.view] || ""; }
   return { c, tail, kind };
@@ -2247,7 +2247,7 @@ const anPubRows = (pt, koms) => koms.flatMap(k => ((PUB_FILES[k] || {}).building
     && havM(pt.lat, pt.lon, b.lat, b.lon) <= AN_PUB_MAP_M);
 /* the layer pills above the mini map — the same three segments, styling and wording as the Macro map.
    Schools are not a fourth overlay there either: they ride inside Public buildings, and isolating
-   Education ("only") recolours the school markers by their FP9 grade on both maps. */
+   Education ("only") recolours the lukio markers by their matriculation points on both maps. */
 function anLayerBar(pt, r) {
   const koms = anPubKoms(pt, r);
   const kom = r && r.kunta ? r.kunta.code : null, name = r && r.kunta ? r.kunta.name : "this municipality";
@@ -2459,8 +2459,8 @@ function anSchCard(pt, r) {
   if (!SCHOOLS) return card(anSkel(3), "loading the schools\u2026");
   const rows = (SCHOOLS.schools || []).filter(s => covered.includes(s.kom) && s.lat != null)
     .map(s => ({ s, d: havM(pt.lat, pt.lon, s.lat, s.lon) })).filter(x => x.d <= AN_RING_M).sort((a, b) => a.d - b.d);
-  const body = rows.length ? `<div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>School</th><th>Type</th><th class="num">Distance</th><th class="num">FP9 grade</th><th class="num">vs expected</th><th>School year</th></tr></thead>
-    <tbody>${rows.map(x => { const s = x.s, d = schV(s, "soc_ref_diff"), sig = schSig(schV(s, "soc_ref_significant"));
+  const body = rows.length ? `<div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>School</th><th>Type</th><th class="num">Distance</th><th class="num">Matriculation points</th><th class="num">vs kunta</th><th>Exam session</th></tr></thead>
+    <tbody>${rows.map(x => { const s = x.s, gg = schV(s, "grade_avg"), kk = schBench(s.kom, schY(s, "grade_avg")), d = (gg != null && kk != null) ? gg - kk : null;
       return `<tr class="clickrow" data-school="${esc(s.nr)}"><th><span class="thn">${esc(s.name)} <span class="go">\u203a</span></span></th>
         <td class="dim">${esc(SCH_TYPE[s.type] || s.type)}</td><td class="num" data-v="${Math.round(x.d)}">${anDist(x.d)}</td>
         <td class="num" data-v="${schV(s, "grade_avg") ?? ""}">${schCell(schV(s, "grade_avg"), schGrade)}</td>
@@ -2468,7 +2468,7 @@ function anSchCard(pt, r) {
         <td class="dim">${esc(schY(s, "grade_avg") || schY(s, "pupils_total") || SCH_LATEST)}</td></tr>`; }).join("")}</tbody></table></div>`
     : `<p class="empty">no grundskole within ${nf(AN_RING_M, 0)} m</p>`;
   return card(body, `${rows.length} school${rows.length === 1 ? "" : "s"} \u00b7 Opetushallitus`,
-    `<p class="cap">Distance is to the school's register point, not to its gate. FP9 grade is the weighted average of the bundne pr\u00f8ver; "vs expected" is the grade minus the socioeconomic reference the ministry's model predicts from the pupils' background, \u2713 where the source calls the difference significant. A dash is suppressed by the source, not a zero. Kilde: Opetushallitus, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>`);
+    `<p class="cap">Distance is to the school's register point, not to its gate. Matriculation points are the mean total grade points per candidate on YTL's own 0\u20137 scale, so a school whose candidates sit more exams scores higher for that reason alone; "vs kunta" is this school minus its kunta's mean. A dash is <b>suppressed, not a zero</b>. <b>Finland publishes no comprehensive-school results</b>, so a peruskoulu row carries a name and a type and nothing else. L\u00e4hde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>`);
 }
 /* --- h. sources and as-of stamps, from the same metadata the Sources view uses --- */
 function anSources(e, r, inds, hasPub, hasSch) {
@@ -2486,7 +2486,7 @@ function anSources(e, r, inds, hasPub, hasSch) {
   if (INFRA_ALL.length) add("Infrastructure projects layer", `${INFRA_ALL.length} curated projects · ${esc(((D.infra && D.infra.meta) || {}).source_csv || "data/external/infra_projects.csv")}`,
     INFRA_ALL.map(f => f.properties.updated).filter(Boolean).sort().pop() || "", ((D.infra && D.infra.meta) || {}).built || "", "Infrastructure nearby");
   if (hasPub) add("the building register", "building use codes", "", PUB.built || "", "Public buildings");
-  if (hasSch) add("Opetushallitus (STIL)", (SCH_META.years || []).join(" · "), (SCH_META.years || []).slice(-1)[0] || "", SCH_META.retrieved || "", "Schools");
+  if (hasSch) ((SCH_META.sources) || []).forEach(x => add(x.label, (SCH_META.years || []).join(" · "), (SCH_META.years || []).slice(-1)[0] || "", SCH_META.retrieved || "", "Schools"));
   add("OpenStreetMap contributors (ODbL)", "basemap tiles · building names within 60 m", "", "", "Map and names");
   return `<div class="card"><div class="card-head"><h3>Sources &amp; as of</h3><span class="hint">everything this sheet read · built ${esc((D.meta && D.meta.built) || "–")}</span></div>
     <div class="scrollx"><table class="tbl compact"><thead><tr><th>Source</th><th>Tables / files</th><th>As of</th><th>Fetched</th><th>Used for</th></tr></thead>
@@ -3416,7 +3416,7 @@ function lfPublicLayers(force) {
   lfPublicLabels();
   setPublicLegend();
 }
-/* the same circle markers on either map — grade mode: Education on its own carries the school's FP9
+/* the same circle markers on either map — grade mode: Education on its own carries the school's
    grade instead of the category hue. No grade (0.–6. klasse, suppressed, special, or not a school at
    all) keeps the base hue, drawn hollow, so it reads as "not on this scale", never as a low grade. */
 function pubMarkers(rows, map, gm) {
@@ -3459,7 +3459,7 @@ function lfPublicLabels() {
 /* The public-buildings legend, shared by the Macro map and the Analysis mini map.
 
    It is built from the full category list, never from the active filter, so switching a category off
-   greys its row instead of removing it — the way back on is always on screen. Grade mode adds the FP9
+   greys its row instead of removing it — the way back on is always on screen. Grade mode adds the
    ramp underneath the categories rather than replacing them. `rows` is what the caller actually drew,
    so the counts line always describes the markers in front of the reader. */
 function pubLegendHtml(rows, note, zoomNote, gm) {
@@ -3481,7 +3481,7 @@ function pubLegendHtml(rows, note, zoomNote, gm) {
     const sc = gradeScale(), gn = sc.classes || 0, b = sc.breaks || [];
     const lab = i2 => gn === 1 ? nf(sc.lo, 1) : i2 === 0 ? `≤ ${nf(b[0], 1)}` : i2 === gn - 1 ? `> ${nf(b[i2 - 1], 1)}` : `${nf(b[i2 - 1], 1)} – ${nf(b[i2], 1)}`;
     const bins = []; for (let i2 = gn - 1; i2 >= 0; i2--) bins.push(`<div class="lgrow"><i style="background:${mkShade(gn > 1 ? i2 / (gn - 1) : .5, GRADE_KEY)}"></i>${lab(i2)}</div>`);
-    grade = `<div class="lgsub">FP9 grade avg<span>bundne prøver · ${esc(SCH_LATEST)}</span></div>
+    grade = `<div class="lgsub">Matriculation points<span>mean per candidate · ${esc(SCH_LATEST)}</span></div>
       ${gn ? bins.join("") : `<div class="lgrow dim">no grades loaded</div>`}
       <div class="lgrow"><i style="background:${PUB_CAT.education.color};opacity:.18;border:1px solid ${PUB_CAT.education.color}"></i>no grade published</div>
       <div class="lgnote">${sc.n || 0} schools classed over the loaded municipalities. A school with no grade teaches no 9th grade, or the source suppressed it — never read it as a low grade. Kilde: Opetushallitus</div>`;
@@ -3813,18 +3813,19 @@ function schoolsLoad() {
 const schoolOf = b => (b && b.school && SCH_BY[b.school]) || null;
 const SCH_YEARS = (SCH_META && SCH_META.years) || [];
 const SCH_LATEST = SCH_YEARS[SCH_YEARS.length - 1] || "";
-const SCH_TYPE = { "folkeskole": "Folkeskole", "fri grundskole": "Private / free school", "specialskole": "Special school" };
-/* The source's own verdict on whether actual minus expected is more than noise. OVER/OVERSKO spells
-   these "Over niveau" / "Under niveau" / "På niveau" — NOT the "Bedre/Dårligere end forventet" the
-   SOCREFEX dimension uses. Only the first two are significant; "På niveau" means within the band. */
-const SCH_SIG = { "Over niveau": "above expected", "Under niveau": "below expected" };
-const schSig = v => SCH_SIG[v] || null;
+const SCH_TYPE = { comprehensive: "Peruskoulu", upper_secondary: "Lukio",
+  comprehensive_upper: "Peruskoulu and lukio", special: "Special school", other: "School" };
+/* **Finland publishes no comprehensive-school results.** Not suppressed, not licensed away: there
+   is no national peruskoulu exam result to publish. 2 167 of the 2 501 schools here are a point
+   with a name and a type, and the UI says that rather than showing an empty column that would
+   read as a bad result. The only results are the lukio matriculation figures below. */
+const SCH_NO_COMPREHENSIVE = "Finland publishes no comprehensive-school results — there is no national peruskoulu exam result to publish. Only lukio matriculation figures exist.";
 const schBench = (kom, year) => ((SCH_META && SCH_META.benchmarks && SCH_META.benchmarks.kunta[kom]) || {})[year || SCH_LATEST];
-const schBenchDK = year => ((SCH_META && SCH_META.benchmarks && SCH_META.benchmarks.denmark) || {})[year || SCH_LATEST];
+const schBenchFI = year => ((SCH_META && SCH_META.benchmarks && SCH_META.benchmarks.finland) || {})[year || SCH_LATEST];
 /* a suppressed cell is absent, never zero — every reader of a school value goes through this */
 const schV = (s, k) => (s && s.latest && s.latest[k] != null) ? s.latest[k] : null;
 const schY = (s, k) => (s && s.latest_year && s.latest_year[k]) || "";
-const SUPPRESSED = "suppressed by the source (under 3 observations; under 5 pupils for well-being and the socioeconomic reference) — not zero";
+const SUPPRESSED = "suppressed — a school session with fewer than 10 candidates, or a subject fewer than 10 of its candidates sat, is not shown, because a mean over three people describes three people. Not a zero.";
 const schCell = (v, fmt) => v == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : fmt(v);
 const schGrade = v => nf(v, 1);
 const schDiff = v => sign(v, x => nf(x, 1));
@@ -3837,9 +3838,9 @@ function schoolsInView() {
 }
 /* --- grade colouring: only when the public filter is showing Education and nothing else --- */
 const GRADE_KEY = "school_grade_avg";
-const gradeInd = () => IND.find(i => i.key === GRADE_KEY) || { key: GRADE_KEY, short: "FP9 grade", label: "FP9 grade average", unit: "grade 0–12", fmt: "idx" };
+const gradeInd = () => IND.find(i => i.key === GRADE_KEY) || { key: GRADE_KEY, short: "Matriculation", label: "Matriculation grade points, mean per candidate", unit: "points", fmt: "idx" };
 function gradeMode(on) {
-  /* Education on its own: the Education markers carry the school's FP9 grade instead of the category
+  /* Education on its own: the Education markers carry the school's matriculation points instead of the category
      hue. `on` is the layer state of the map asking — the Macro map's by default, the mini map's on the
      Analysis sheet. */
   return !!((on === undefined ? MK.pub : on) && SCH_META && PF.cats && PF.cats.size === 1 && PF.cats.has("education") && SCHOOLS);
@@ -3857,22 +3858,20 @@ function gradeColor(b, sc) {
 function schoolPopupBlock(b) {
   const s = schoolOf(b); if (!s) return "";
   const row = (l, v, t) => `<span class="lfrow"><span${t ? ` title="${esc(t)}"` : ""}>${esc(l)}</span><b>${v}</b></span>`;
-  const g = schV(s, "grade_avg"), kb = schBench(s.kunta, schY(s, "grade_avg")), dk = schBenchDK(schY(s, "grade_avg"));
-  const d = schV(s, "soc_ref_diff"), sig = schSig(schV(s, "soc_ref_significant"));
-  const socTxt = d == null ? `<span class="dim" title="${SUPPRESSED}">–</span>`
-    : `${schDiff(d)}${sig ? ` <em class="schsig">✓ ${esc(sig)}</em>` : ` <em class="dim">≈ as expected</em>`}`;
-  const bench = g == null ? "" : `<em class="dim">${kb != null ? `kunta ${schGrade(kb)}` : ""}${kb != null && dk != null ? " · " : ""}${dk != null ? `DK ${schGrade(dk)}` : ""}</em>`;
+  const g = schV(s, "grade_avg"), yr = schY(s, "grade_avg");
+  const kb = schBench(s.kom, yr), fi = schBenchFI(yr);
+  /* the point of the popup: this school against its own kunta and against Finland */
+  const bench = g == null ? "" : `<em class="dim">${kb != null ? `kunta ${schGrade(kb)}` : ""}${kb != null && fi != null ? " · " : ""}${fi != null ? `Finland ${schGrade(fi)}` : ""}</em>`;
+  const lukio = ["upper_secondary", "comprehensive_upper"].includes(s.type);
   return `<div class="schpop">
     <span class="schhead"><b>${esc(s.name)}</b><i class="ipill">${esc(SCH_TYPE[s.type] || s.type)}</i></span>
     <div class="lfrows">
-      ${row("FP9 grade", `${schCell(g, schGrade)} ${bench}`, "weighted average of the bundne prøver, 9th grade")}
-      ${row("Socioeconomic reference", socTxt, "actual grade minus the grade the ministry's model expects from the pupils' background")}
-      ${row("Well-being", schCell(schV(s, "trivsel_general"), v => nf(v, 1) + " / 5"), "Generel trivsel, national pupil survey")}
-      ${row("Pupils", schCell(schV(s, "pupils_total"), v => nf(v, 0)))}
-      ${row("Class size", schCell(schV(s, "klassekvotient"), v => nf(v, 1)))}
-      ${row("School year", esc(schY(s, "grade_avg") || schY(s, "pupils_total") || SCH_LATEST))}
+      ${lukio ? row("Matriculation points", `${schCell(g, schGrade)} ${bench}`, "mean total grade points per candidate, YTL's own published rows") : ""}
+      ${lukio ? row("Candidates", schCell(schV(s, "candidates"), v => nf(v, 0)), "candidates in that exam session") : ""}
+      ${lukio ? row("Exam session", esc(yr || SCH_LATEST)) : ""}
+      ${row("Register", esc(s.register_year || ""), "Tilastokeskus oppilaitosrekisteri")}
     </div>
-    ${s.bbr_ids.length > 1 ? `<p class="cap dim">One of ${s.bbr_ids.length} buildings on this school's site — the figures belong to the school, not to this building.</p>` : ""}
+    ${lukio ? "" : `<p class="cap dim">${esc(SCH_NO_COMPREHENSIVE)}</p>`}
     <span class="lfact"><button class="lk mini primary" data-school="${esc(s.nr)}">Open school sheet ›</button></span></div>`;
 }
 /* --- school datasheet (#school/<institutionsnummer>) --- */
@@ -3882,78 +3881,63 @@ function vSchool() {
   if (!s) return `<div class="card"><p class="empty">No school with institutionsnummer ${esc(SC.nr)} in the layer.</p>
     <div class="tools"><button class="lk" data-back>‹ Back</button></div></div>`;
   const m = byCode[s.kom], area = [byNr[s.postinumero], byQ[s.osa_alue]].filter(Boolean);
-  const gy = schY(s, "grade_avg"), kb = schBench(s.kunta, gy), dk = schBenchDK(gy);
-  const g = schV(s, "grade_avg"), d = schV(s, "soc_ref_diff"), sig = schSig(schV(s, "soc_ref_significant"));
+  const gy = schY(s, "grade_avg"), kb = schBench(s.kom, gy), fi = schBenchFI(gy);
+  const g = schV(s, "grade_avg");
+  const lukio = ["upper_secondary", "comprehensive_upper"].includes(s.type);
   const tile = (l, v, sub) => `<span class="hlc"><span>${esc(l)}</span><b>${v}</b><em>${esc(sub || "")}</em></span>`;
-  const bld = (s.bbr_ids || []).map(id => (PUB_FILES[s.kom] || { buildings: [] }).buildings.find(b => b.id === id)).filter(Boolean);
-  if (!bld.length && s.bbr_ids.length) { pubLoad(s.kom); setTimeout(() => renderKeep(), 700); }
-  const yrow = (label, key, fmt) => `<tr><th>${esc(label)}</th>${SCH_YEARS.map(y => {
-    const v = (s.years[y] || {})[key];
-    return `<td class="num">${v == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : fmt(v)}</td>`; }).join("")}</tr>`;
+  const subj = Object.entries((SCH_META && SCH_META.subjects) || {});
+  const yrow = (label, key, fmt) => {
+    const cells = SCH_YEARS.map(y => (s.years[y] || {})[key]);
+    if (!cells.some(v => v != null)) return "";        /* a row with nothing in it is not drawn */
+    return `<tr><th>${esc(label)}</th>${cells.map(v =>
+      `<td class="num">${v == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : fmt(v)}</td>`).join("")}</tr>`;
+  };
   return `
   <div class="card accent arhead">
     <div class="arid"><h2>${esc(s.name)}</h2>
       <div class="artags"><span class="tag" style="color:${PUB_CAT.education.color};border-color:${PUB_CAT.education.color}55">${esc(SCH_TYPE[s.type] || s.type)}</span>
-        <span class="tag">${esc(s.kunta)}</span><span class="tag">inst. no. ${esc(s.nr)}</span>
-        ${s.address ? `<span class="tag">${esc(s.address)}</span>` : ""}
-        ${s.enhedsart === "Afdeling (underordnet enhed)" ? `<span class="tag" title="a department of a larger school — the source may publish its figures under the parent">department</span>` : ""}</div>
+        <span class="tag">${esc(s.kunta)}</span><span class="tag">oppilaitosnumero ${esc(s.nr)}</span>
+        ${s.register_year ? `<span class="tag">register ${esc(s.register_year)}</span>` : ""}</div>
     </div>
     <div class="tools"><button class="lk" data-back>‹ Back</button>
       <button class="lk primary" data-go="map/${esc(s.kom)}?ind=${encodeURIComponent(MK.ind)}&public=1&pub=edu">Show on map</button>
       ${m ? `<button class="lk" data-go="${withQ("area/kunta/" + s.kom)}">${esc(m.name)} ›</button>` : ""}
-      ${area.length ? `<button class="lk" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}</div>
-    <div class="hl">
-      ${tile("FP9 grade", schCell(g, schGrade), gy ? "bundne prøver · " + gy : "bundne prøver")}
-      ${tile("Expected", schCell(schV(s, "soc_ref_expected"), schGrade), "socioeconomic reference")}
-      ${tile("Difference", d == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : schDiff(d), sig ? "✓ " + sig : d == null ? "" : "not significant")}
-      ${tile("Well-being", schCell(schV(s, "trivsel_general"), v => nf(v, 1)), "generel trivsel · 1–5")}
-      ${tile("Pupils", schCell(schV(s, "pupils_total"), v => nf(v, 0)), schV(s, "pupils_indv_efterk") != null ? nf(schV(s, "pupils_indv_efterk"), 0) + " immigrant / descendant" : "")}
-      ${tile("Class size", schCell(schV(s, "klassekvotient"), v => nf(v, 1)), "klassekvotient")}
-    </div>
+      ${area.length ? `<button class="lk" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}
+      <a class="lk" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=17/${s.lat}/${s.lon}">OpenStreetMap ↗</a></div>
+    ${lukio ? `<div class="hl">
+      ${tile("Matriculation points", schCell(g, schGrade), gy ? "mean per candidate · " + gy : "mean per candidate")}
+      ${tile(esc(s.kunta), schCell(kb, schGrade), g != null && kb != null ? schDiff(g - kb) + " vs kunta" : "")}
+      ${tile("Finland", schCell(fi, schGrade), g != null && fi != null ? schDiff(g - fi) + " vs Finland" : "")}
+      ${tile("Candidates", schCell(schV(s, "candidates"), v => nf(v, 0)), "in that exam session")}
+    </div>` : ""}
   </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-head"><h3>Three school years</h3><span class="hint">${esc(SCH_YEARS.join(" · "))}</span></div>
+  ${lukio ? `<div class="grid-2">
+    <div class="card"><div class="card-head"><h3>Every published exam session</h3><span class="hint">${esc(SCH_YEARS.join(" · "))}</span></div>
       <div class="scrollx"><table class="tbl compact"><thead><tr><th>Measure</th>${SCH_YEARS.map(y => `<th class="num">${esc(y)}</th>`).join("")}</tr></thead><tbody>
-        ${yrow("FP9 grade, bundne prøver", "grade_avg", schGrade)}
-        ${yrow("— dansk", "grade_dansk", schGrade)}
-        ${yrow("— matematik", "grade_matematik", schGrade)}
-        ${yrow("Socioeconomic reference", "soc_ref_expected", schGrade)}
-        ${yrow("Difference", "soc_ref_diff", schDiff)}
-        ${yrow("Well-being (generel trivsel)", "trivsel_general", v => nf(v, 1))}
-        ${yrow("Pupils", "pupils_total", v => nf(v, 0))}
-        ${yrow("Class size", "klassekvotient", v => nf(v, 1))}
+        ${yrow("Grade points, mean per candidate", "grade_avg", schGrade)}
+        ${yrow("Candidates", "candidates", v => nf(v, 0))}
+        ${subj.map(([code, label]) => yrow("— " + label, "subj_" + code, schGrade)).join("")}
       </tbody></table></div>
-      <p class="cap">A dash is a cell the source suppressed, not a zero. The socioeconomic reference is published a year behind the grades, so the newest year usually has a grade and no reference.</p></div>
-    <div class="card"><div class="card-head"><h3>Benchmarks</h3><span class="hint">FP9 grade, ${esc(gy || SCH_LATEST)}</span></div>
+      <p class="cap">A dash is <b>suppressed, not a zero</b>: a session with fewer than ${esc(String((SCH_META || {}).min_candidates || 10))} candidates, or a subject fewer than that many of them sat, is not shown, because a mean over three people describes three people. <b>K</b> is the spring session and <b>S</b> the autumn one; the autumn session is much smaller, so its figures move about more.</p></div>
+    <div class="card"><div class="card-head"><h3>Against its kunta and against Finland</h3><span class="hint">${esc(gy || SCH_LATEST)}</span></div>
       <table class="tbl compact"><tbody>
-        <tr><th>This school</th><td class="num"><b>${schCell(g, schGrade)}</b></td><td class="dim">${schV(s, "grade_n") != null ? nf(schV(s, "grade_n"), 0) + " pupils sat the exams" : ""}</td></tr>
+        <tr><th>This school</th><td class="num"><b>${schCell(g, schGrade)}</b></td><td class="dim">${schV(s, "candidates") != null ? nf(schV(s, "candidates"), 0) + " candidates" : ""}</td></tr>
         <tr><th>${esc(s.kunta)}</th><td class="num">${schCell(kb, schGrade)}</td><td class="dim">${g != null && kb != null ? schDiff(g - kb) + " vs kunta" : ""}</td></tr>
-        <tr><th>Finland</th><td class="num">${schCell(dk, schGrade)}</td><td class="dim">${g != null && dk != null ? schDiff(g - dk) + " vs Finland" : ""}</td></tr>
+        <tr><th>Finland</th><td class="num">${schCell(fi, schGrade)}</td><td class="dim">${g != null && fi != null ? schDiff(g - fi) + " vs Finland" : ""}</td></tr>
       </tbody></table>
-      <div class="card-head" style="margin-top:14px"><h3>Well-being, four sub-indicators</h3><span class="hint">1–5</span></div>
-      <table class="tbl compact"><tbody>
-        ${[["Faglig trivsel — academic", "trivsel_faglig"], ["Social trivsel — social", "trivsel_social"],
-           ["Støtte og inspiration — support", "trivsel_stoette"], ["Ro og orden — calm and order", "trivsel_ro"]]
-          .map(([l, k]) => `<tr><th>${esc(l)}</th><td class="num">${schCell(schV(s, k), v => nf(v, 1))}</td></tr>`).join("")}
-        <tr><th class="dim">Responses</th><td class="num dim">${schCell(schV(s, "trivsel_n"), v => nf(v, 0))}</td></tr>
-      </tbody></table></div>
-  </div>
-  <div class="card"><div class="card-head"><h3>Buildings on this site</h3>
-      <span class="hint">${s.bbr_ids.length} BBR building${s.bbr_ids.length === 1 ? "" : "s"} · ${s.bbr_match === "421" ? "anvendelse 421 Grundskole" : s.bbr_match === "fallback_42x" ? "no 421 within 150 m — matched on 420/429" : "no education building within 150 m"}</span></div>
-    ${bld.length ? `<div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>Building</th><th>Use</th><th class="num">Floor area<br><span class="dim">m²</span></th><th class="num">Built</th><th class="num">Floors</th></tr></thead>
-      <tbody>${bld.map(b => `<tr class="clickrow" data-pubsheet="${esc(b.id)}" data-pubkom="${esc(b.kom)}"><th><span class="thn">${esc(pubName(b))} <span class="go">›</span></span></th>
-        <td class="dim">${esc(b.code)} ${esc(b.label)}</td><td class="num" data-v="${b.m2 || 0}">${b.m2 ? nf(b.m2, 0) : "–"}</td>
-        <td class="num" data-v="${b.year || ""}">${b.year || "–"}</td><td class="num">${b.floors || "–"}</td></tr>`).join("")}</tbody></table></div>`
-      : `<p class="empty">${s.bbr_ids.length ? "loading the municipality's buildings…" : "No BBR education building within 150 m of the register point — the school is listed without a footprint."}</p>`}
-    <p class="cap">Campus rule: every BBR building within 150 m of the school's register point is attached to it, so the figures above describe the school and are repeated on each of its buildings.</p></div>
-  <div class="card"><p class="cap"><b>Source:</b> Opetushallitus, retrieved ${esc((SCH_META || {}).retrieved || "")} — <i>Kilde: Opetushallitus</i>. Location, type and institution number from the STIL institutionsregister. Buildings from the building register.
-    A grade average mostly tracks intake; the socioeconomic reference is what the source publishes it against. Method and discretion rules: <code>docs/SCHOOLS.md</code>.</p></div>`;
+      <p class="cap">Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school where candidates sit more exams scores higher for that reason alone. <b>It tracks intake at least as much as teaching</b>, and Finland publishes no measure of intake to set against it — unlike Denmark's socioeconomic reference, there is no Finnish equivalent to show here.</p></div>
+  </div>` : `<div class="card"><div class="card-head"><h3>Results</h3></div>
+    <p class="empty">${esc(SCH_NO_COMPREHENSIVE)}</p>
+    <p class="cap">This is not a suppressed figure and not a gap in this dashboard: Finland does not run national comprehensive-school exams whose results are published per school. What the register does publish — the school's name, type, location and register year — is above.</p></div>`}
+  <div class="card"><p class="cap"><b>Sources:</b> ${((SCH_META || {}).sources || []).map(x => `${esc(x.label)} (${esc(x.licence)})`).join(" · ")}. Retrieved ${esc((SCH_META || {}).retrieved || "")}.
+    ${lukio && (SCH_META || {}).join ? `The school register and YTL share no key — Tilastokeskus numbers this school ${esc(s.nr)} and YTL numbers it something else entirely — so the two are joined on the school's name, and only on an exact match. ${esc(String(((SCH_META || {}).join || {}).matched || ""))} of ${esc(String(((SCH_META || {}).join || {}).lukios || ""))} lukios are joined; the rest are adult lines, schools abroad and renamed schools, and they carry no result rather than someone else's.` : ""}
+    Method and discretion rules: <code>docs/SCHOOLS_FI.md</code>.</p></div>`;
 }
 /* --- the schools segment on an area card's PUBLIC line --- */
 function schoolLine(level, code) {
   const e = pubOf(level, code); if (!e || e.school_grade_avg == null) return "";
   return `<button class="lk mini" data-schoollist="${level}:${code}" style="border-color:${PUB_CAT.education.color}66"
-    title="pupil-weighted FP9 grade average of the ${e.schools_n} folkeskoler and frie grundskoler here that publish one">schools ${nf(e.school_grade_avg, 1)} avg</button>`;
+    title="mean matriculation points of the ${e.schools_n} lukio(s) here that publish a figure">lukios ${nf(e.school_grade_avg, 1)} pts</button>`;
 }
 /* --- list panel: the schools of one area, sorted by grade --- */
 function vSchoolList() {
@@ -3966,32 +3950,33 @@ function vSchoolList() {
   return `
   <div class="card accent">
     <div class="card-head"><h3>Schools — ${esc(areaName || code)}</h3>
-      <span class="hint">${rows.length} school${rows.length === 1 ? "" : "s"} · ${esc(SCH_LATEST)} · Opetushallitus</span></div>
+      <span class="hint">${rows.length} school${rows.length === 1 ? "" : "s"} · ${esc(SCH_LATEST)} · Tilastokeskus &amp; YTL</span></div>
     <div class="tfilters"><button class="lk mini" data-back>‹ Back</button>
-      ${e.school_grade_avg != null ? `<span class="hint">area average ${nf(e.school_grade_avg, 1)} · ${e.schools_n} folkeskoler and frie grundskoler · ${nf(e.school_pupils || 0, 0)} pupils</span>` : ""}</div>
-    <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>School</th><th>Type</th><th class="num">FP9 grade</th><th class="num">vs expected</th><th class="num">Well-being</th><th class="num">Pupils</th><th class="num">Class size</th></tr></thead>
-      <tbody>${sorted.map(s => { const d = schV(s, "soc_ref_diff"), sig = schSig(schV(s, "soc_ref_significant")); return `<tr class="clickrow" data-school="${esc(s.nr)}">
+      ${e.school_grade_avg != null ? `<span class="hint">area average ${nf(e.school_grade_avg, 1)} matriculation points · ${e.schools_n} lukio${e.schools_n === 1 ? "" : "s"}</span>` : ""}</div>
+    <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>School</th><th>Type</th><th class="num">Matriculation points</th><th class="num">vs kunta</th><th class="num">Candidates</th><th class="num">Session</th></tr></thead>
+      <tbody>${sorted.map(s => { const gg = schV(s, "grade_avg"), kk = schBench(s.kom, schY(s, "grade_avg")), d = (gg != null && kk != null) ? gg - kk : null; return `<tr class="clickrow" data-school="${esc(s.nr)}">
         <th><span class="thn">${esc(s.name)} <span class="go">\u203a</span></span></th>
         <td class="dim">${esc(SCH_TYPE[s.type] || s.type)}</td>
-        <td class="num" data-v="${schV(s, "grade_avg") ?? ""}">${schCell(schV(s, "grade_avg"), schGrade)}</td>
-        <td class="num" data-v="${d ?? ""}">${d == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : schDiff(d) + (sig ? ` <em class="schsig">✓</em>` : "")}</td>
-        <td class="num" data-v="${schV(s, "trivsel_general") ?? ""}">${schCell(schV(s, "trivsel_general"), v => nf(v, 1))}</td>
-        <td class="num" data-v="${schV(s, "pupils_total") ?? ""}">${schCell(schV(s, "pupils_total"), v => nf(v, 0))}</td>
-        <td class="num" data-v="${schV(s, "klassekvotient") ?? ""}">${schCell(schV(s, "klassekvotient"), v => nf(v, 1))}</td></tr>`; }).join("")
-        || `<tr><td colspan="7" class="empty">no schools in this area</td></tr>`}</tbody></table></div>
-    <p class="cap">Sorted by FP9 grade. A dash is suppressed by the source, not a zero — ${sorted.filter(s => schV(s, "grade_avg") == null).length} of these schools publish no grade (no 9th grade, or too few pupils). Specialskoler are listed but never enter the area average. ✓ marks a difference the source calls statistically significant. Kilde: Opetushallitus, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>
+        <td class="num" data-v="${gg ?? ""}">${schCell(gg, schGrade)}</td>
+        <td class="num" data-v="${d ?? ""}">${d == null ? `<span class="dim" title="${SUPPRESSED}">–</span>` : schDiff(d)}</td>
+        <td class="num" data-v="${schV(s, "candidates") ?? ""}">${schCell(schV(s, "candidates"), v => nf(v, 0))}</td>
+        <td class="dim">${esc(schY(s, "grade_avg") || "")}</td></tr>`; }).join("")
+        || `<tr><td colspan="6" class="empty">no schools in this area</td></tr>`}</tbody></table></div>
+    <p class="cap">Sorted by matriculation points. A dash is <b>suppressed, not a zero</b> — ${sorted.filter(s => schV(s, "grade_avg") == null).length} of these schools carry no figure, which for a peruskoulu is not suppression at all: <b>Finland publishes no comprehensive-school results.</b> Points are the mean total grade points per candidate on YTL's own 0–7 scale, so a school whose candidates sit more exams scores higher for that reason alone. Lähde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>
   </div>`;
 }
 /* --- a small grade trend for one municipality, used in the Charts view --- */
 function schoolTrend(komName, komCode) {
   if (!SCHOOLS) return null;
-  const rows = (SCHOOLS.schools || []).filter(s => s.kom === kcode(komCode) && ["folkeskole", "fri grundskole"].includes(s.type));
+  const rows = (SCHOOLS.schools || []).filter(s => s.kom === kcode(komCode)
+    && ["upper_secondary", "comprehensive_upper"].includes(s.type));
   const pts = SCH_YEARS.map(y => {
     let a = 0, w = 0;
-    rows.forEach(s => { const o = s.years[y] || {}; if (o.grade_avg != null) { const k = o.grade_n || 1; a += o.grade_avg * k; w += k; } });
+    /* weighted by the candidates who actually sat that session, so a large lukio counts for more */
+    rows.forEach(s => { const o = s.years[y] || {}; if (o.grade_avg != null) { const k = o.candidates || 1; a += o.grade_avg * k; w += k; } });
     return w ? a / w : null;
   });
-  return pts.some(v => v != null) ? { name: komName, pts, dk: SCH_YEARS.map(y => schBenchDK(y) ?? null) } : null;
+  return pts.some(v => v != null) ? { name: komName, pts, dk: SCH_YEARS.map(y => schBenchFI(y) ?? null) } : null;
 }
 function schoolTrendSvg(t) {
   const W = 640, H = 200, P = { l: 40, r: 150, t: 14, b: 28 };
@@ -4003,7 +3988,7 @@ function schoolTrendSvg(t) {
   const grid = [lo, (lo + hi) / 2, hi].map(v => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="#E2E7E1"/><text x="${P.l - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="cax">${nf(v, 1)}</text>`).join("");
   const last = (a) => { for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return i; return -1; };
   const li = last(t.pts), di = last(t.dk);
-  return `<svg class="chart schchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="FP9 grade average by school year">
+  return `<svg class="chart schchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Matriculation grade points by exam session">
     ${grid}
     ${SCH_YEARS.map((yy, i) => `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="cax">${esc(yy.replace("/", "/").slice(2))}</text>`).join("")}
     <path d="${path(t.dk)}" fill="none" stroke="#8A9488" stroke-width="1.6" stroke-dasharray="4 3"/>
@@ -4020,9 +4005,9 @@ function schoolsChartCard() {
   const trends = koms.map(c => schoolTrend((byCode[c] || {}).name, c)).filter(Boolean);
   if (!trends.length) return "";
   return `<div class="card"><div class="card-head"><h3>Schools</h3>
-      <span class="hint">FP9 grade average, bundne prøver · ${esc(SCH_YEARS[0])} → ${esc(SCH_LATEST)}</span></div>
+      <span class="hint">Matriculation grade points, mean per candidate · ${esc(SCH_YEARS[0])} → ${esc(SCH_LATEST)}</span></div>
     ${trends.map(t => `<div class="chartbox">${schoolTrendSvg(t)}</div>`).join("")}
-    <p class="cap">Pupil-weighted over the folkeskoler and frie grundskoler of the municipality that publish a grade, weighted by the pupils who sat the exams; specialskoler excluded. Dashed = Finland. This is a three-year snapshot, not the long series the chart above draws. Kilde: Opetushallitus, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p></div>`;
+    <p class="cap">Candidate-weighted over the lukios of the municipality that publish a figure. Dashed = Finland. Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school whose candidates sit more exams scores higher for that reason alone, and <b>the figure tracks intake at least as much as teaching</b>. <b>Finland publishes no comprehensive-school results</b>, so no peruskoulu appears here.</p></div>`;
 }
 
 /* ---------- Project datasheet (#project/<id>) and Pipeline table (#pipeline) ---------- */

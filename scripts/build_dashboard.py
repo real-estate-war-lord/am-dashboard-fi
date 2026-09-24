@@ -113,6 +113,12 @@ def main():
     infra = load(ROOT / "data" / "geo" / "infra_projects.geojson")
     infra_index = load(PROC / "infra_index.json")
     public_index = load(PROC / "public_index.json")
+    # The school layer's META rides inline inside `public.schools`; the 2 501 school records
+    # themselves stay in dist/schools.json and are fetched when a school view is opened.
+    schools = load(PROC / "schools.json")
+    if schools and public_index is not None:
+        public_index["schools"] = {k: v for k, v in schools.items() if k != "schools"}
+        public_index.setdefault("recent_years", [])
     services_index = load(PROC / "services" / "index.json")
     built = (makro.get("meta") or {}).get("built") or dt.date.today().isoformat()
     data = {
