@@ -157,3 +157,79 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 **Batch 1 finished on branch `v1.0-build`.** Nothing is merged, tagged or pushed.
 
 **Next action (a human's):** review `dist/index.html` on localhost (`make build && make serve`), then decide the two licence questions in `docs/BUILD_LOG.md` → "Open ⚠" before releasing. Batch 2 starts from `docs/BUILD_PLAN_FI.md` §7 on a new branch `v1.1-layers`.
+
+---
+---
+
+# PLAN — Finland edition, batch 2 (branch `v1.1-layers`)
+
+Batch 2 adds every map layer and the Test-property feature on top of the live v1.0.
+**Ground rules are batch 1's, unchanged** (§1 above) plus the layer rules in §7 below.
+After a context compaction: re-read this file, find the first unticked phase in §8, and
+carry on from the resume point at the bottom.
+
+## 6. Master task, batch 2 (verbatim)
+
+```
+MASTER TASK — BATCH 2 of 2: add every map layer and the Test property feature to the Finland edition in one unattended run. Branch v1.1-layers (checked out, based on v1.0 which is live). Do not push.
+
+GROUND RULES: the same as batch 1. Read them in docs/PLAN.md and apply all of them unchanged: data principle, Danish repo read-only as reference, spec in docs/DATA_MAP_FI.md (probe results in docs/PROBE_FI.md override it), English, string codes, stdlib-first, size limits, per-phase checks and commits, never stop or ask, subagents for bulk work, docs/PLAN.md kept current. First append this task and a checklist of phases 8b–16 to docs/PLAN.md. Extra rules for layers: points and zones lazy-load per kunta; every point shows its source; overlays use the Danish overlay pills, stacked collapsible legends and canvas-renderer guard; disclaimers where the Danish edition has them.
+
+PHASE 8b — Licence corrections from the v1.0 review
+(a) Aluesarjat is NOT non-commercial: Helsinki's terms page https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat states "Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin" (attribution required: "Helsingin seudun aluesarjat -tilastokanta" + underlying source; no implied endorsement). Re-check the page yourself, then fix the licence on every osa-alue indicator, docs/SOURCES.md, the Sources view, README and BUILD_LOG (close ⚠1 with quote + URL). (b) Verohallinto: find its open-data licence statement; record it with URL, else label "Licence not stated by publisher — public official figures". (c) Frozen series (postal rents 2025Q4, HSY 2021) show "Last published <period> — series discontinued by publisher" in tooltips and Sources. Commit.
+
+PHASE 9 — Probe for layers
+Extend scripts/probe_fi.py → docs/PROBE_FI.md: SYKE flood-hazard WFS/WMS (tulvavaaravyöhykkeet vesistö + meri, return periods, layer names, licence); sea-level scenarios (Ilmatieteen laitos / SYKE: years, scenarios, format); HSY/Helsinki stormwater (hulevesi) flood maps; STUK radon by area; Ryhti buildings + kaavat (OGC API/WFS, fields incl. use, year, floor area, storeys, dwellings; plan status and floor area); DVV building addresses (open file, size, fields); ARA energy certificates open data; HSL GTFS + Fintraffic national GTFS; Helsinki Palvelukartta API; Geofabrik finland-latest.osm.pbf; LIPAS; Väylävirasto open WFS project layers; YTL lukio results (open statistics route, latest year, fields); Opetushallitus / Palvelukartta school locations; Tilastokeskus 1 km grid. Commit.
+
+PHASE 10 — Test property + Analysis + Compare
+Port DK v2.4 testprop.js: Google Maps link / coordinates parser (short links refused with a named error) PLUS address search from the DVV building-address file (built into a compact lazy lookup, no server). Finland box 59.7–70.1 N / 19.0–31.6 E. Exact kunta / postinumero / osa-alue by point-in-polygon on our own rings (holes kept — Kauniainen inside Espoo must resolve to Kauniainen). Pin in the URL hash, privacy line. Analysis sheet in the left nav reads everything the dashboard carries for the pin's areas (headline row, demographics, market price and rent, taxes, safety, outlook) and, as later phases land, climate, services, public buildings, infra, schools, buildings and zoning. Compare two pins with aligned rows, direction-aware, no overall winner. Tests with Finnish link and address cases. Commit.
+
+PHASE 11 — Climate risk
+Group "Climate" + "Climate risk" overlay; horizon or scenario always in the label. Area share of land per postinumero / osa-alue / kunta inside SYKE flood-hazard zones (sea and watercourse, 1/100 and 1/1000 at least; unmapped areas = "Not mapped"); sea-level scenario share where the data allows (label e.g. "Mean sea level 2100 (scenario, source)"); stormwater flood share where HSY/Helsinki publish it (others "Not mapped"); radon only if STUK publishes open area data, else log and skip. Disclaimer "Screening indicators for comparing areas, not a property-level risk assessment." Climate section in the Analysis sheet. Commit.
+
+PHASE 12 — Services + Public buildings
+Services overlay, points only, no area indicators: grocery (supermarket/convenience), restaurants/cafés from OSM; public-transport stops from HSL GTFS + Fintraffic GTFS (OSM stops as fallback, logged). Public buildings overlay with a category filter (education / daycare / health / culture): Ryhti buildings by use where fields allow, Palvelukartta for the Helsinki region, OSM elsewhere; source per point. Commit.
+
+PHASE 13 — Infra projects
+Hand-curated data/external/infra_fi.geojson, 30–50 projects, each with a source URL: Väylävirasto projects and the national transport investment programme, Kruunusillat, Vantaan ratikka, Espoon kaupunkirata, Lentorata, Tunnin juna / Itärata / Turku rail, Tampere tram extensions, other major rail/metro/tram/road projects. Fields as in the Danish infra file (status, opening year or window, budget + price base, stations). Alignments only where officially published or OSM-tagged construction/proposed — else stations only, never drawn guesses. Overlay pill, datasheet, Pipeline view with CSV, growth-signal indicators projects_upcoming and stations_planned_1200m. Verify 5 projects against their sources. Commit.
+
+PHASE 14 — Schools
+School points (comprehensive + upper secondary) from the official register / Palvelukartta / OSM. Lukio matriculation results from YTL where openly published (latest year + history, fields as published, suppressed ≠ 0), popup with value vs kunta vs Finland, school datasheet. State plainly that Finland publishes no comprehensive-school results. Commit.
+
+PHASE 15 — Buildings, energy, zoning, grid
+Buildings micro layer from Ryhti (as DK v1.5): building points with use, year, floor area, storeys, dwellings where published, lazy per kunta; area indicators only as plain counts/shares of published fields (e.g. share of dwellings built before 1980). ARA energy certificates joined by building ID where possible → energy-class share per area. Zoning overlay from Ryhti kaavat (+ Helsinki asemakaavat WFS if richer): plans in preparation / approved, residential floor area where published, datasheet, indicator planned_floor_area_1000 (per 1 000 residents) only if the floor area is published. 1 km grid population as an optional overlay. If a whole-country pull is too heavy, build the Helsinki region first, then whole country; log the coverage. Commit(s).
+
+PHASE 16 — Verify, docs, wrap-up
+Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) and docs/verification/v1_1.csv; docs/SOURCES.md, DATA_MAP_FI.md, README updated; refresh workflow extended for the cheap sources; CHANGELOG v1.1 draft. Final validate / test / build / links clean. Print a ≤ 40-line summary: what shipped per phase, what was skipped and why, every open ⚠, and a localhost review checklist. STOP — do not merge, tag or push.
+```
+
+## 7. Extra ground rules for layers (batch 2)
+
+| Rule | Meaning |
+|---|---|
+| Lazy per kunta | Points and zones never ship in `makro.json`; they live in `dist/<layer>/<kunta>.json` and load when the map needs them, like `dist/area/<kunta>.json`. |
+| Source per point | Every point popup names the publisher it came from, because one layer mixes sources (Palvelukartta in the Helsinki region, OSM elsewhere). |
+| Danish overlay chrome | The overlay pills, stacked collapsible legends and the canvas-renderer guard come from the Danish `src/app.js` unchanged. |
+| Disclaimers | Wherever the Danish edition shows one (climate screening, schools, infra pipeline), Finland shows the same, reworded for the Finnish source. |
+
+## 8. Phase checklist, batch 2
+
+| # | Phase | State | Commit |
+|---|---|---|---|
+| 8b | Licence corrections | ☐ | |
+| 9 | Probe for layers | ☐ | |
+| 10 | Test property + Analysis + Compare | ☐ | |
+| 11 | Climate risk | ☐ | |
+| 12 | Services + Public buildings | ☐ | |
+| 13 | Infra projects | ☐ | |
+| 14 | Schools | ☐ | |
+| 15 | Buildings, energy, zoning, grid | ☐ | |
+| 16 | Verify, docs, wrap-up | ☐ | |
+
+## 9. Status log, batch 2
+
+_(filled in as the phases land)_
+
+## 10. Resume point, batch 2
+
+Branch `v1.1-layers` created off `v1.0-build`'s tip. Plan appended. Starting phase 8b.
