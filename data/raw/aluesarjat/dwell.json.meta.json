@@ -1,0 +1,36 @@
+{
+ "table": "asu/askan/alu_askan_005q",
+ "url": "https://stat.hel.fi/api/v1/fi/Aluesarjat/asu/askan/alu_askan_005q.px",
+ "verify_at_source": "https://stat.hel.fi/pxweb/fi/Aluesarjat/Aluesarjat__asu__askan/alu_askan_005q.px/",
+ "query": {
+  "Käytössäolotilanne": [
+   "ALL",
+   "2"
+  ],
+  "Talotyyppi": [
+   "ALL",
+   "3"
+  ],
+  "Hallintaperuste": [
+   "ALL",
+   "3_4",
+   "5"
+  ],
+  "Vuosi": [
+   "*"
+  ],
+  "Tiedot": [
+   "aslkm"
+  ],
+  "Osa-alue": [
+   "*"
+  ]
+ },
+ "updated": "2025-10-28T06:00:00Z",
+ "label": "Pääkaupunkiseudun asunnot muuttujina Alue, Käytössäolotilanne, Talotyyppi, Hallintaperuste, Vuosi ja Tiedot",
+ "fetched": "2026-09-24",
+ "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "note": "osa-alue layer: dwell",
+ "cells": 69840
+}

@@ -43,10 +43,29 @@ caveat.
 
 | | |
 |---|---|
-| Endpoint | `https://stat.hel.fi/api/v1/en/Aluesarjat/` (PxWeb v1) |
+| Endpoint | `https://stat.hel.fi/api/v1/fi/Aluesarjat/` (PxWeb v1) — walk the **Finnish** tree; the English one exposes only two of the seven folders, and `api.aluesarjat.fi` does not answer at all |
 | Publisher | Helsingin kaupunki / Uudenmaan liitto and the region's municipalities |
-| Licence | **CC BY 4.0** |
-| Used for | osa-alue level indicators and the Helsinki city population forecast by area |
+| Licence | ⚠ **Non-commercial use only** — "Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin". **This is not CC BY 4.0.** Commercial reuse needs the publisher's permission (tilastotietokannat@hel.fi) |
+| Used for | every osa-alue indicator, and Helsingin kaupunki's own population projection by area |
+| Attribution | Lähde: Aluesarjat (Helsingin kaupunki ja Uudenmaan liitto) |
+
+**This is the one licence restriction in the whole dashboard, and it is confined to one
+layer.** Everything else here is CC BY 4.0 or equivalent. The osa-alue layer carries the
+restriction in its own `meta.licence`, in every osa-alue indicator's note, and in the
+Sources view, so nobody can lift a figure out of it without seeing the terms. Tables used:
+`alu_vaerak_004r` (population by age), `alu_vaerak_004p` (population by language and age),
+`alu_asas_005d` (households by size), `alu_askan_005q` (dwellings by occupancy, type and
+tenure), `alu_kou_005n` (education), `alu_vaenn_006c` (Helsinki's projection, PER26).
+
+Two traps, both handled in `scripts/aluesarjat.py`: a variable left out of a query is
+**eliminated to its total** silently, so every dimension is always named; and the area
+variable is spelled `Alue` in some tables and `Osa-alue` in others, where the wrong one is
+an HTTP 400.
+
+The ten-digit Aluesarjat area code is exactly Helsingin kaupunki's `kokotunnus`, which
+`data/geo/osa_alueet.geojson` stores verbatim, so the join needs no crosswalk: 296 of 306
+areas match. The ten that do not are Kauniainen's nine sub-areas, which Aluesarjat publishes
+as a single municipality, and Helsinki's territorial-sea polygon, which has no residents.
 
 ## 4. HSY and Helsingin kaupunki — sub-area boundaries
 

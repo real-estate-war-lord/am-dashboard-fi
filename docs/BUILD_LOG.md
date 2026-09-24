@@ -230,3 +230,31 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | Väestöennuste 2024 is one vintage, not a series | The Outlook indicators return one number and no history, the year selector is replaced by the projection window, and the projected part of every chart is dashed with a "2025 · today" marker between observed and projected. The publication date (2024-10-24) is read from the table's own `updated` field, not from the table listing, which carries a later bulk re-stamp. |
 | `fc_20_34_rel` needs Finland's own projected share | The whole-country row is kept for the projection only — the comparison comes from the same projection as the area's own figure, never from a different source. |
 | Indicators now end in different years (Paavo 2024, taxes 2026) | "Latest" became a sentinel meaning *this indicator's newest period*, and the year selector says which year that is — "latest (2025 data)". Picking it can never mix two indicators' years. |
+
+---
+
+## Phase 7 — Osa-alue level (row 34)
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ |
+| `make links` (full sweep) | ✓ **25 of 25**, including the six Aluesarjat tables |
+| `python3 scripts/build_osa.py` | ✓ 306 areas · 9 indicators · 4 per-kunta files amended |
+| `make build` | ✓ `index.html` 2 429 kB (osa_alue.json 123 kB inline; rings and history in the per-kunta files) |
+| `make test`, `make fixture` | ✓ |
+| Spot-check | ✓ Kruununhaka 7 465 inhabitants (2025), growth +1,3 %, 19–34 27,8 %, foreign-language 8,5 %, one-person households 48,3 % · Helsinki city projection PER26 702 767 → 821 774 = **+16,93 %** against Tilastokeskus's +14,77 %, shown side by side, **2,16 pp apart** |
+| Screenshots | ✓ `v10osa-*.png` |
+
+### Decisions logged in phase 7
+
+| ⚠ | Decision |
+|---|---|
+| **Aluesarjat is not CC BY 4.0** — its terms allow **non-commercial use only** | This is the one licence restriction in the whole dashboard, and it is confined to one layer. It is written into the layer's own `meta.licence`, into every osa-alue indicator's note, into the Sources view and into `docs/SOURCES.md`, so nobody can lift a figure out of it without seeing the terms. Logged as an **open ⚠** for the release decision. |
+| Joining Aluesarjat to our geometry | No crosswalk needed: Aluesarjat's ten-digit area code *is* Helsingin kaupunki's `kokotunnus`, which the boundary file stores verbatim. **296 of 306** match. The ten that do not are Kauniainen's nine sub-areas, which Aluesarjat publishes as one municipality, and Helsinki's territorial-sea polygon, which has no residents; they keep their geometry and show the kunta value, marked °, exactly as a postal area does. |
+| Three Aluesarjat definitions differ from the kunta level | They get **their own keys**, never the kunta key with a different meaning behind it: `young_19_34` (the published band is 19–34, not 20–34), `rented_dw` (rented *dwellings*, where the kunta figure is *households* in rented dwellings) and `higher_ed_15` (of everyone 15+, where the kunta figure is 18+). Keys that do mean the same thing — growth, foreign, single, flats, vacant — are shared, so an osa-alue can sit beside its kunta honestly. |
+| Espoo and Vantaa publish their own area projections | **Not shown.** `alu_vaenn_010e` runs to 2033 and `alu_vaenn_040o` to 2035, on different vintages. Stretching them to a common 2026→2040 window would mean inventing the years between. Only Helsinki's `alu_vaenn_006c` (PER26) is carried, labelled as the city's own forecast. |
+| Helsinki now has two projections | Shown **side by side with the gap stated** — Tilastokeskus +14,8 %, Helsingin kaupunki +16,9 %, 2,16 pp apart — never averaged. The rule and its arithmetic are written down in the new `docs/OUTLOOK_FI.md`, which the UI links to. |
+| A variable left out of an Aluesarjat query is silently eliminated to its total | Every dimension is named explicitly in every pull. Also: the area variable is `Alue` in some tables and `Osa-alue` in others, and the wrong one is an HTTP 400 — `scripts/aluesarjat.py` reads which it is rather than assuming. |
+| `api.aluesarjat.fi` does not answer, and the English tree exposes two of seven folders | The **Finnish** tree at `stat.hel.fi/api/v1/fi/Aluesarjat/` is the route. Recorded in `docs/SOURCES.md`. |
+| The Aluesarjat verify-at-source links 404'd | PxWeb's UI folder is the API path joined with double underscores and prefixed by the database name. Fixed, and `make links` now sweeps all 25 clean. |
+| The area page's mini-map opened on Denmark | The Danish default centre had survived in `arMapInit`. It now starts from the current view and always fits the area, whose bounding box is inline even before its rings are fetched. |

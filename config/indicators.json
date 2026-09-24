@@ -4071,7 +4071,7 @@
     }
   ],
   "osa": {
-    "_doc": "The osa-alue layer's own indicators (Aluesarjat). Same fields; `level` is always 'osa_alue'.",
+    "_doc": "The osa-alue layer's indicators are NOT registered here: they are built by scripts/build_osa.py, because every one of them is a share computed from one Aluesarjat table and the registry's source/calc shape would only restate the script. The layer's registry travels with its data in data/processed/osa_alue.json. Its licence differs from the rest of the dashboard — Aluesarjat allows non-commercial use only, which is why the layer carries its own licence line in the UI and in docs/SOURCES.md.",
     "indicators": []
   },
   "_calcs": {

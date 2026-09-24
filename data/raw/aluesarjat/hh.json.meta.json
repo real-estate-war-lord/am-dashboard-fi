@@ -1,0 +1,27 @@
+{
+ "table": "asu/asas/alu_asas_005d",
+ "url": "https://stat.hel.fi/api/v1/fi/Aluesarjat/asu/asas/alu_asas_005d.px",
+ "verify_at_source": "https://stat.hel.fi/pxweb/fi/Aluesarjat/Aluesarjat__asu__asas/alu_asas_005d.px/",
+ "query": {
+  "Asuntokunnan koko": [
+   "ALL",
+   "1"
+  ],
+  "Vuosi": [
+   "*"
+  ],
+  "Tiedot": [
+   "lkm_askun"
+  ],
+  "Alue": [
+   "*"
+  ]
+ },
+ "updated": "2026-07-17T05:00:00Z",
+ "label": "Pääkaupunkiseudun asuntokunnat muuttujina Alue, Henkilöluku, Vuosi ja Tiedot",
+ "fetched": "2026-09-24",
+ "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "note": "osa-alue layer: hh",
+ "cells": 38016
+}

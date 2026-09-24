@@ -64,7 +64,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 4 | Market indicators (rows 12–21) | ✅ | `feat: market indicators` |
 | 5 | Taxes (rows 29–30) | ✅ | `feat: municipal tax rates` |
 | 6 | Safety + Outlook (rows 31–33) | ✅ | `feat: safety and outlook` |
-| 7 | Osa-alue level (row 34) | ☐ | |
+| 7 | Osa-alue level (row 34) | ✅ | `feat: osa-alue level` |
 | 8 | Verify, docs, wrap-up | ☐ | |
 
 ---
@@ -134,8 +134,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - **50 indicators live.** Finland publishes no open crime data below kunta and no quarterly municipal crime data at all — both said plainly rather than worked around.
 - Checks: validate ✓ · test ✓ · build ✓ 2 310 kB · fixture ✓ · 11 spot-checks reconcile exactly.
 
+### Phase 7 — Osa-alue level ✅
+- The third map level is live for **Helsinki (148), Espoo (88), Vantaa (61) and Kauniainen (9)** — 306 osa-alueet with their own 9 indicators from Aluesarjat, their own area pages, and the breadcrumb kunta → postinumero → osa-alue.
+- New: `scripts/aluesarjat.py` (PxWeb client for stat.hel.fi) and `scripts/build_osa.py`. Rings and history ride in the same per-kunta lazy file as the postal areas, so the page grew by only 123 kB.
+- **Helsingin kaupunki's own projection (PER26) by osa-alue** is carried as its own series and shown beside Tilastokeskus's for the city, with the gap stated and never averaged — the rule is written down in the new `docs/OUTLOOK_FI.md`.
+- ⚠ **Aluesarjat is non-commercial-use-only, not CC BY 4.0.** The one licence restriction in the dashboard, confined to this layer and labelled everywhere it appears. Open item for the release decision.
+- Checks: validate ✓ · links ✓ **25/25** · test ✓ · build ✓ 2 429 kB · fixture ✓.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 7 — osa-alue level (row 34): Aluesarjat indicators for Helsinki, Espoo, Vantaa and Kauniainen, the Helsinki city forecast by area, and the kunta → postinumero → osa-alue breadcrumb.
+**Next action:** Phase 8 — verification (`docs/VERIFICATION.md` + `docs/verification/v1_0.csv`), README, CHANGELOG, final checks and the closing summary.

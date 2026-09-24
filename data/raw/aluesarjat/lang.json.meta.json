@@ -1,0 +1,31 @@
+{
+ "table": "vrm/vaerak/alu_vaerak_004p",
+ "url": "https://stat.hel.fi/api/v1/fi/Aluesarjat/vrm/vaerak/alu_vaerak_004p.px",
+ "verify_at_source": "https://stat.hel.fi/pxweb/fi/Aluesarjat/Aluesarjat__vrm__vaerak/alu_vaerak_004p.px/",
+ "query": {
+  "Äidinkieli": [
+   "ALL",
+   "3"
+  ],
+  "Ikä": [
+   "ALL",
+   "19-34"
+  ],
+  "Vuosi": [
+   "*"
+  ],
+  "Tiedot": [
+   "lkm"
+  ],
+  "Alue": [
+   "*"
+  ]
+ },
+ "updated": "2026-04-08T05:00:00Z",
+ "label": "Pääkaupunkiseudun väestö muuttujina Alue, Äidinkieli, Ikä, Vuosi ja Tiedot",
+ "fetched": "2026-09-24",
+ "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "note": "osa-alue layer: lang",
+ "cells": 44352
+}

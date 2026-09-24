@@ -179,6 +179,11 @@ function pnoLoad(kunta, then) {
       /* the kunta's own observed-population series rides along — the Outlook chart needs it */
       const m = byCode[k];
       if (m) { if (d.pop_hist) m.pop_hist = d.pop_hist; if (d.fc_pop) m.fc_pop = d.fc_pop; if (d.fc_groups) m.fc_groups = d.fc_groups; }
+      /* the osa-alueet of the four Helsinki-region kunnat ride in the same file */
+      (d.osa || []).forEach(row => { const q = byQ[row.code]; if (!q) return;
+        q.rings = row.rings || []; q.hist = row.hist || {};
+        if (row.pop_hist) q.pop_hist = row.pop_hist;
+        if (row.fc_pop) q.fc_pop = row.fc_pop; });
       PNO.loaded[k] = true; delete PNO.busy[k];
       if (then) then();
     })
@@ -465,6 +470,10 @@ function render() {
   if (S.view === "area" && AR.type === "postinumero" && byNr[AR.code] && !pnoReady(byNr[AR.code].muni))
     pnoLoad(byNr[AR.code].muni, () => renderKeep());
   if (S.view === "area" && AR.type === "kunta" && !pnoReady(AR.code)) pnoLoad(AR.code, () => renderKeep());
+  if (S.view === "area" && AR.type === "osa_alue" && byQ[AR.code] && !pnoReady(byQ[AR.code].muni))
+    pnoLoad(byQ[AR.code].muni, () => renderKeep());
+  /* the osa-alue map needs every osa-alue of the kunta, not just the one being looked at */
+  if (S.view === "makro" && MK.muni && osaMode() && !pnoReady(MK.muni)) pnoWant(MK.muni);
   renderNav(); renderTop();
   const body = document.getElementById("body");
   body.innerHTML = (RENDER[S.view] || vMakro)();
@@ -934,7 +943,7 @@ function upcomingLine(level, code) {
    would re-run lfInit and tear the live map down in the middle of a zoom gesture. */
 function mkTools() {
   const muni = MK.muni ? byCode[MK.muni] : null;
-  return `${areaSearch()}${tpBox()}${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}${`<div class="seg jumps">${Object.keys(MAP_JUMPS).map(id => { const j = MAP_JUMPS[id]; return `<button class="sg" data-mapjump="${id}" title="Zoom to ${esc(j.label)} (${j.key})">${esc(j.label)}</button>`; }).join("")}</div>`}${muni && microAvail(muni.code) ? `<div class="seg"><button class="sg ${!MK.micro ? "on" : ""}" data-micro="0">Areas</button><button class="sg ${MK.micro ? "on" : ""}" data-micro="1">Buildings (${nf(MICRO_IDX[String(Number(muni.code))].n, 0)})</button></div>` : ""}${muni && isOsaMuni(muni.code) && OSA && !microMode() ? `<div class="seg"><button class="sg ${MK.osaView !== "postinumero" ? "on" : ""}" data-osaview="osa_alue">Osa-alueet (${OSA.areas.length})</button><button class="sg ${MK.osaView === "postinumero" ? "on" : ""}" data-osaview="postinumero">Postal codes</button></div>` : ""}${INFRA.length ? `<div class="seg"><button class="sg ${MK.infra ? "on" : ""}" data-infra title="Show planned and ongoing infrastructure projects on top of the map">Infra projects</button></div>` : ""}${PUB ? `<div class="seg"><button class="sg ${MK.pub ? "on" : ""}" data-public title="Public buildings: schools, daycare, health and culture${MK.muni && !pubAvail(MK.muni) ? " — not built for this kunta yet" : ""}">Public buildings</button></div>` : ""}${SRV ? `<div class="seg"><button class="sg ${MK.srv ? "on" : ""}" data-services title="Shops, places to eat, pharmacies and public-transport stops — OpenStreetMap and the national GTFS feeds">Services</button></div>` : ""}${microMode() ? mindSelect() : indSelect() + yearSelect()}${D.portfolio ? `<button class="lk mini ${MK.own ? "primary" : ""}" data-mkown>● Own properties</button>` : ""}<button class="lk" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>`;
+  return `${areaSearch()}${tpBox()}${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}${`<div class="seg jumps">${Object.keys(MAP_JUMPS).map(id => { const j = MAP_JUMPS[id]; return `<button class="sg" data-mapjump="${id}" title="Zoom to ${esc(j.label)} (${j.key})">${esc(j.label)}</button>`; }).join("")}</div>`}${muni && microAvail(muni.code) ? `<div class="seg"><button class="sg ${!MK.micro ? "on" : ""}" data-micro="0">Areas</button><button class="sg ${MK.micro ? "on" : ""}" data-micro="1">Buildings (${nf(MICRO_IDX[String(Number(muni.code))].n, 0)})</button></div>` : ""}${muni && isOsaMuni(muni.code) && OSA && !microMode() ? `<div class="seg"><button class="sg ${MK.osaView !== "postinumero" ? "on" : ""}" data-osaview="osa_alue">Osa-alueet (${OSA.areas.filter(x => String(x.muni) === String(muni.code)).length})</button><button class="sg ${MK.osaView === "postinumero" ? "on" : ""}" data-osaview="postinumero">Postal codes</button></div>` : ""}${INFRA.length ? `<div class="seg"><button class="sg ${MK.infra ? "on" : ""}" data-infra title="Show planned and ongoing infrastructure projects on top of the map">Infra projects</button></div>` : ""}${PUB ? `<div class="seg"><button class="sg ${MK.pub ? "on" : ""}" data-public title="Public buildings: schools, daycare, health and culture${MK.muni && !pubAvail(MK.muni) ? " — not built for this kunta yet" : ""}">Public buildings</button></div>` : ""}${SRV ? `<div class="seg"><button class="sg ${MK.srv ? "on" : ""}" data-services title="Shops, places to eat, pharmacies and public-transport stops — OpenStreetMap and the national GTFS feeds">Services</button></div>` : ""}${microMode() ? mindSelect() : indSelect() + yearSelect()}${D.portfolio ? `<button class="lk mini ${MK.own ? "primary" : ""}" data-mkown>● Own properties</button>` : ""}<button class="lk" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>`;
 }
 function mkRefreshTools() {
   const el = document.querySelector("#mapcard .tools"); if (el) el.innerHTML = mkTools();
@@ -1373,7 +1382,7 @@ function arMapInit() {
   const el = document.getElementById("armap"); if (!el || typeof L === "undefined") return;
   const e = areaEntity(); if (!e) return;
   if (LF.amap) { try { LF.amap.remove(); } catch (x) {} LF.amap = null; }
-  const map = L.map(el, { center: [56, 10.5], zoom: 7, scrollWheelZoom: true, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 60, wheelDebounceTime: 20, attributionControl: false });
+  const map = L.map(el, { center: LF.center, zoom: LF.zoom, scrollWheelZoom: true, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 60, wheelDebounceTime: 20, attributionControl: false });
   LF.amap = map;
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, className: "basemap" }).addTo(map);
   const ind = curInd(); const { useQ, sind, kuntaLevel } = arMapMode(e, ind);
@@ -1394,7 +1403,12 @@ function arMapInit() {
     p.addTo(map);
   });
   if (sind) setLegend("arlegend", sc, sind, ind.key, kuntaLevel ? "municipalities" : useQ ? "osa-alueet" : "postal codes");
-  const b = boundsOf(own); if (b) map.fitBounds(b, { padding: kuntaLevel ? [90, 90] : e.type === "kunta" ? [10, 10] : [70, 70], maxZoom: kuntaLevel ? 9 : 13 });
+  /* fit to the area itself; its bounding box is inline even before its rings are fetched,
+     so the mini-map never opens on the wrong country while a file is in flight */
+  const b = boundsOf(own) || boundsOf(ctx);
+  map.fitBounds(b && b.isValid() ? b : L.latLngBounds(FI_BOX),
+                { padding: kuntaLevel ? [90, 90] : e.type === "kunta" ? [10, 10] : [70, 70],
+                  maxZoom: kuntaLevel ? 9 : 13 });
 }
 
 

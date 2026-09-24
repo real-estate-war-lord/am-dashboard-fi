@@ -15,7 +15,7 @@ geo:        ## vendor kunta / maakunta / postinumero / osa-alue polygons (Tilast
 fetch:      ## pull every StatFin table named in config/indicators.json, and the file sources
 	$(PY) scripts/fetch_statfin.py && $(PY) scripts/import_kela.py && $(PY) scripts/import_verohallinto.py
 build:      ## raw -> processed -> dist/index.html
-	$(PY) scripts/build_makro.py && $(PY) scripts/build_dashboard.py
+	$(PY) scripts/build_makro.py && $(PY) scripts/build_osa.py && $(PY) scripts/build_dashboard.py
 serve:      ## open the dashboard locally
 	cd dist && $(PY) -m http.server 8080
 test-js:    ## parser unit tests (node --test)

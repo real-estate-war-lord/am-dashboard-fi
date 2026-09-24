@@ -1,0 +1,33 @@
+{
+ "table": "vrm/vaenn/alu_vaenn_006c",
+ "url": "https://stat.hel.fi/api/v1/fi/Aluesarjat/vrm/vaenn/alu_vaenn_006c.px",
+ "verify_at_source": "https://stat.hel.fi/pxweb/fi/Aluesarjat/Aluesarjat__vrm__vaenn/alu_vaenn_006c.px/",
+ "query": {
+  "Laatimisvuosi ja vaihtoehto": [
+   "TOT",
+   "PER26"
+  ],
+  "Äidinkieli": [
+   "ALL"
+  ],
+  "Ikä": [
+   "ALL"
+  ],
+  "Vuosi": [
+   "*"
+  ],
+  "Tiedot": [
+   "lkm"
+  ],
+  "Alue": [
+   "*"
+  ]
+ },
+ "updated": "2026-07-24T11:30:00Z",
+ "label": "Helsingin väestörakenne 1991- ja väestöennuste 2019- muuttujina Laatimisvuosi ja vaihtoehto, Äidinkieli, Alue, Ikä, Vuosi ja Tiedot",
+ "fetched": "2026-09-24",
+ "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "note": "osa-alue layer: forecast",
+ "cells": 19700
+}

@@ -1,0 +1,34 @@
+{
+ "table": "kou/alu_kou_005n",
+ "url": "https://stat.hel.fi/api/v1/fi/Aluesarjat/kou/alu_kou_005n.px",
+ "verify_at_source": "https://stat.hel.fi/pxweb/fi/Aluesarjat/Aluesarjat__kou/alu_kou_005n.px/",
+ "query": {
+  "Koulutusaste": [
+   "ALL",
+   "5-6",
+   "7-8"
+  ],
+  "Ikä": [
+   "ALL"
+  ],
+  "Sukupuoli": [
+   "ALL"
+  ],
+  "Vuosi": [
+   "*"
+  ],
+  "Tiedot": [
+   "lkm_15v-"
+  ],
+  "Alue": [
+   "*"
+  ]
+ },
+ "updated": "2026-09-04T06:59:00Z",
+ "label": "15 vuotta täyttäneet muuttujina Alue, Koulutusaste, Ikä, Sukupuoli, Vuosi ja Tiedot",
+ "fetched": "2026-09-24",
+ "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "note": "osa-alue layer: edu",
+ "cells": 13002
+}
