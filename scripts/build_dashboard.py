@@ -106,7 +106,7 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "dist" / "index.html"))
     args = ap.parse_args()
 
-    check_js([SRC / "route_core.js", SRC / "testprop.js", SRC / "app.js"])
+    check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "testprop.js", SRC / "app.js"])
     makro = load(pathlib.Path(args.data)) or {}
     osa = load(pathlib.Path(args.osa))
     micro_idx = load(PROC / "micro" / "index.json")
@@ -169,6 +169,7 @@ def main():
                 .replace("{{APP_CSS}}", (SRC / "style.css").read_text(encoding="utf-8"))
                 .replace("{{LEAFLET_JS}}", (SRC / "vendor" / "leaflet.js").read_text(encoding="utf-8"))
                 .replace("{{ROUTE_JS}}", (SRC / "route_core.js").read_text(encoding="utf-8"))
+                .replace("{{PICKER_JS}}", (SRC / "picker_core.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))
                 .replace("{{DATA}}", payload)

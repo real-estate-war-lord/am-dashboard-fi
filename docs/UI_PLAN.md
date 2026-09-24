@@ -116,7 +116,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   unified search (names, codes, addresses, Google Maps links, `lat, lon`, quick jumps); row 2 chips;
   Climate button and return-period pills removed; Infra/Public/Services/Zoning/grid → Layers ▾;
   legends become keys only; Full screen → top bar; map top ≤ 200 px at 1366×768.
-- ☐ **P3 IndicatorPicker + PeriodControl** — one component each, on Map / Area / Data › Areas /
+- ☑ **P3 IndicatorPicker + PeriodControl** — one component each, on Map / Area / Data › Areas /
   Charts / Test property; year · return period · projection badge; climate indicator ⇄ SYKE zones;
   projection purple dashed, climate blue, observed green.
 - ☐ **P4 Map area card** — identity + 5 headline figures + two actions; `Outlook 2040 ▸` and
@@ -256,6 +256,52 @@ Gate: green — validate ✓, test 38+38 ✓, build clean, `make ui` 18/18.
   toolbar wrapping to a second row at 1366.
 - The map area card is still v1.1's tall block (Outlook, the UPCOMING chip row, the figures). **P4.**
 
+### P3 — the shared IndicatorPicker and PeriodControl ☑
+Commit: `feat: v2.0 P3 — one indicator picker, one period control, and the flood zones follow the indicator`
+Gate: green — validate ✓, test 38 python + 48 node ✓, build clean, `make ui` 26/26.
+
+**Built**
+1. **`src/picker_core.js`** (IIFE → `window.PICKER_CORE`, `{{PICKER_JS}}`, 10 node tests in
+   `tests/picker.test.js`): `GROUP_ORDER`, `GROUP_PILL`, `grouped()` (with the inherited group pulled
+   out last), `matches()`/`filter()`, `periodMode()`, `PERIOD_KEY`, `projBadge()`, `availTag()`,
+   `step()`, `ramp()`, and the return-period pair `rpParts`/`rpFamily`.
+2. **One `indPicker(target)`** (`data-testid=ind-picker`), on the Map, the area page, Data › Areas,
+   Charts and the Test property page. Button shows `label · unit` plus a `municipality` tag when the
+   figure is not native to the level on screen. Popover: search, the groups as `[data-group]` headers
+   with their pill, one row per indicator with label, unit, `↓ lower is better` and an availability tag
+   (`2011–` · `muni` · `snapshot` · `1/1000a` · `2026→2040`). `role=listbox`, ↑/↓/Enter/Esc, Esc returns
+   focus to the button, and the popover re-renders itself rather than the page.
+3. **One `periodControl(target)`** (`data-testid=period`) in four shapes, chosen by the indicator:
+   `period-year` · `period-rp` (`[1/100a | 1/1000a]`) · `period-proj`
+   (`Projection 2026→2040 · Tilastokeskus Väestöennuste 2024`) · `period-asof`.
+4. **`indChips(target)`** is the picker's short form; `data-indq` / `#indsel` / `#chind` / the old
+   `indSelect` / `indQuick` / `yearSelect` are gone, and there is one handler for every indicator
+   affordance (picker row, chip, headline tile, table row) — `indSet(target, key)`.
+5. **The SYKE flood zones follow the indicator.** Choosing one of the four flood indicators draws the
+   matching WMS; choosing anything else removes it. `clim=` is no longer written — it is derived from
+   `ind=` — and a v1.1 `?clim=river_1000` link now selects `ind=flood_river_1000`. The reader's hide
+   toggle lives in Layers ▾ as `zones` and writes `zones=0`; the row exists only when a Climate
+   indicator is active.
+6. **Three families, three hues.** `FAMILY_HUE` makes every projection purple (`--proj`) and every
+   Climate figure blue (`--clim`); observed stays green. v1.1 gave each Climate indicator its own hue,
+   so a flood share and a radon reading looked like measurements of unrelated things. The legend names
+   the family, and the outlook chart's projected line is the same purple, dashed.
+
+**Decisions added**
+- **D13 — the return period is the indicator, not a URL key.** SYKE publishes two separate rasters, a
+  1-in-100 and a 1-in-1000 chance in any given year, and the dashboard already has four separate
+  indicators for them. The control therefore swaps `ind=` rather than adding `rp=`: one less key to
+  round-trip, and sea and river can never be crossed by a period switch.
+- **D14 — `clim=` is derived, never written.** Two keys for one state is how a URL stops round-tripping.
+  The one thing the reader can set — hiding the zones — is `zones=0`.
+
+**Known issues / open**
+- The area page still has the KEY FIGURES block, its group tabs and the separate Trend / Neighbours
+  cards; the picker and period sit in its header for now. **P5.**
+- The Test property page has the pair above its mini map but is otherwise the v1.1 sheet. **P6.**
+- `Charts` has no period control (its `from ▾ / to ▾` selects are its period), and a Climate chart
+  there still draws one return period rather than both — logged, not a MUST for v2.0.
+
 ## 6. Next
 
-Start P3 — the shared IndicatorPicker and PeriodControl.
+Start P4 — the map area card.

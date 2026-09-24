@@ -1858,3 +1858,46 @@ th .thn{display:inline}
   #lfmap{height:min(520px,calc(100vh - 230px))}
   #mkexplain .indx-body{max-height:40vh;overflow-y:auto}
 }
+
+/* ===================================================================================
+   v2.0 P3 — the shared IndicatorPicker and PeriodControl
+   =================================================================================== */
+.ipk{position:relative}
+.ipkb{max-width:330px;gap:8px}
+.ipkl{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ipku{font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+.ipkc{color:var(--muted);margin-left:auto}
+.ipkpop{position:absolute;top:calc(100% + 6px);left:0;z-index:80;width:430px;max-width:94vw;
+  max-height:70vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 14px 40px rgba(20,28,24,.18);overflow:hidden}
+.ipkpop[hidden]{display:none}
+.ipkh{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line2)}
+.ipkh .dim{font-family:var(--mono);font-size:10px}
+.ipks{flex:1;height:28px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);
+  font:inherit;font-size:13px;padding:0 9px;color:var(--ink)}
+.ipks:focus{border-color:var(--good);outline:none}
+.ipkl2{overflow-y:auto;padding-bottom:6px}
+.ipkg{position:sticky;top:0;background:var(--panel);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:9px 12px 4px;
+  display:flex;align-items:center;gap:7px;z-index:1}
+.ipkg .tag{letter-spacing:.04em}
+.ipkr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
+  gap:1px 12px;padding:5px 12px;cursor:pointer;align-items:baseline}
+.ipkr:hover,.ipkr.cur{background:var(--panel2)}
+.ipkr.cur{box-shadow:inset 2px 0 0 var(--good)}
+.ipkr.on b{color:var(--good)}
+.ipkr b{grid-area:1/1;font-family:var(--body);font-weight:500;font-size:13px}
+.ipkr .ipkru{grid-area:2/1;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.ipkr .lb{font-style:normal;color:var(--muted)}
+.ipkr em{grid-area:1/2/3/3;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  align-self:center;text-align:right;white-space:nowrap}
+.ipkr em.tag-muni,.tag-muni{color:var(--inh)}
+
+/* --- the period control, in all four shapes --- */
+.period{display:inline-flex;align-items:center}
+.period .indsel{height:var(--ctrl-h)}
+.pbadge{height:var(--ctrl-h);padding:0 11px;border:1px dashed var(--line);border-radius:8px;
+  font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+.period[data-mode=projection] .pbadge,.pbadge[data-mode=projection]{color:var(--proj);border-color:var(--proj-2)}
+.period[data-mode=projection]{color:var(--proj)}
+.period[data-mode=returnperiod] .sg.on{background:var(--clim);border-color:var(--clim);color:#fff}

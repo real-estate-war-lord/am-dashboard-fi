@@ -336,7 +336,9 @@ def _layers_menu(page, base):
                                      "els => els.map(e => e.dataset.layer)")
     for want in ["infra", "public", "services", "buildings", "wms:zoning", "wms:grid"]:
         assert want in keys, f"{want} missing from Layers ▾: {keys}"
-    assert any(k.startswith("clim:") for k in keys), keys
+    # the flood zones are NOT a layer here: P3 binds them to the Climate indicator, and the menu
+    # only carries the reader's hide toggle for the zones the active indicator brought with it
+    assert not [k for k in keys if k.startswith("clim:")], keys
     page.click("[data-testid=layers-pop] [data-layer=infra]")
     page.wait_for_timeout(400)
     assert "infra=1" in hash_of(page), hash_of(page)
@@ -433,6 +435,164 @@ def _fullscreen_topbar(page, base):
     assert page.eval_on_selector("[data-testid=map-full]", "e => !!e.closest('.topbar')")
     goto(page, base, "#data/areas/kunta")
     assert not page.query_selector("[data-testid=map-full]")
+
+
+# ===========================================================================
+# P3 — the shared IndicatorPicker and PeriodControl
+# ===========================================================================
+
+
+PICKER_ROUTES = ["#map", "#area/kunta/091", "#area/postinumero/00100",
+                 "#data/areas/kunta", "#charts?ind=growth&a=kunta:091",
+                 "#property?p=60.2448,24.8665"]
+
+
+@check("P3-picker-everywhere", phase="P3")
+def _picker_everywhere(page, base):
+    """exactly one indicator picker, and one period control, on every view that studies an indicator"""
+    for h in PICKER_ROUTES:
+        goto(page, base, h)
+        n = len(page.query_selector_all("[data-testid=ind-picker]"))
+        assert n == 1, f"{h}: {n} pickers"
+        assert page.query_selector("[data-testid=ind-picker-btn]"), h
+        assert len(page.query_selector_all("[data-testid=period]")) <= 1, h
+
+
+@check("P3-picker-popover", phase="P3")
+def _picker_popover(page, base):
+    """the popover searches, groups and selects — by mouse and by keyboard"""
+    goto(page, base, "#map")
+    page.click("[data-testid=ind-picker-btn]")
+    page.wait_for_timeout(200)
+    assert page.query_selector("[data-testid=ind-picker-pop]:not([hidden])")
+    groups = texts(page, "[data-testid=ind-picker-pop] [data-group]")
+    assert len(groups) >= 6, groups
+    assert page.evaluate("document.activeElement.dataset.ipksearch !== undefined"), "search not focused"
+    page.fill("[data-testid=ind-search]", "flood")
+    page.wait_for_timeout(200)
+    rows = texts(page, "[data-testid=ind-picker-pop] .ipkr b")
+    assert rows and all("flood" in r.lower() for r in rows), rows
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(700)
+    assert "ind=flood_" in hash_of(page), hash_of(page)
+    # Escape closes it and gives the button the focus back
+    page.click("[data-testid=ind-picker-btn]")
+    page.wait_for_timeout(150)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(150)
+    assert page.eval_on_selector("[data-testid=ind-picker-pop]", "e => e.hidden") is True
+    assert page.evaluate("document.activeElement.dataset.ipkopen !== undefined")
+
+
+@check("P3-period-modes", phase="P3")
+def _period_modes(page, base):
+    """one control, three shapes, chosen by the indicator — never two at once"""
+    goto(page, base, "#map?ind=growth")
+    assert page.query_selector("[data-testid=period-year]"), "no year select on a history indicator"
+    assert not page.query_selector("[data-testid=period-rp]")
+    assert not page.query_selector("[data-testid=period-proj]")
+
+    goto(page, base, "#map?ind=fc_growth")
+    proj = page.query_selector("[data-testid=period-proj]")
+    assert proj, "no projection badge on an Outlook indicator"
+    txt = proj.inner_text()
+    assert txt.startswith("Projection 2026→2040"), txt
+    assert "Tilastokeskus" in txt and "Väestöennuste" in txt, txt
+    assert not page.query_selector("[data-testid=period-year]")
+
+    goto(page, base, "#map?ind=flood_sea_100")
+    rp = page.query_selector("[data-testid=period-rp]")
+    assert rp, "no return-period control on a flood indicator"
+    assert texts(page, "[data-testid=period-rp] button") == ["1/100a", "1/1000a"]
+    assert not page.query_selector("[data-testid=period-year]")
+    # switching the return period swaps the indicator and never crosses sea ↔ river
+    page.click("[data-testid=period-rp] [data-rp='1000']")
+    page.wait_for_timeout(700)
+    assert "ind=flood_sea_1000" in hash_of(page), hash_of(page)
+
+
+@check("P3-climate-zones", phase="P3")
+def _climate_zones(page, base):
+    """a Climate indicator draws the SYKE zones; anything else takes them away"""
+    goto(page, base, "#map/091?ind=flood_sea_100")
+    page.wait_for_timeout(1200)
+    leg = page.query_selector("[data-testid=legend-zones]")
+    assert leg and leg.inner_text().strip(), "no zones legend on a flood indicator"
+    assert "1/100a" in leg.inner_text(), leg.inner_text()
+    # the legend's own hide toggle lives in Layers ▾ and writes zones=0
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(200)
+    assert page.query_selector("[data-testid=layers-pop] [data-layer=zones]")
+    page.click("[data-testid=layers-pop] [data-layer=zones]")
+    page.wait_for_timeout(500)
+    assert "zones=0" in hash_of(page), hash_of(page)
+
+    goto(page, base, "#map/091?ind=growth")
+    page.wait_for_timeout(1000)
+    leg = page.query_selector("[data-testid=legend-zones]")
+    assert not (leg and leg.inner_text().strip()), leg.inner_text() if leg else ""
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(200)
+    assert not page.query_selector("[data-testid=layers-pop] [data-layer=zones]")
+
+
+@check("P3-clim-link-still-works", phase="P3")
+def _clim_link(page, base):
+    """a v1.1 ?clim= link selects the indicator those zones measure"""
+    goto(page, base, "#map/091?clim=river_1000")
+    assert "ind=flood_river_1000" in hash_of(page), hash_of(page)
+
+
+@check("P3-inherited-group", phase="P3")
+def _inherited_group(page, base):
+    """on a postal-code page the kunta-level indicators are listed under their own heading"""
+    goto(page, base, "#area/postinumero/00100")
+    page.click("[data-testid=ind-picker-btn]")
+    page.wait_for_timeout(300)
+    groups = texts(page, "[data-testid=ind-picker-pop] [data-group]")
+    assert "From the municipality" in groups, groups
+    tags = texts(page, "[data-testid=ind-picker-pop] [data-group='From the municipality'] ~ .ipkr em")
+    assert tags and tags[0] == "muni", tags[:3]
+
+
+@check("P3-chips", phase="P3")
+def _chips(page, base):
+    """the chips row is the picker's short form and the active one is filled"""
+    goto(page, base, "#map?ind=unemp")
+    chips = page.query_selector_all("[data-testid=ind-chips] .iqb")
+    assert len(chips) >= 4, len(chips)
+    on = [c.inner_text() for c in chips if "on" in (c.get_attribute("class") or "")]
+    assert len(on) == 1, on
+    btn = page.eval_on_selector("[data-testid=ind-picker-btn] .ipkl", "e => e.textContent")
+    assert on[0] == btn, (on, btn)
+
+
+@check("P3-family-ramps", phase="P3")
+def _family_ramps(page, base):
+    """observed is green, a projection is purple, climate is blue — in the legend and on the map"""
+    def darkest(h):
+        goto(page, base, h)
+        page.wait_for_timeout(1200)
+        cols = page.eval_on_selector_all(
+            "[data-testid=legend] .lgrow i",
+            "els => els.map(e => getComputedStyle(e).backgroundColor)")
+        assert cols, h
+        rgb = [tuple(int(x) for x in c[c.index('(') + 1:c.index(')')].split(',')[:3]) for c in cols]
+        # the "no data" swatch is the last row; the darkest bin is the first
+        return rgb[0]
+    r, g, b = darkest("#map?ind=growth")
+    assert g > r and g > b, f"observed ramp is not green: {(r, g, b)}"
+    r, g, b = darkest("#map?ind=fc_growth")
+    assert b > g and r > g, f"projection ramp is not purple: {(r, g, b)}"
+    r, g, b = darkest("#map?ind=flood_sea_100")
+    assert b > r and b > g, f"climate ramp is not blue: {(r, g, b)}"
+    # …and a projection is dashed wherever it is a line
+    goto(page, base, "#area/kunta/091?show=outlook")
+    page.wait_for_timeout(900)
+    dashes = page.eval_on_selector_all(
+        ".bleg + svg path, svg path[stroke-dasharray]",
+        "els => els.map(e => e.getAttribute('stroke-dasharray')).filter(Boolean)")
+    assert dashes, "no dashed projection line on the outlook chart"
 
 
 # ===========================================================================

@@ -475,7 +475,8 @@ function hashFor() {
   if (S.view === "makro" && MK.pub) q.push("public=1");
   if (MK.pub || S.view === "publist") q.push(...pubHashParts());
   if (S.view === "makro" && MK.srv) { q.push("services=1"); q.push(...srvHashParts()); }
-  if (S.view === "makro" && MK.clim) q.push(`clim=${MK.clim}`);
+  /* `clim=` is derived from `ind=` and is never written; `zones=0` is the reader hiding them */
+  if (S.view === "makro" && climFor(MK.ind) && !MK.clim) q.push("zones=0");
   if (S.view === "makro" && MK.wms) q.push(`wms=${MK.wms}`);
   if (S.view === "makro" && MK.focus) q.push(`focus=${encodeURIComponent(MK.focus)}`);
   if (S.view === "makro" && !UI.mapCard) q.push("card=0");
@@ -536,7 +537,12 @@ function parseHash() {
          MK.osaView = parts[1] === "postinumero" ? "postinumero" : "osa_alue";
          MK.micro = q.micro === "1" && microAvail(MK.muni); if (q.mind && MICRO_INDS.some(i => i.key === q.mind)) MK.mind = q.mind;
          MK.infra = q.infra === "1"; MK.pub = q.public === "1"; MK.srv = q.services === "1";
-         MK.clim = CLIM_LAYERS.some(c => c.key === q.clim) ? q.clim : "";
+         /* the SYKE zones are not a layer the reader switches on: they are the indicator's own
+            measurement drawn geometrically, so they follow `ind=`. A v1.1 `clim=` link still works —
+            it selects the matching Climate indicator instead. */
+         if (q.clim && !q.ind) { const c0 = CLIM_LAYERS.find(c => c.key === q.clim); if (c0 && indOf(c0.ind)) MK.ind = c0.ind; }
+         MK.clim = climFor(MK.ind);
+         if (q.zones === "0") MK.clim = "";
          MK.wms = Object.prototype.hasOwnProperty.call(MAP_WMS, q.wms || "") ? q.wms : "";
          pubParseFilter(q); srvParseFilter(q);
          MK.show = showList(q.show); UI.mapCard = q.card !== "0";
@@ -667,6 +673,7 @@ document.addEventListener("click", e => {
   /* every popover closes on a click that is not inside it — one rule, listed before the rest */
   if (!g("[data-exopen]") && !g(".exmenu")) exportClose();
   if (!g("[data-lyopen]") && !g(".lypop")) layersClose();
+  if (!g("[data-ipkopen]") && !g(".ipkpop")) ipkClose();
   if (!g(".msearch")) msClose();
   if ((el = g("[data-navtoggle]"))) { navToggle(); return; }
   if (g("[data-navclose]")) { navToggle(false); return; }
@@ -731,18 +738,17 @@ document.addEventListener("click", e => {
   if ((el = g("[data-argroup]"))) { AR.group = el.dataset.argroup; syncHash(); renderKeep(); return; }
   if ((el = g("[data-artab]"))) { AR.tab = el.dataset.artab; syncHash(); renderKeep(); return; }
   if ((el = g("[data-arsub]"))) { AR.sub = el.dataset.arsub; syncHash(); renderKeep(); return; }
-  if ((el = g("[data-indq]"))) { MK.ind = el.dataset.indq; if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST; syncHash(); renderKeep(); return; }
+  if ((el = g("[data-ipkopen]"))) { ipkToggle(el.dataset.ipkopen); return; }
+  if ((el = g("[data-ind]"))) { indSet(el.dataset.pt || "ind", el.dataset.ind); return; }
   if (g("[data-mftoggle]")) { UI.mfOpen = !UI.mfOpen; const p = document.getElementById("mfpanel"), b = g("[data-mftoggle]"); if (p) p.style.display = UI.mfOpen ? "" : "none"; if (b) b.classList.toggle("on", UI.mfOpen); return; }
-  if ((el = g("[data-arind]"))) { MK.ind = el.dataset.arind; if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST; syncHash(); renderKeep(); return; }
+  if ((el = g("[data-arind]"))) { indSet("ind", el.dataset.arind); return; }
   if ((el = g(".im"))) { tipToggle(el); return; }
   tipHide();
 });
 document.addEventListener("change", e => {
   const el = e.target;
-  if (el.id === "indsel") { MK.ind = el.value; if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST; syncHash(); renderKeep(); }
   if (el.id === "yearsel") { MK.year = el.value; syncHash(); renderKeep(); }
   if (el.id === "mindsel") { MK.mind = el.value; syncHash(); renderKeep(); }
-  if (el.id === "chind") { CH.ind = el.value; CH.ov = []; syncHash(); renderKeep(); }
   if (el.id === "chnat") { CH.nat = el.checked; syncHash(); renderKeep(); }
   if (el.id === "chy0") { CH.y0 = el.value; syncHash(); renderKeep(); }
   if (el.id === "chy1") { CH.y1 = el.value; syncHash(); renderKeep(); }
@@ -768,6 +774,7 @@ document.addEventListener("paste", e => {
   tpGo(t);
 });
 document.addEventListener("input", e => {
+  if (e.target.dataset && e.target.dataset.ipksearch) { IPK.q = e.target.value; IPK.i = 0; ipkRefresh(e.target.dataset.ipksearch); return; }
   if (e.target.id === "mq") { msOpen(e.target.value); return; }
   if (e.target.id === "tq") { T.q = e.target.value.trim().toLowerCase(); renderTableBody(); }
   if (e.target.id === "anlab") { AN.label = e.target.value.trim(); TP.label = AN.label || TP_LABEL; syncHash(); }
@@ -776,6 +783,13 @@ document.addEventListener("toggle", e => { if (e.target.classList && e.target.cl
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && UI.exOpen) { exportClose(); return; }
   if (e.key === "Escape" && UI.lyOpen) { layersClose(); return; }
+  if (IPK.open) {
+    if (e.key === "Escape") { e.preventDefault(); ipkClose(true); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault();
+      IPK.i = PC.step(IPK.i, ipkFlat(IPK.open).length, e.key === "ArrowDown" ? 1 : -1); ipkRefresh(IPK.open); return; }
+    if (e.key === "Enter") { e.preventDefault(); const f = ipkFlat(IPK.open);
+      if (f[IPK.i]) indSet(IPK.open, f[IPK.i].key); return; }
+  }
   if (e.target.id === "mq") {
     if (e.key === "ArrowDown") { e.preventDefault(); MS.open ? msMove(1) : msOpen(e.target.value); return; }
     if (e.key === "ArrowUp") { e.preventDefault(); msMove(-1); return; }
@@ -835,9 +849,17 @@ function enableSort(root) {
 /* ---------- choropleth colour model (identical to the Finnish edition) ---------- */
 const PAPER = [232, 237, 231];
 const rampTo = (hue, s, k) => { const c = PAPER.map((x, j) => Math.round((x + (hue[j] - x) * s) * k)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
+/* Three families, three hues, and a value is never drawn in a family it does not belong to:
+   observed green, projection purple (--proj), climate blue (--clim). v1.1 gave each Climate
+   indicator its own hue, which made a flood share and a radon reading look like two unrelated
+   measurements of unrelated things; they are one family and they now read as one. */
+const FAMILY_HUE = { projection: [91, 74, 156], climate: [47, 78, 140] };
 function mkShade(t, key) {
   /* five steps from a light tint to the full hue, the top class deeper still — differences read at a glance */
   const i = key.startsWith("micro:") ? MICRO_INDS.find(x => x.key === key.slice(6)) : IND.concat(IND_OSA).find(x => x.key === key);
+  const fam = FAMILY_HUE[PC.ramp(i)];
+  if (fam && !(i && i.scale === "diverging"))
+    return rampTo(fam, 0.1 + 0.9 * Math.pow(Math.max(0, Math.min(1, t)), .9), t >= .99 ? .72 : 1);
   /* diverging (Outlook): hue_neg → paper → hue_pos about the centre. t is 0…1 with .5 at the centre,
      so the same distance either side gets the same strength in the two hues. `hue` stays equal to
      hue_pos, so a caller that does not know about `scale` still gets a plausible sequential ramp. */
@@ -899,6 +921,8 @@ function legendHtml(sc, ind, key, note) {
     /* an Outlook legend says what it is and whose projection it is, in place of a good/bad note */
     (neutralDir(ind.key || "") && ind.proj ? `<div class="lgnote">${esc(projLegendNote(ind))}</div>` : "") +
     (sc.diverging && sc.clamped ? `<div class="lgnote dim">top and bottom classes are open-ended</div>` : "") +
+    /* the ramp says which family this is; the three are never mixed in one legend */
+    (PC.ramp(ind) === "climate" ? `<div class="lgnote">climate · Suomen ympäristökeskus / STUK</div>` : "") +
     `${note ? `<div class="lgnote">${note}</div>` : ""}`;
 }
 function setLegend(id, sc, ind, key, note) { const el = document.getElementById(id); if (el) el.innerHTML = legendHtml(sc, ind, key, note); setInfraLegend(); setPublicLegend(); setServicesLegend(); }
@@ -908,23 +932,155 @@ function setInfraLegend() {
   el.style.display = live ? "" : "none";
   el.innerHTML = live ? infraLegendHtml(INFRA.length) : "";
 }
-const GROUP_ORDER = ["Demographics", "Income & jobs", "Housing stock", "Market", "Construction", "Taxes", "Safety", "Climate", "Outlook", "Schools", "Growth signals"];
+/* ---------- the shared IndicatorPicker and PeriodControl (v2.0 P3) ----------
+   One picker and one period control, on the Map, the area page, Data › Areas, Charts and the Test
+   property page. `target` says which state they drive: "ind" is the app-wide `MK.ind` that colours
+   every map and fills every table, "chind" is the chart generator's own `CH.ind`. A view adopts the
+   pair by calling `indPicker(t)`, `periodControl(t)` and `indChips(t)` — never by writing a fourth
+   selector of its own.
+
+   The period control is not a setting beside the indicator: it *is* the indicator's period, and it
+   renders whichever of four shapes the indicator needs (src/picker_core.js). */
+const PC = (typeof window !== "undefined" && window.PICKER_CORE) || {};
+const GROUP_ORDER = PC.GROUP_ORDER;
 /* "label · unit" for selects, leaving out unit parts the label already says ("Reported crime · per 1,000 inh." + "rolling 4Q") */
 function optLabel(i) {
   const parts = (i.unit || "").split(" · ").filter(u => u && !i.label.includes(u) && !i.label.endsWith("· " + u.split(" ")[0]));
   return i.label + (parts.length ? " · " + parts.join(" · ") : "");
 }
-function indSelect() {
-  const L = curInds();
-  const groups = GROUP_ORDER.filter(gname => L.some(i => (i.group || "Other") === gname)).concat(L.some(i => !GROUP_ORDER.includes(i.group || "Other")) ? ["Other"] : []);
-  return `<select id="indsel" class="indsel" aria-label="Indicator">${groups.map(gname => `<optgroup label="${esc(gname)}">${L.filter(i => (i.group || "Other") === gname).map(i =>
-    `<option value="${i.key}" ${MK.ind === i.key ? "selected" : ""}>${esc(optLabel(i))}</option>`).join("")}</optgroup>`).join("")}</select>`;
+/* everything a picker needs to know about where it is standing */
+function pickCtx(target) {
+  if (target === "chind") return { list: IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))),
+                                   key: CH.ind, level: "kunta", inherits: () => false };
+  const e = S.view === "area" ? areaEntity() : null;
+  const tpE = S.view === "property" ? (TP.res || null) : null;
+  const list = e ? e.inds : (S.view === "property" ? IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))) : curInds());
+  const level = e ? e.type : (S.view === "table" ? T.level : osaMode() ? "osa_alue" : "kunta");
+  return { list, key: MK.ind, level, entity: e || tpE,
+           inherits: i => !!(e && inherits(e, i.key) && V(e.o, i.key) == null) };
 }
-function indQuick() {
-  /* the six figures people ask for first, one click each */
-  const L = curInds(); const ks = QUICK_KEYS.map(k => L.find(i => i.key === k)).filter(Boolean);
-  return ks.length > 1 ? `<div class="iq">${ks.map(i => `<button class="iqb ${MK.ind === i.key ? "on" : ""}" data-indq="${i.key}" title="${esc(i.label)}">${esc(i.short || i.label)}</button>`).join("")}</div>` : "";
+const pickYearsCache = {};
+function pickYears(key, level) {
+  const ck = key + "|" + level;
+  if (!(ck in pickYearsCache)) pickYearsCache[ck] = yearsOf(key).filter(y => y >= mapFrom(key));
+  return pickYearsCache[ck];
 }
+function curIndFor(target) { const c = pickCtx(target); return c.list.find(i => i.key === c.key) || c.list[0] || { key: "", label: "", fmt: "pct1" }; }
+
+const IPK = { open: "", i: -1, q: "" };            /* which picker is open, and where the cursor is */
+function indPicker(target) {
+  target = target || "ind";
+  const c = pickCtx(target), cur = c.list.find(i => i.key === c.key) || c.list[0] || { key: "", label: "—", unit: "" };
+  const inh = c.inherits(cur);
+  return `<div class="ipk" data-testid="ind-picker" data-pt="${esc(target)}">
+    <button class="tbtn ipkb" data-testid="ind-picker-btn" data-ipkopen="${esc(target)}" aria-haspopup="listbox"
+      aria-expanded="${IPK.open === target ? "true" : "false"}">
+      <span class="ipkl">${esc(cur.short || cur.label)}</span><span class="ipku">${esc(cur.unit || "")}</span>${inh ? `<span class="tag tag-muni">municipality</span>` : ""}<span class="ipkc">▾</span></button>
+    <div class="ipkpop" data-testid="ind-picker-pop" role="listbox" ${IPK.open === target ? "" : "hidden"}>${indPickerBody(target)}</div></div>`;
+}
+function indPickerBody(target) {
+  const c = pickCtx(target);
+  const shown = PC.filter(c.list, IPK.q);
+  const groups = PC.grouped(shown, c.inherits);
+  let n = -1;
+  const rows = groups.map(([g, list]) => `<div class="ipkg" data-group="${esc(g)}">${esc(g)}${PC.GROUP_PILL[g] ? `<span class="tag">${esc(PC.GROUP_PILL[g])}</span>` : ""}</div>`
+    + list.map(i => { n++; const tag = PC.availTag(i, { inherited: g === PC.GROUP_INHERITED, years: pickYears(i.key, c.level) });
+      return `<div class="ipkr ${i.key === c.key ? "on" : ""} ${n === IPK.i ? "cur" : ""}" role="option" id="ipkr-${n}"
+        aria-selected="${i.key === c.key}" data-ind="${esc(i.key)}" data-ipki="${n}" data-pt="${esc(target)}">
+        <b>${esc(i.label)}</b><span class="ipkru">${esc(i.unit || "")}${lowerBetter(i.key) ? ` <i class="lb">↓ lower is better</i>` : ""}</span>
+        <em class="${g === PC.GROUP_INHERITED ? "tag-muni" : ""}">${esc(tag)}</em></div>`; }).join("")).join("");
+  return `<div class="ipkh"><input class="ipks" data-testid="ind-search" data-ipksearch="${esc(target)}" type="search"
+      placeholder="Search indicators…" value="${esc(IPK.q)}" autocomplete="off" aria-label="Search indicators"><span class="dim">Esc</span></div>
+    <div class="ipkl2">${rows || `<p class="empty">No indicator matches "${esc(IPK.q)}"</p>`}</div>`;
+}
+/* the flat list the ↑/↓ cursor walks, in the order the popover draws it */
+function ipkFlat(target) {
+  const c = pickCtx(target);
+  return PC.grouped(PC.filter(c.list, IPK.q), c.inherits).reduce((a, [, l]) => a.concat(l), []);
+}
+function ipkRefresh(target) {
+  const el = document.querySelector(`.ipk[data-pt="${target}"] .ipkpop`);
+  if (!el) return;
+  const foc = document.activeElement && document.activeElement.classList.contains("ipks");
+  el.innerHTML = indPickerBody(target);
+  if (foc) { const s2 = el.querySelector(".ipks"); if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); } }
+  const cur = el.querySelector(".ipkr.cur"); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });
+}
+function ipkOpen(target) {
+  IPK.open = target; IPK.q = ""; IPK.i = 0;
+  document.querySelectorAll(".ipkpop").forEach(e => { e.hidden = true; });
+  document.querySelectorAll("[data-ipkopen]").forEach(b => b.setAttribute("aria-expanded", "false"));
+  const wrap = document.querySelector(`.ipk[data-pt="${target}"]`); if (!wrap) return;
+  const pop = wrap.querySelector(".ipkpop"); pop.innerHTML = indPickerBody(target); pop.hidden = false;
+  wrap.querySelector("[data-ipkopen]").setAttribute("aria-expanded", "true");
+  const s2 = pop.querySelector(".ipks"); if (s2) s2.focus();
+}
+function ipkClose(focusBtn) {
+  const t = IPK.open; IPK.open = ""; IPK.i = -1; IPK.q = "";
+  document.querySelectorAll(".ipkpop").forEach(e => { e.hidden = true; });
+  document.querySelectorAll("[data-ipkopen]").forEach(b => b.setAttribute("aria-expanded", "false"));
+  if (focusBtn && t) { const b = document.querySelector(`.ipk[data-pt="${t}"] [data-ipkopen]`); if (b) b.focus(); }
+}
+function ipkToggle(target) { if (IPK.open === target) ipkClose(true); else ipkOpen(target); }
+/* choosing an indicator is the one place `ind=` is written */
+function indSet(target, key) {
+  ipkClose();
+  if (target === "chind") { CH.ind = key; syncHash(); renderKeep(); return; }
+  MK.ind = key;
+  if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST;
+  /* a Climate indicator brings the publisher's own flood zones with it, and any other takes them
+     away again — the zones and the figure are the same measurement, seen two ways */
+  MK.clim = climFor(key);
+  go(hashFor());
+}
+/* which SYKE layer belongs to this indicator, if any */
+function climFor(key) { const c = CLIM_LAYERS.find(x => x.ind === key); return c ? c.key : ""; }
+
+/* ---------- the chips row ---------- */
+function indChips(target) {
+  target = target || "ind";
+  const c = pickCtx(target);
+  const ks = QUICK_KEYS.map(k => c.list.find(i => i.key === k)).filter(Boolean);
+  if (ks.length < 2) return "";
+  return `<div class="iq" data-testid="ind-chips" data-row="2">${ks.map(i =>
+    `<button class="iqb ${c.key === i.key ? "on" : ""}" data-ind="${esc(i.key)}" data-pt="${esc(target)}" title="${esc(i.label)}">${esc(i.short || i.label)}</button>`).join("")}</div>`;
+}
+const indQuick = () => indChips("ind");
+
+/* ---------- the period control ---------- */
+function periodControl(target) {
+  target = target || "ind";
+  const cur = curIndFor(target);
+  const ys = target === "chind" ? pickYears(cur.key, "kunta") : yearsFor(cur.key);
+  const mode = PC.periodMode(cur, ys);
+  if (mode === "projection")
+    return `<span class="period pbadge" data-testid="period" data-mode="projection"
+      title="${esc((cur.proj.publisher || "") + " " + (cur.proj.table || "") + " — a single vintage, not a series")}"><span data-testid="period-proj">${esc(PC.projBadge(cur))}</span></span>`;
+  if (mode === "returnperiod") {
+    const fam = PC.rpFamily(cur.key).filter(x => indOf(x.key));
+    return `<span class="period" data-testid="period" data-mode="returnperiod"><span class="seg" data-testid="period-rp" role="group" aria-label="Return period">${fam.map(x =>
+      `<button class="sg ${x.key === cur.key ? "on" : ""}" data-rp="${esc(x.rp)}" data-ind="${esc(x.key)}" data-pt="${esc(target)}"
+        title="A 1-in-${x.rp} chance in any given year — a probability, not a date">${esc(x.label)}</button>`).join("")}</span></span>`;
+  }
+  if (mode === "asof") {
+    const a = asofShortOf(cur);
+    return a ? `<span class="period pbadge" data-testid="period" data-mode="asof"><span data-testid="period-asof">as of ${esc(a)}</span></span>` : "";
+  }
+  /* Indicators end in different years — Paavo runs two years behind, the tax rates are already on
+     2026 — so "latest" is a sentinel meaning "the newest period THIS indicator has", and the option
+     names that year. Picking it never mixes two indicators' years. */
+  const own = ys[ys.length - 1];
+  const sel = target === "chind" ? CH.ind && "" : MK.year;
+  const opts = ys.slice(0, -1).map(y => [y, y]).concat([[LATEST, own === LATEST ? `${own} (latest)` : `${own} (latest for this indicator)`]]);
+  return `<span class="period" data-testid="period" data-mode="year"><select id="yearsel" class="indsel" data-testid="period-year" aria-label="Year">${opts.map(([v, l]) =>
+    `<option value="${esc(v)}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></span>`;
+}
+/* the single as-of an indicator publishes at the level on screen */
+function asofShortOf(i) {
+  const src = (MK.year !== LATEST && i.hist_asof && i.hist_asof[MK.year]) || i.asof || {};
+  return src.kunta || src.postinumero || src.osa_alue || "";
+}
+
 /* ---------- the unified map search (v2.0 P2) ----------
    One box, four kinds of answer: a quick camera jump, an area (kunta / postinumero / osa-alue, by
    name or by code), a coordinate (plain "lat, lon" or a Google Maps link), and a street address
@@ -1047,24 +1203,6 @@ function srcLine(i, asof) {
   const fetched = (i.tables || []).map(t => (S_[t] || {}).fetched).filter(Boolean).sort().pop();
   const pubs = Object.entries(by).map(([db, tbs]) => `${PUB[db] || db}, ${tbs.join(" / ")}`);
   return pubs.length ? `${pubs.join(" · ")}${asof ? `, as of ${asof}` : ""}${fetched ? `, fetched ${fetched}` : ""}` : "";
-}
-function yearSelect() {
-  /* An Outlook indicator is one vintage with no history, so there is nothing to select. It says what
-     window it covers and whose projection it is, instead of offering years it does not have. */
-  const cur = curInd();
-  if (cur && cur.proj) {
-    return `<span class="projwin" title="${esc((cur.proj.publisher || "") + " " + (cur.proj.table || "") + " — a single vintage, not a series")}">${esc(projWindow(cur))}</span>`;
-  }
-  /* Indicators end in different years — Paavo runs two years behind, the tax rates are already
-     on 2026 — so "latest" is a sentinel meaning "the newest period this indicator has", and the
-     option says which year that actually is. Picking it never mixes two indicators' years. */
-  const ys = yearsFor(MK.ind);
-  if (ys.length < 2) return "";
-  const own = ys[ys.length - 1];
-  const opts = ys.slice(0, -1).map(y => [y, y])
-    .concat([[LATEST, own === LATEST ? `${own} (latest)` : `latest (${own} data)`]]);
-  return `<select id="yearsel" class="indsel" aria-label="Year">${opts.map(([v, l]) =>
-    `<option value="${esc(v)}" ${MK.year === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
 }
 
 /* geometry helpers: largest ring, centroid */
@@ -1254,8 +1392,12 @@ function layersMenu() {
   Object.entries(MAP_WMS).forEach(([k, c]) => {
     h += lyRow("wms:" + k, MK.wms === k, c.label, (c.attribution || "").replace(/^.*?© /, ""), false, c.label);
   });
-  if (climAvail()) h += CLIM_LAYERS.map(c => lyRow("clim:" + c.key, MK.clim === c.key, c.label,
-    "Suomen ympäristökeskus, live WMS", false, "A return period is a probability, not a date")).join("");
+  /* The flood zones are not a layer to switch on: choosing a Climate indicator draws them and
+     choosing anything else removes them (P3). The row here is the reader's hide toggle for the
+     zones the active indicator brought with it, and it is only present when there are any. */
+  if (climFor(MK.ind)) { const c = CLIM_LAYERS.find(x => x.key === climFor(MK.ind));
+    h += lyRow("zones", !!MK.clim, c.label + " — zones", "shown because a Climate indicator is active", false,
+      "A return period is a probability, not a date: a 1-in-100 chance in any given year"); }
   h += `<p class="lynote">A context layer is the publisher's own map, drawn live from its WMS — never redrawn here.</p>`;
   return h;
 }
@@ -1275,7 +1417,7 @@ function layerToggle(key) {
   else if (key === "services") MK.srv = !MK.srv;
   else if (key === "buildings") { MK.micro = !MK.micro; syncHash(); renderKeep(); return; }
   else if (key.startsWith("wms:")) { const k = key.slice(4); MK.wms = MK.wms === k ? "" : k; }
-  else if (key.startsWith("clim:")) { const k = key.slice(5); MK.clim = MK.clim === k ? "" : k; }
+  else if (key === "zones") MK.clim = MK.clim ? "" : climFor(MK.ind);
   syncHash();
   if (LF.map) { lfInfraLayers();
                 if (MK.pub) { LF.pubDrawn = null; lfPublicLayers(true); lfPublicLabels(); } else lfDrop("pubG", "pubLabG");
@@ -1303,7 +1445,7 @@ function levelSeg() {
    would re-run lfInit and tear the live map down in the middle of a zoom gesture.
    Row 1 is the whole toolbar: search · Layers ▾ · Indicator ▾ · Period (+ the level switch). */
 function mkTools() {
-  return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indSelect() + yearSelect()}`
+  return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indPicker("ind") + periodControl("ind")}`
     + `${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}`;
 }
 function mkRefreshTools() {
@@ -1324,7 +1466,7 @@ function vMakro() {
   <div class="card accent" id="mapcard">
     <div class="card-head tools-only">
       <div class="tools" data-testid="map-toolbar" data-row="1">${mkTools()}</div>
-      <div id="mkquick" data-testid="ind-chips" data-row="2">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
+      <div id="mkquick">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
     <div id="mkexplain">${microMode() ? microExplain() : indExplain(ind)}</div>
     <div id="mkstrip">${muni && !microMode() ? muniStrip(muni) : ""}</div>
     <div class="mapwrap" data-testid="map"><div id="lfmap"></div><div class="maplegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div>
@@ -1385,7 +1527,7 @@ function vTable() {
   return `
   ${dataTabs()}
   <div class="card accent">
-    <div class="card-head tools-only"><div class="tools">${indSelect()}${yearSelect()}</div>${indQuick()}</div>
+    <div class="card-head tools-only"><div class="tools" data-row="1">${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
     ${indExplain(ind)}
     <div class="tfilters">
       <input id="tq" type="search" placeholder="Search municipality, postal code or name…" value="${esc(T.q)}">
@@ -1578,6 +1720,7 @@ function multiLine(series, ind, ys) {
    year. A vertical marker separates them, the card carries a "Projection" badge, and every
    projected point says so in its own tooltip — a projected point must never read as an actual. */
 /* the Finnish school ages: 0–6 before school, 7–15 comprehensive school */
+const PROJ_COLOR = "#5B4A9C";   /* --proj: every projection, every chart, one purple */
 const AGE_LABELS = { a0_6: "0–6", a7_15: "7–15", a20_34: "20–34", a80p: "80+" };
 function popOutlookChart(o, opts) {
   const hist = o.pop_hist || {}, proj = o.fc_pop || {};
@@ -1617,10 +1760,10 @@ function popOutlookChart(o, opts) {
     <line class="splitline" x1="${cutX}" x2="${cutX}" y1="${T0}" y2="${H - B}"/>
     <text class="ax projmark" x="${cutX}" y="${T0 - 4}" text-anchor="middle">${cut} · today</text>
     ${group ? "" : line(av, null, "#1C6B5C", false)}
-    ${line(pv, cut, "#5A3C96", true)}
+    ${line(pv, cut, PROJ_COLOR, true)}
   </svg>
   <div class="bleg">${group ? "" : `<span><i style="background:#1C6B5C"></i>Observed${opts && opts.actualSource ? ` <span class="dim">${esc(opts.actualSource)}</span>` : ""} <b>${hist[cut] != null ? fmtN(hist[cut]) : "–"}</b> <span class="dim">${cut}</span></span>`}
-    <span><i style="background:#5A3C96;height:2px"></i>Projected${opts && opts.projSource ? ` <span class="dim">${esc(opts.projSource)}</span>` : ""} <b>${pv(py[py.length - 1]) != null ? fmtN(pv(py[py.length - 1])) : "–"}</b> <span class="dim">${py[py.length - 1]}</span></span></div>`;
+    <span><i style="background:var(--proj);height:2px"></i>Projected${opts && opts.projSource ? ` <span class="dim">${esc(opts.projSource)}</span>` : ""} <b>${pv(py[py.length - 1]) != null ? fmtN(pv(py[py.length - 1])) : "–"}</b> <span class="dim">${py[py.length - 1]}</span></span></div>`;
 }
 /* The Outlook card: the population chart, the age-group split, the projection's own caveat and —
    on Helsinki-region osa-alueet only — the single past-accuracy line of §9.7. Nothing else from §9. */
@@ -1731,7 +1874,7 @@ function vArea() {
       <h2>${esc(e.name)}</h2>
       <div class="artags"><span class="tag">${esc(e.typeLabel)}</span><span class="tag">code ${esc(e.code)}</span>${e.o.pop != null ? `<span class="tag">${nf(e.o.pop, 0)} inhabitants</span>` : ""}${e.type === "kunta" ? `<span class="tag">${e.ctx.length} postal codes</span>` : ""}${e.type === "postinumero" && e.o.codes && e.o.codes.length > 1 ? `<span class="tag">merged codes ${esc(e.o.codes.join(", "))}</span>` : ""}</div>
     </div>
-    <div class="tools">${yearSelect()}<button class="lk" data-go="${withQ(mapHash)}">Show on map</button><button class="lk" data-go="${chartLink(MK.ind, e.type, e.code)}">↗ Chart</button>${microAvail(microCode) ? `<button class="lk primary" data-go="map/${microCode}?ind=${MK.ind}&micro=1&mind=${MK.mind}">Buildings ›</button>` : ""}</div>
+    <div class="tools">${indPicker("ind")}${periodControl("ind")}<button class="lk" data-go="${withQ(mapHash)}">Show on map</button><button class="lk" data-go="${chartLink(MK.ind, e.type, e.code)}">↗ Chart</button>${microAvail(microCode) ? `<button class="lk primary" data-go="map/${microCode}?ind=${MK.ind}&micro=1&mind=${MK.mind}">Buildings ›</button>` : ""}</div>
     ${headlineHtml(e)}
   </div>
   <div class="card">
@@ -1908,7 +2051,7 @@ function climLayers() {
 function climLegendHtml() {
   const c = climLayer(); if (!c) return "";
   return `<details class="ollegend" ${UI.climLegOpen ? "open" : ""} data-climleg>
-    <summary><b>Climate risk</b> <span class="dim">${esc(c.label)}</span></summary>
+    <summary><b>Flood zones</b> <span class="dim">${esc(c.label)}</span></summary>
     <div class="ollbody">${CLIM_LEGEND.map(([col, lab]) =>
       `<span class="olrow"><i style="background:${col}"></i>${esc(lab)}</span>`).join("")}
       <p class="cap">Suomen ympäristökeskus's own flood-hazard map, drawn live from its WMS.
@@ -2653,7 +2796,7 @@ function anLayerBar(pt, r) {
   const kom = r && r.kunta ? r.kunta.code : null, name = r && r.kunta ? r.kunta.name : "this municipality";
   const hasMicro = microAvail(kom);
   const pill = (k, label, on, off, tip) => `<div class="seg"><button class="sg ${on ? "on" : ""}" data-anlay="${k}"${off ? " disabled" : ""} title="${esc(tip)}">${esc(label)}</button></div>`;
-  return `<div class="tools anlaybar">
+  return `<div class="tools anlaybar">${indPicker("ind")}${periodControl("ind")}
     ${INFRA.length ? pill("infra", "Infra projects", ANL.infra, false, `Every project in the layer within ${nf((AN_INFRA_M + 1500) / 1000, 1)} km of the pin, in its status tones`) : ""}
     ${PUB ? pill("public", "Public buildings", ANL.pub && koms.length > 0, !koms.length,
         koms.length ? `Schools, daycare, health and culture within ${nf(AN_PUB_MAP_M, 0)} m · the legend filters the categories`
@@ -3315,7 +3458,8 @@ function chEntity(id) {
   return null;
 }
 function chartAdd(id, text) {
-  if (!id && text) { const q = text.trim(); const o = AREA_OPTS.find(x => x.t === q) || AREA_OPTS.find(x => x.k.some(k => k === q.toLowerCase())) || AREA_OPTS.find(x => x.k.some(k => k.startsWith(q.toLowerCase())));
+  if (!id && text) { const q = text.trim(), ql = q.toLowerCase();
+    const o = AREA_OPTS.find(x => x.name === q) || AREA_OPTS.find(x => x.keys.some(k => k === ql)) || AREA_OPTS.find(x => x.keys.some(k => k.startsWith(ql)));
     if (!o) return; id = o.h.startsWith("map/") ? "kunta:" + o.h.slice(4) : o.h.replace("area/", "").replace("/", ":"); }
   if (!id || CH.areas.includes(id) || CH.areas.length >= 8) return;
   CH.areas.push(id); syncHash(); renderKeep();
@@ -3474,8 +3618,6 @@ function chartSvgLine(withTitle) {
 }
 function vCharts() {
   const ind = chartInd(), ys = chartYears(); const ents = CH.areas.map(chEntity).filter(Boolean);
-  const L = IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key)));
-  const groups = GROUP_ORDER.filter(gn => L.some(i => (i.group || "Other") === gn)).concat(L.some(i => !GROUP_ORDER.includes(i.group || "Other")) ? ["Other"] : []);
   const quick = [["Top 5 municipalities", MUNI.slice().sort((a, b) => (b.pop || 0) - (a.pop || 0)).slice(0, 5).map(m => "kunta:" + m.code)],
                  ["Helsinki region metro", ["101", "147", "157", "159", "173", "230"].filter(c => byCode[c]).map(c => "kunta:" + c)],
                  ["Big four", ["101", "751", "461", "851"].filter(c => byCode[c]).map(c => "kunta:" + c)]];
@@ -3490,7 +3632,7 @@ function vCharts() {
   return `
   <div class="card accent">
     <div class="card-head tools-only"><div class="tools">
-      <select id="chind" class="indsel">${groups.map(gn => `<optgroup label="${esc(gn)}">${L.filter(i => (i.group || "Other") === gn).map(i => `<option value="${i.key}" ${CH.ind === i.key ? "selected" : ""}>${esc(optLabel(i))}</option>`).join("")}</optgroup>`).join("")}</select>
+      ${indPicker("chind")}
       <select id="chy0" class="indsel"><option value="">from ${YEARS[0]}</option>${YEARS.map(y => `<option value="${y}" ${CH.y0 === y ? "selected" : ""}>${y}</option>`).join("")}</select>
       <select id="chy1" class="indsel"><option value="">to ${LATEST}</option>${YEARS.map(y => `<option value="${y}" ${CH.y1 === y ? "selected" : ""}>${y}</option>`).join("")}</select>
       ${qPeriods(ind).length > 1 ? `<div class="seg" title="Quarterly: the publisher's own quarterly figure for each point">${[["year", "Yearly"], ["q", "Quarterly"]].map(([f, l]) => `<button class="sg ${CH.fq === f ? "on" : ""}" data-chfq="${f}">${l}</button>`).join("")}</div>` : ""}
@@ -3501,7 +3643,7 @@ function vCharts() {
     ${ents.length && CH.mode === "auto" && chartMode() === "bar" && chartYears().length < 2 ? `<p class="hint" style="margin:0 0 8px">This indicator is a single snapshot (no history) — shown as bars of the latest value.</p>` : ""}
     ${ind.proj && ents.length ? `<p class="hint projnote" style="margin:0 0 8px"><span class="tag proj">Projection</span> ${esc(ind.proj.from)}→${esc(ind.proj.to)} · neither end is "better", so nothing here is coloured good or bad.${mixed ? ` <b>Two different runs are on this chart:</b> ${esc(pubs.join(" and "))}. They are not combined and must not be read as one series — for this city they are 2.2 % apart by 2040 (docs/OUTLOOK_FI.md §4).` : ` Source: ${esc(pubs[0] === "Helsingin kaupunki" ? "Helsingin kaupunki" : "Tilastokeskus")} ${esc(ind.proj.vintage)}.`}</p>` : ""}
     <div class="tfilters">
-      <span class="asrch"><input id="chq" list="arealist" class="indsel" placeholder="Add municipality, postal code or quarter… (Enter)" autocomplete="off"><datalist id="arealist">${AREA_OPTS.map(o => `<option value="${esc(o.t)}"></option>`).join("")}</datalist></span>
+      <span class="asrch"><input id="chq" list="arealist" class="indsel" placeholder="Add municipality, postal code or quarter… (Enter)" autocomplete="off"><datalist id="arealist">${AREA_OPTS.map(o => `<option value="${esc(o.name)}">${esc(o.sub)}</option>`).join("")}</datalist></span>
       ${quick.map(([l, ids]) => `<button class="lk mini" data-chadd="${ids.join("|")}">+ ${l}</button>`).join("")}
       ${CH.areas.length ? `<button class="lk mini" data-chclear>clear</button>` : ""}
     </div>
