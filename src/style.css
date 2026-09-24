@@ -2001,3 +2001,38 @@ body.has-full{overflow:hidden}
 /* a card inside a toggle already has the toggle's own heading */
 .seclist .secbody .card>.card-head h3{display:none}
 .seclist .secbody .card>.card-head{margin-bottom:var(--s2);border-bottom:0;padding-bottom:0}
+
+/* The headline row is a grid of five; when an area publishes fewer, v1.1 left the grid's own
+   background showing as a grey slab (`#property?p=…` on 00410 drew two tiles and an empty block).
+   The tiles now carry their own borders, so a short row simply ends. */
+.arhead .hl,.anhead .hl{background:none;border:0;border-radius:0;gap:var(--s2);overflow:visible;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.arhead .hlc,.anhead .hlc{border:1px solid var(--line);border-radius:9px}
+.arhead .hlc.on,.anhead .hlc.on{border-color:var(--ink)}
+@media (max-width:1180px){.arhead .hl,.anhead .hl{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}}
+
+/* Every legend on a mini map lives in one column, bottom-right, and scrolls if the stack is taller
+   than the map. v1.1 pinned the public-buildings card, the infra card and the indicator card to the
+   same corner, so on the Test property map all three drew on top of each other. */
+.mmlegs{position:absolute;right:8px;bottom:8px;top:auto;z-index:800;display:flex;flex-direction:column;
+  align-items:flex-end;gap:6px;max-height:calc(100% - 16px);overflow-y:auto;pointer-events:none;
+  max-width:min(62%,260px)}
+.mmlegs .maplegend{position:static;flex:0 0 auto;max-width:100%}
+.mmlegs .maplegend .lgnote{max-width:none}
+.studyrow .minimap #anmap{min-height:420px}
+.tpmaptools{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);padding:var(--s2) var(--s4);margin-top:var(--s3)}
+.tpmaptools .lychips{padding:0}
+.lychip:disabled{opacity:.45;cursor:not-allowed}
+
+/* a folded legend keeps its title and nothing else */
+.mmlegs .maplegend{pointer-events:auto}
+.mmlegs .maplegend.folded>*:not(.lgtitle){display:none}
+.mmlegs .maplegend.folded .lgtitle{margin-bottom:0}
+.mmlegs .maplegend.folded .lgtitle span{display:none}
+.lgfold{float:right;margin:-2px -2px 0 6px;width:17px;height:17px;line-height:15px;text-align:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:5px;color:var(--muted);
+  font-family:var(--mono);font-size:11px;cursor:pointer;padding:0}
+.lgfold:hover{color:var(--ink);border-color:var(--ink)}
+.thn .cnt{font-family:var(--mono);font-size:10.5px;color:var(--muted);border:1px solid var(--line);
+  border-radius:8px;padding:0 5px;margin-left:4px}

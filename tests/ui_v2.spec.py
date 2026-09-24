@@ -807,6 +807,143 @@ def _vs_median(page, base):
 
 
 # ===========================================================================
+# P6 — Test property
+# ===========================================================================
+
+
+PROP = "#property?p=60.2448,24.8665"
+
+
+@check("P6-five-tiles", phase="P6")
+def _five_tiles(page, base):
+    """always five tiles, none of them a grey filler block"""
+    for p in [PROP, "#property?p=60.2295,24.8720", "#property?p=61.4978,23.7610"]:
+        goto(page, base, p)
+        page.wait_for_timeout(2800)
+        tiles = page.eval_on_selector_all(
+            "[data-testid=tiles] > *",
+            "els => els.map(e => [e.dataset.testid || '', e.textContent.trim()])")
+        assert len(tiles) == 5, (p, tiles)
+        assert all(t[0].startswith("tile-") and t[1] for t in tiles), (p, tiles)
+        inh = [t for t in tiles if "municipality figure" in t[1]]
+        own = [t for t in tiles if "municipality figure" not in t[1]]
+        assert own, (p, "every tile inherited")
+        for t in tiles:
+            assert "°" not in t[1], (p, t)
+
+
+@check("P6-header", phase="P6")
+def _header(page, base):
+    """the header names the kunta, the postinumero, the osa-alue and the coordinates, with four actions"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(2800)
+    tags = texts(page, ".anhead .artags .tag")
+    assert any("Helsinki" == t for t in tags), tags
+    assert any(t.startswith("00410") for t in tags), tags
+    assert any("60.24480, 24.86650" == t for t in tags), tags
+    acts = texts(page, ".anhead .tools > *")
+    assert acts[0].startswith("Open on map"), acts
+    assert any(a.endswith("›") for a in acts[1:]), acts
+    assert any("OpenStreetMap" in a for a in acts), acts
+    assert any("Copy link" in a for a in acts), acts
+
+
+@check("P6-study-row", phase="P6")
+def _tp_study_row(page, base):
+    """the same study row as the area page, anchored on the pin's finest area"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    assert page.query_selector("[data-testid=study-row] [data-testid=chart-panel]")
+    assert page.query_selector("[data-testid=study-row] [data-testid=minimap]")
+    hint = page.eval_on_selector("[data-testid=minimap] .hint", "e => e.textContent")
+    assert "osa-alue" in hint or "postal-code" in hint or "municipality" in hint, hint
+    # dragging moves it, ⤢ fills the screen, Esc restores
+    box = boxes(page, "[data-testid=minimap] .leaflet-container")[0]
+    before = page.evaluate("window.__maps.map(m => [m.getCenter().lat, m.getCenter().lng])")
+    page.mouse.move(box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["w"] / 2 - 120, box["y"] + box["h"] / 2, steps=10)
+    page.mouse.up()
+    page.wait_for_timeout(700)
+    assert page.evaluate("window.__maps.map(m => [m.getCenter().lat, m.getCenter().lng])") != before
+    page.click("[data-testid=minimap-full]")
+    page.wait_for_timeout(500)
+    full = boxes(page, "[data-testid=minimap]")[0]
+    assert full["w"] >= page.evaluate("window.innerWidth") * .9, full
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert boxes(page, "[data-testid=minimap]")[0]["w"] < page.evaluate("window.innerWidth") * .6
+
+
+@check("P6-legends-stack", phase="P6")
+def _tp_legends(page, base):
+    """the infra and public-building legends stack inside the map and never overlap"""
+    goto(page, base, PROP + "&lay=infra,public")
+    page.wait_for_timeout(3500)
+    mapbox = boxes(page, "[data-testid=minimap] .mapwrap")[0]
+    legs = [b for b in boxes(page, "[data-testid=minimap] .maplegend") if b["w"] > 4 and b["h"] > 4]
+    assert len(legs) >= 3, len(legs)
+    for i in range(len(legs)):
+        assert legs[i]["x"] >= mapbox["x"] - 1 and legs[i]["right"] <= mapbox["right"] + 1, legs[i]
+        for j in range(i + 1, len(legs)):
+            assert not overlap(legs[i], legs[j]), (legs[i], legs[j])
+
+
+@check("P6-sections", phase="P6")
+def _tp_sections(page, base):
+    """the sheet's sections are <details>, Infrastructure nearby open, state in show="""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    secs = page.eval_on_selector_all(".seclist details",
+                                     "e => e.map(x => [x.dataset.show, x.open])")
+    keys = [k for k, _ in secs]
+    for want in ["infra", "public", "schools", "climate", "profile", "sources"]:
+        assert want in keys, (want, keys)
+    assert dict(secs)["infra"] is True, secs
+    assert dict(secs)["public"] is False, secs
+    page.click(".seclist details[data-show=climate] summary")
+    page.wait_for_timeout(500)
+    assert "show=" in hash_of(page) and "climate" in hash_of(page), hash_of(page)
+
+
+@check("P6-empty-state", phase="P6")
+def _tp_empty(page, base):
+    """no pin: the input is focused and one example is offered"""
+    goto(page, base, "#property")
+    page.wait_for_timeout(700)
+    assert page.query_selector("[data-testid=state-empty]")
+    assert page.evaluate("document.activeElement.dataset.testid") == "prop-input"
+    assert page.query_selector("[data-tpexample]"), "no example offered"
+
+
+@check("P6-paste-google-link", phase="P6")
+def _tp_paste(page, base):
+    """a pasted Google Maps link replaces the pin — one pin, not two"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(2800)
+    page.click("[data-testid=search]") if page.query_selector("[data-testid=search]") else None
+    goto(page, base, "#property")
+    page.wait_for_timeout(600)
+    page.fill("[data-testid=prop-input]", "https://www.google.com/maps/@60.1699,24.9384,15z")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(3000)
+    h = hash_of(page)
+    assert h.startswith("#property?p=60.1699,24.9384"), h
+    assert h.count(";") == 0, h
+
+
+@check("P6-per-map-renderers", phase="P6")
+def _tp_panes(page, base):
+    """the mini map draws its own markers — never through the macro map's layers"""
+    goto(page, base, PROP + "&lay=infra,public")
+    page.wait_for_timeout(3500)
+    assert page.evaluate("window.__maps.length") == 1, page.evaluate("window.__maps.length")
+    own = page.evaluate("!!(window.__maps[0] && window.__maps[0]._am && window.__maps[0]._am.pub)")
+    assert own, "the mini map has no renderer set of its own"
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

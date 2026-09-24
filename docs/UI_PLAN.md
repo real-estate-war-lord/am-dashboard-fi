@@ -123,7 +123,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   `Upcoming projects (n) ▸` as toggles with URL state; whole card collapsible.
 - ☑ **P5 Area page** — header → tiles → picker/period/chips → study row (chart | draggable mini-map,
   equal height) → `<details>` toggles in `show=`; KEY FIGURES block removed; inherited values labelled.
-- ☐ **P6 Test property** — `#property?p=lat,lon[:label]`, the shared study row on the pin's finest
+- ☑ **P6 Test property** — `#property?p=lat,lon[:label]`, the shared study row on the pin's finest
   area, always 5 tiles, no filler; draggable mini-map with ⤢; `<details>` sections; per-map panes.
 - ☐ **P7 Export ▾** — one menu in the sidebar footer and the Data header; long schema; projects and
   nearby in their own files; UTF-8 BOM `;` CSV; unit/magnitude assertion.
@@ -366,6 +366,33 @@ Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 37/37.
 - `price_m2` still reads `5 225 EUR` and `rent` `21,3 EUR`; the unit belongs on the number. **P8a.**
 - The Test property sheet is still the v1.1 analysis sheet with the picker bolted on. **P6.**
 
+### P6 — Test property ☑
+Commit: `feat: v2.0 P6 — Test property on the shared study row, always five tiles, legends that stack`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 45/45.
+
+**Built**
+1. **The same study row as the area page**, anchored on the pin's finest published area (osa-alue >
+   postinumero > kunta) with the level named in the header and the map hint. `anHead` and `anLayerBar`
+   are deleted; `tpHead` and `tpMapTools` replace them.
+2. **Always five tiles.** v1.1 rendered only the indicators that happened to have a value at the pin's
+   own level, and the grid's background filled the rest of the row — `#property?p=…` on **00410 showed
+   two tiles and an empty grey block**. Two changes: an osa-alue entity now carries the full indicator
+   list (`IND_Q_ALL` — `eVal` already inherits every key the osa-alue layer does not publish), and the
+   headline row's tiles carry their own borders, so a short row simply ends.
+3. **Sections as `<details>` in `show=`**: Infrastructure nearby (open), Public buildings within 1 km,
+   Schools, Climate, Population outlook, Area profile (n figures), Sources & as-of.
+4. **The legends stack.** v1.1 pinned the public-buildings card, the infra card and the indicator card
+   to the same corner of a 420 px map, so with two layers on they drew on top of each other. They now
+   share one scrollable column, and on a mini map a feature-layer legend starts folded to its title
+   (`–` / `+`) while the indicator legend — the one that explains the colours under the pin — is open.
+5. **Duplicate register rows are grouped.** Public-building rows that agree on name, use code and
+   distance (±20 m) become one row with a `×n` count: the register publishes one row per building
+   part, so a school campus arrived as five identical lines.
+6. **Empty state** (`data-testid=state-empty`): the input focused, the accepted formats in its tooltip,
+   and one example to click.
+7. **Per-map panes and renderers** (from P1) are asserted here: the mini map draws through
+   `map._am.pub`, never through the macro map's layers.
+
 ## 6. Next
 
-Start P6 — the Test property page.
+Start P7 — Export ▾ and the long schema.
