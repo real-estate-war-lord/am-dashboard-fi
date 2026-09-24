@@ -2049,3 +2049,9 @@ body.has-full{overflow:hidden}
    240 px column (280 px as a drawer), so the placement is deterministic. */
 .exfoot .exmenu{position:fixed;left:12px;bottom:84px;top:auto;width:264px;max-width:calc(100vw - 24px)}
 @media (max-width:1024px){.exfoot .exmenu{left:12px;bottom:84px;z-index:120}}
+
+/* an inherited figure, wherever it appears: dimmed, and tagged rather than marked with a symbol */
+.tbl td.inh,.lfrow b.inh,.lfbig b.inh,.lfkey b.inh{color:var(--inh)}
+.tag-muni.muni{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.05em;
+  background:var(--inh-bg);color:var(--inh);border-radius:5px;padding:0 4px;margin-left:3px;vertical-align:1px}
+.olwin{margin-top:4px;font-family:var(--mono);font-size:10.5px}

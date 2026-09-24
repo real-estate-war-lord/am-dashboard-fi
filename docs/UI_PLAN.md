@@ -127,7 +127,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   area, always 5 tiles, no filler; draggable mini-map with ⤢; `<details>` sections; per-map panes.
 - ☑ **P7 Export ▾** — one menu in the sidebar footer and the Data header; long schema; projects and
   nearby in their own files; UTF-8 BOM `;` CSV; unit/magnitude assertion.
-- ☐ **P8 Number and label fixes** — EUR/m² and EUR/m²/month units; vs-median in pp or absolute, never
+- ☑ **P8 Number and label fixes** — EUR/m² and EUR/m²/month units; vs-median in pp or absolute, never
   % of a median; compound annual outlook rate; period label per indicator; `#n of N` everywhere; fi-FI.
 - ☐ **P9 Responsive** — ≤ 1024 px top bar + drawer; stacking; table scroll; legend pill; no overflow
   at 1366×768, 1440×900, 1536×864, 390×844.
@@ -439,6 +439,40 @@ Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 51/51.
   which killed the projects export outright.
 - `SCHOOLS` is `{schools:[…]}`, not an array; the nearby file's school rows threw on it.
 
+### P8 — the number and label fixes ☑
+Commit: `fix: v2.0 P8 — the unit belongs on the number, and a rank reads one way everywhere`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 58/58.
+
+**a) Units.** `unitLabel()` gives one spelling on screen and in the export (`€ / m² / month` →
+`EUR/m²/month`), and `fmtOf()` puts a money indicator's own denominator **on the number**: a price
+tile reads `5 225 EUR/m²` and a rent `21,3 EUR/m²/month` on the tile, the map card, the table, the
+picker and the export's `unit` column. Legend bins and axis ticks stay bare — the unit is in the
+title above them (the same rule `per1000` already followed).
+
+**b) vs median.** Landed in P5: a difference in pp for a share or a rate, in the indicator's own unit
+otherwise, never a percent of a median. `+53 220,0 % VS MEDIAN` cannot be produced any more.
+
+**c) The outlook line.** v1.1: `+104 297 residents (+12,1 %/yr)`. The bracket was `fc_pop_rate_5y` —
+*residents per 1 000 per year over the first five years*, a different unit and a different window
+from the change beside it — and no annual rate of a fourteen-year change is a simple division. It
+now reads `+104 297 residents · +14,8 % over 14 years · ≈ +1,0 % / yr (compound)`, and the +14,8 %
+is the same number as the Tilastokeskus headline because both are computed from the same two cells.
+The two headline figures **do** share a base year, and the card now says so: *Both 2026→2040, from
+the same base year 2026.*
+
+**d) The period label.** Landed in P3: `2025 (latest for this indicator)` — the active indicator's own
+latest period, never a global "latest (2025 data)".
+
+**e) One rank format.** `rankText()` everywhere — `#n of N`, with a `title` saying N counts the areas
+with a published figure for *that* indicator. The old `#n / N` in the All-figures table and the map
+popup are gone.
+
+**f) fi-FI, signed, pp.** Space thousands and comma decimals on screen (and only on screen — the export
+uses `.` and no grouping), every change signed, a change of a share in pp.
+
+**Also:** the lone `°` is gone from every surface. A table cell carries a `muni` tag and dims; a map
+popup says *From the kunta*; an exported chart says *(kunta)* and its footer explains it.
+
 ## 6. Next
 
-Start P8 — the number and label fixes.
+Start P9 — responsive.

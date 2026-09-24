@@ -34,6 +34,10 @@ const LOCALE = "fi-FI";
 const nf = (n, d = 1) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleString(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d });
 const sign = (n, f) => n == null || isNaN(n) ? "–" : (n > 0 ? "+" : "") + f(n);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* "€ / m² / month" → "EUR/m²/month". One spelling on screen and in the export, and — for money —
+   ON the number. v1.1 printed a price per square metre as "5 225 EUR" and a monthly rent per square
+   metre as "21,3 EUR", which read as a total price and a total rent. */
+const unitLabel = i => String((i && i.unit) || "").replace(/\s*\/\s*/g, "/").replace(/€/g, "EUR");
 const FMT = {
   pct0: v => nf(v, 0) + " %", pct1: v => nf(v, 1) + " %", pct2: v => nf(v, 2) + " %", signpct1: v => sign(v, x => nf(x, 1) + " %"),
   keur: v => nf(v / 1000, 0) + " k€", eur0: v => nf(v, 0) + " EUR", eur1: v => nf(v, 1) + " EUR",
@@ -45,9 +49,18 @@ const FMT = {
 /* rates per 1,000 (crime, homes for sale): no % sign — the unit is in the label, the legend title and the column head.
    Whole numbers once the rate is large enough for a decimal to be noise. */
 const per1000 = v => nf(v, Math.abs(v) >= 20 ? 0 : 1);
-const FMT_TIGHT = { per1000 };                       /* map labels, legend bins, chart axis ticks: value only */
-const fmtOf = i => FMT[i.fmt] || FMT.pct1;
-const fmtTight = i => FMT_TIGHT[i.fmt] || fmtOf(i);
+/* map labels, legend bins, chart axis ticks: value only — the unit is in the title above them */
+const FMT_TIGHT = { per1000, eur0: v => nf(v, 0), eur1: v => nf(v, 1), keur: v => nf(v / 1000, 0) };
+const EUR_DEC = { eur0: 0, eur1: 1 };
+function fmtOf(i) {
+  /* a money figure carries its own denominator: EUR/m², EUR/m²/month, EUR/yr */
+  if (i && EUR_DEC[i.fmt] !== undefined) {
+    const d = EUR_DEC[i.fmt], suf = unitLabel(i).replace(/^EUR\b/, "EUR") || "EUR";
+    return v => nf(v, d) + " " + (suf.indexOf("EUR") === 0 ? suf : "EUR");
+  }
+  return (i && FMT[i.fmt]) || FMT.pct1;
+}
+const fmtTight = i => (i && FMT_TIGHT[i.fmt]) || fmtOf(i);
 const isPct = i => (i.fmt || "").startsWith("pct") || i.fmt === "signpct1";
 const median = arr => { const v = arr.filter(x => x != null && !isNaN(x)).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 const byCode = {}; MUNI.forEach(m => byCode[m.code] = m);
@@ -149,16 +162,25 @@ function indSrcLink(i, code, label, level) {
 /* "Projected change 2026→2031: −492 residents (−1.3 %/yr)" — the absolute change in people first,
    because a rate on its own does not tell a reader how many. Both come from the same two published
    cells: the projected population in the first year and in the fifth. */
+/* v1.1 read: "Projected change 2026→2040: +104 297 residents (+12,1 %/yr)". Two things were wrong
+   with the bracket. `fc_pop_rate_5y` is *residents per 1 000 per year over the first five years* —
+   a different unit and a different window from the change beside it — and no annual rate of a
+   fourteen-year change is a simple division anyway. What is shown now is the total change over the
+   window, and beside it the compound annual rate that actually produces it. */
 function projChangeLine(o, level) {
   const list = level === "osa_alue" ? IND_OSA : IND;
-  const ri = list.find(i => i.key === "fc_pop_rate_5y");
-  if (!ri || !o || !o.fc_pop) return "";
-  const from = (ri.proj && ri.proj.from) || "2026", to = (ri.proj && ri.proj.to) || "2031";
+  const gi = list.find(i => i.key === "fc_growth");
+  if (!gi || !o || !o.fc_pop) return "";
+  const from = (gi.proj && gi.proj.from) || "2026", to = (gi.proj && gi.proj.to) || "2040";
   const a = o.fc_pop[from], b = o.fc_pop[to];
   if (a == null || b == null) return "";
-  const abs = b - a, rate = o.fc_pop_rate_5y;
+  const yrs = Number(to) - Number(from);
+  const abs = b - a;
+  const total = a ? (b / a - 1) * 100 : null;
+  const cagr = (a > 0 && b > 0 && yrs > 0) ? (Math.pow(b / a, 1 / yrs) - 1) * 100 : null;
   return `Projected change ${esc(from)}→${esc(to)}: <b>${sign(abs, x => nf(x, 0))} residents</b>`
-    + (rate != null ? ` (${sign(rate, x => nf(x, 1))} %/yr)` : "");
+    + (total != null ? ` · ${sign(total, x => nf(x, 1))} % over ${yrs} years` : "")
+    + (cagr != null ? ` · <span class="dim" title="The constant yearly rate that turns the ${esc(from)} figure into the ${esc(to)} one — not a published figure, plain compound arithmetic on the two cells.">≈ ${sign(cagr, x => nf(x, 1))} % / yr (compound)</span>` : "");
 }
 /* "Projection, Tilastokeskus 2026" at kunta level, "Projection, Helsingin kaupunki 2026" at osa_alue/peruspiiri —
    the publisher is read from the data, never inferred from the view (docs/OUTLOOK_FI.md §4, §8). */
@@ -943,7 +965,7 @@ function legendHtml(sc, ind, key, note) {
     const mid = sc.diverging && c === (n - 1) / 2;
     rows.push(`<div class="lgrow${mid ? " lgmid" : ""}"><i style="background:${mkShade(n > 1 ? c / (n - 1) : .5, key)}"></i>${lab(c)}${mid ? `<em class="lgctr">${f(sc.center || 0)}</em>` : ""}</div>`);
   }
-  return `<div class="lgtitle">${esc(ind.short || ind.label)}<span>${esc(ind.unit || "")}</span></div>` +
+  return `<div class="lgtitle">${esc(ind.short || ind.label)}<span>${esc(unitLabel(ind))}</span></div>` +
     (n ? rows.join("") : `<div class="lgrow dim">no data</div>`) +
     `<div class="lgrow"><i style="background:#C4CBC4"></i>no data</div>` +
     /* same ramp for every direction: darkest = highest value, which is the worst end when lower is better */
@@ -1026,7 +1048,7 @@ function indPicker(target) {
   return `<div class="ipk" data-testid="ind-picker" data-pt="${esc(target)}">
     <button class="tbtn ipkb" data-testid="ind-picker-btn" data-ipkopen="${esc(target)}" aria-haspopup="listbox"
       aria-expanded="${IPK.open === target ? "true" : "false"}">
-      <span class="ipkl">${esc(cur.short || cur.label)}</span><span class="ipku">${esc(cur.unit || "")}</span>${inh ? `<span class="tag tag-muni">municipality</span>` : ""}<span class="ipkc">▾</span></button>
+      <span class="ipkl">${esc(cur.short || cur.label)}</span><span class="ipku">${esc(unitLabel(cur))}</span>${inh ? `<span class="tag tag-muni">municipality</span>` : ""}<span class="ipkc">▾</span></button>
     <div class="ipkpop" data-testid="ind-picker-pop" role="listbox" ${IPK.open === target ? "" : "hidden"}>${indPickerBody(target)}</div></div>`;
 }
 function indPickerBody(target) {
@@ -1038,7 +1060,7 @@ function indPickerBody(target) {
     + list.map(i => { n++; const tag = PC.availTag(i, { inherited: g === PC.GROUP_INHERITED, years: pickYears(i.key, c.level) });
       return `<div class="ipkr ${i.key === c.key ? "on" : ""} ${n === IPK.i ? "cur" : ""}" role="option" id="ipkr-${n}"
         aria-selected="${i.key === c.key}" data-ind="${esc(i.key)}" data-ipki="${n}" data-pt="${esc(target)}">
-        <b>${esc(i.label)}</b><span class="ipkru">${esc(i.unit || "")}${lowerBetter(i.key) ? ` <i class="lb">↓ lower is better</i>` : ""}</span>
+        <b>${esc(i.label)}</b><span class="ipkru">${esc(unitLabel(i))}${lowerBetter(i.key) ? ` <i class="lb">↓ lower is better</i>` : ""}</span>
         <em class="${g === PC.GROUP_INHERITED ? "tag-muni" : ""}">${esc(tag)}</em></div>`; }).join("")).join("");
   return `<div class="ipkh"><input class="ipks" data-testid="ind-search" data-ipksearch="${esc(target)}" type="search"
       placeholder="Search indicators…" value="${esc(IPK.q)}" autocomplete="off" aria-label="Search indicators"><span class="dim">Esc</span></div>
@@ -1237,7 +1259,7 @@ function indExplain(i) {
   const lb = lowerBetter(i.key);
   const src = srcLine(i, asofShort());
   return `<details class="indx" ${UI.indxOpen ? "open" : ""}>
-    <summary><b>${esc(i.label)}</b><span class="tag">${esc(i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level"))}</span><span class="tag">${esc(i.unit || "")}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.frozen ? `<span class="tag warnline">Last published ${esc(i.frozen)} — discontinued</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
+    <summary><b>${esc(i.label)}</b><span class="tag">${esc(i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level"))}</span><span class="tag">${esc(unitLabel(i))}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.frozen ? `<span class="tag warnline">Last published ${esc(i.frozen)} — discontinued</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
     <div class="indx-body"><p>${esc(i.desc || "")}${lb ? ` <b>↓ Lower is better</b> — rank #1 is the lowest value.` : ""}${neutralDir(i.key) ? ` <b>Neither end is better</b> — a shrinking area is not failing and a growing one is not succeeding, so this is ranked by size only, never good to bad.` : ""}</p>
     ${i.proj && i.proj.caveat ? `<p class="warnline">⚠ ${esc(i.proj.caveat)}</p>` : ""}
     ${i.note ? `<p class="dim"><em>Note</em> ${esc(i.note)}</p>` : ""}
@@ -1291,7 +1313,7 @@ function srcNote(extra = "") {
   const s = (D.meta && D.meta.sources) || [];
   const list = s.map(x => `${esc(x.label)}${x.asof ? " (" + esc(x.asof) + ")" : ""}`).join(" · ");
   return `<details class="dinfo"><summary>Data information</summary><div class="note"><b>Open data.</b> ${list || "no sources recorded"}${OSA && OSA.meta && OSA.meta.attribution ? " · " + esc(OSA.meta.attribution) : ""}.
-    Municipality-level indicators are shown on postal-code polygons with the municipality value (marked °) when no finer statistic exists.
+    Kunta-level indicators are drawn on postal-code polygons with the kunta's own value when no finer statistic exists.
     ${esc((D.meta && D.meta.note) || "")}</div>${extra}<p class="cap">Full definitions and table stamps under <button class="lk mini" data-go="sources">Sources</button>. Built ${esc((D.meta && D.meta.built) || "–")}.</p></details>`;
 }
 /* One rank format, everywhere: "#n of N", N = the areas that actually have a figure. The `title`
@@ -1381,11 +1403,15 @@ function outlookBothHtml(m) {
   const gap = Math.round((kk.fc_growth - dst) * 100) / 100;
   const g = IND.find(i => i.key === "fc_growth");
   const gq = IND_OSA.find(i => i.key === "fc_growth");
+  /* both runs are 2026→2040 off the same base year, and the card says so rather than leaving a
+     reader to assume it: two percentages of two different bases would not be comparable at all */
+  const from0 = (g.proj || {}).from || kk.from || "2026", to0 = (g.proj || {}).to || kk.to || "2040";
   return `<div class="olboth">
-    <div class="olrow"><span>Outlook 2040 · <b class="olpub">Tilastokeskus</b></span><b>${fmtOf(g)(dst)}</b>
+    <div class="olrow"><span>Outlook · <b class="olpub">Tilastokeskus</b></span><b>${fmtOf(g)(dst)}</b>
       ${srcLink((g.proj || {}).src, m.code, "Verify")}</div>
-    <div class="olrow"><span>Outlook 2040 · <b class="olpub">Helsingin kaupunki</b></span><b>${fmtOf(g)(kk.fc_growth)}</b>
+    <div class="olrow"><span>Outlook · <b class="olpub">Helsingin kaupunki</b></span><b>${fmtOf(g)(kk.fc_growth)}</b>
       ${srcLink((gq && gq.proj || {}).src, "1000", "Verify")}</div>
+    <div class="olwin"><span class="dim">Both ${esc(from0)}→${esc(to0)}, from the same base year ${esc(from0)}.</span></div>
     ${projChangeLine(m, "kunta") ? `<div class="olchg">${projChangeLine(m, "kunta")} <span class="dim">· Tilastokeskus</span></div>` : ""}
     <p class="cap">Two different projections of the same city, ${nf(Math.abs(gap), 2)} pp apart — ${kk.fc_growth > dst ? "the city forecast is the higher" : "Tilastokeskus is the higher"}. They are never combined: different runs, different assumptions (docs/OUTLOOK_FI.md §4).</p>
   </div>`;
@@ -1570,9 +1596,12 @@ function vMakro() {
 }
 
 /* ---------- Table view ---------- */
+/* An inherited figure carries a `muni` tag, not a lone `°` — a symbol nothing on the page explained
+   and which a reader could as easily take for a degree or a footnote marker. */
+const MUNI_TAG = `<span class="tag-muni muni" title="No figure is published for this area; the kunta's is shown.">muni</span>`;
 function fmtCell(i, v, fallback, mark) {
   if (v == null || isNaN(v)) return `<td class="num">–</td>`;
-  return `<td class="num" data-v="${v}">${fmtOf(i)(v)}${fallback ? " °" : mark || ""}</td>`;
+  return `<td class="num${fallback ? " inh" : ""}" data-v="${v}">${fmtOf(i)(v)}${fallback ? " " + MUNI_TAG : mark || ""}</td>`;
 }
 /* one place decides which mark a value carries: ° inherited from the parent area, ^ published
    for a coarser area than this one */
@@ -1634,10 +1663,10 @@ function vTable() {
     </div>
     <div class="scrollx"><table class="tbl compact wraphead" data-testid="areas-table" data-sortable><thead><tr>
       <th>${T.level === "osa_alue" ? "Osa-alue" : T.level === "postinumero" ? "Area" : "Municipality"}</th><th>${T.level === "postinumero" ? "Postal code" : "Code"}</th><th>${T.level === "osa_alue" ? "District" : T.level === "postinumero" ? "Municipality" : "Region"}</th><th class="num">Population</th>
-      <th class="num hi" data-best="${best(ind)}">${esc(ind.label)}<br><span class="dim">${esc(ind.unit || "")}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
-      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num" data-best="${best(i)}">${esc(i.label)}${lowerBetter(i.key) ? " ↓" : ""}<br><span class="dim">${esc(i.unit || "")}</span></th>`).join("")}</tr></thead>
+      <th class="num hi" data-best="${best(ind)}">${esc(ind.label)}<br><span class="dim">${esc(unitLabel(ind))}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
+      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num" data-best="${best(i)}">${esc(i.label)}${lowerBetter(i.key) ? " ↓" : ""}<br><span class="dim">${esc(unitLabel(i))}</span></th>`).join("")}</tr></thead>
       <tbody id="tbody">${tableBodyHtml()}</tbody></table></div>
-    <p class="cap">Sorted by the selected indicator, best first (↓ = lower is better); click a column header to re-sort, a row to open the area's page, ↗ to chart it. ° = kunta value shown on a postal code or osa-alue · ^ = figure published for a coarser area than the row (a maakunta rent, a maakunta construction rate).${isSafety(curInd()) ? "" : " Safety columns appear when a Safety indicator is selected."} Rows: ${T.level === "postinumero" ? "postal codes (street-level codes merged by name)" : T.level === "osa_alue" ? "Helsinki-region osa-alueet (osa-alueet), source Aluesarjat" : "municipalities"}.</p>
+    <p class="cap">Sorted by the selected indicator, best first (↓ = lower is better); click a column header to re-sort, a row to open the area's page, ↗ to chart it. a <b>muni</b> tag = the kunta's figure, shown where the area publishes none · ^ = figure published for a coarser area than the row (a maakunta rent, a maakunta construction rate).${isSafety(curInd()) ? "" : " Safety columns appear when a Safety indicator is selected."} Rows: ${T.level === "postinumero" ? "postal codes (street-level codes merged by name)" : T.level === "osa_alue" ? "Helsinki-region osa-alueet (osa-alueet), source Aluesarjat" : "municipalities"}.</p>
     ${srcNote()}
   </div>`;
 }
@@ -1761,9 +1790,9 @@ function longRows(out, level, o, code, name, parentCode, parentName, maakunta, i
     const st = indStamp(i, level, y);
     out.push(csvRow(LONG_COLS, {
       level, code, name, parent_code: parentCode, parent_name: parentName, maakunta,
-      population: o.pop, indicator: i.key, label: i.label, unit: i.unit || "",
+      population: o.pop, indicator: i.key, label: i.label, unit: unitLabel(i),
       period, period_type: periodTypeOf(i, y),
-      value: assertUnit(i.unit, v, i.key),
+      value: assertUnit(unitLabel(i), v, i.key),
       value_type: kind,
       inherited_from: kind === "inherited" ? parentCode : "",
       direction: i.direction || "higher_better",
@@ -2088,7 +2117,7 @@ function outlookCard(e) {
     <p class="cap srcrow">${srcLink(pr.src, srcCode(o, isQ ? "osa_alue" : "kunta"), "Verify the projection at source")}
       ${srcLink(pr.actuals, srcCode(o, isQ ? "osa_alue" : "kunta"), "Verify the observed population")}</p>
     ${tiles.length ? `<div class="hl wrap">${tiles.map(i => `<button class="hlc ${MK.ind === i.key ? "on" : ""}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)}">
-      <span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(o[i.key])}</b><em class="dim">${i.key === "fc_20_34_rel" ? esc(relLabel(i)) : esc(i.unit || "")}</em></button>`).join("")}</div>` : ""}
+      <span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(o[i.key])}</b><em class="dim">${i.key === "fc_20_34_rel" ? esc(relLabel(i)) : esc(unitLabel(i))}</em></button>`).join("")}</div>` : ""}
     ${ageRows ? `<div class="olages"><span class="lfsec">Age groups ${esc(pr.from || "")}→${esc(pr.to || "")} · persons</span><div class="mstrip-k">${ageRows}</div></div>` : ""}
     ${isQ ? pastAccuracyLine(o) : ""}
     ${isQ ? osaFcCaveat("osa_alue") : `<p class="cap">${esc((g && g.warn) || "")}</p>`}
@@ -2115,9 +2144,9 @@ function areaCompareTable(e) {
       const ys = eYears(e, i.key), y0 = ys[0]; const first = y0 && y0 !== MK.year ? eVal(e, i.key, y0).v : null;
       const d = first == null ? null : isPct(i) ? cur.v - first : (first ? (cur.v / first - 1) * 100 : null);
       const rk = cur.own ? rankOf(e.o, i.key, e.peers) : null; const med = median(e.peers.map(p => V(p, i.key)));
-      return `<tr class="clickrow ${i.key === ind.key ? "hi" : ""}" data-arind="${esc(i.key)}"><th><span class="thn">${esc(i.label)} <span class="dim">${esc(i.unit || "")}</span></span><button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
+      return `<tr class="clickrow ${i.key === ind.key ? "hi" : ""}" data-arind="${esc(i.key)}"><th><span class="thn">${esc(i.label)} <span class="dim">${esc(unitLabel(i))}</span></span><button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
         ${fmtCell(i, cur.v, !cur.own, markFor(e.o, i, e.type))}${e.muni ? (muniCmp(e, i.key) ? fmtCell(i, V(e.muni, i.key), false) : `<td class="num dim" title="different definition at municipality level">n/c</td>`) : ""}${fmtCell(i, med, false)}
-        <td class="num" data-v="${rk ? rk.r : ""}">${rk ? `#${rk.r} / ${rk.n}` : "–"}</td>
+        <td class="num" data-v="${rk ? rk.r : ""}">${rk ? rankText(rk) : "–"}</td>
         <td class="num ${goodBad(d, i.key)}" data-v="${d ?? ""}">${d != null ? sign(d, x => nf(x, 1)) + (isPct(i) ? " pp" : " %") + ` <span class="dim">(${y0})</span>` : "–"}</td>
         <td class="dim">${asofText(i)}</td></tr>`; }).join("")}</tbody></table></div>`;
 }
@@ -2130,8 +2159,8 @@ function areaSubTable(e) {
   const rows = list.slice().sort((a, b) => (V(b, ind.key) ?? -1e9) - (V(a, ind.key) ?? -1e9));
   return `<div class="tfilters">${keys.length > 1 ? `<div class="seg">${keys.map(k => `<button class="sg ${k === sub ? "on" : ""}" data-arsub="${k}">${k === "osa_alue" ? `Quarters (${e.subs[k].length})` : `Postal codes (${e.subs[k].length})`}</button>`).join("")}</div>` : ""}<span class="hint">sorted by ${esc(ind.label.toLowerCase())} · click a row for its page, ↗ to chart it</span></div>
     <div class="scrollx"><table class="tbl compact wraphead" data-sortable><thead><tr><th>${sub === "osa_alue" ? "Osa-alue" : "Area"}</th><th>${sub === "osa_alue" ? "District" : "Postal code"}</th><th class="num">Population</th>
-      <th class="num hi">${esc(ind.label)}<br><span class="dim">${esc(ind.unit || "")}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
-      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num">${esc(i.label)}<br><span class="dim">${esc(i.unit || "")}</span></th>`).join("")}</tr></thead>
+      <th class="num hi">${esc(ind.label)}<br><span class="dim">${esc(unitLabel(ind))}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
+      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num">${esc(i.label)}<br><span class="dim">${esc(unitLabel(i))}</span></th>`).join("")}</tr></thead>
     <tbody>${rows.map(a => `<tr class="clickrow" data-go="${withQ(pageOf(a))}"><th><span class="thn">${esc(a.name)} <span class="go">›</span></span><button class="tch" data-go="${chartLink(ind.key, sub, sub === "osa_alue" ? a.code : a.nr)}" title="Open in Charts">↗</button></th><td class="dim">${esc(sub === "osa_alue" ? a.peruspiiri || "" : a.nr)}</td><td class="num dim" data-v="${a.pop || 0}">${a.pop != null ? nf(a.pop, 0) : "–"}</td>
       ${fmtCell(ind, V(a, ind.key), false)}${y0 && y0 !== MK.year ? deltaCell(a, ind, pool) : ""}${cols.filter(i => i.key !== ind.key).map(i => fmtCell(i, V(a, i.key), false)).join("")}</tr>`).join("")}</tbody></table></div>
     <p class="cap">${sub === "osa_alue" ? `${list.length} quarters (osa-alueet). ${esc((OSA.meta && OSA.meta.attribution) || "")}` : `${list.length} postal-code areas; only postal-code-level indicators are listed — the rest take the municipality value (see All indicators).`}</p>`;
@@ -2234,7 +2263,7 @@ function chartPanel(e, ind) {
   const src = srcLine(ind, asofShortOf(ind));
   const link = indSrcLink(ind, e.type === "postinumero" ? e.o.nr : srcCode(e.o, e.type), null, e.type);
   return `<div class="card panel" data-testid="chart-panel" data-mode="${mode}">
-    <div class="card-head"><h3>${esc(ind.label)}</h3><span class="hint">${esc(ind.unit || "")}</span></div>
+    <div class="card-head"><h3>${esc(ind.label)}</h3><span class="hint">${esc(unitLabel(ind))}</span></div>
     ${panelHead(e, ind)}
     ${body}
     <p class="cap">${esc(ind.desc || "")}${ind.warn ? `<br>⚠ ${esc(ind.warn)}` : ""}</p>
@@ -2343,7 +2372,7 @@ function arMapInit() {
       fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: isOwn ? .85 : kuntaLevel ? .35 : .45 });
     const v = vk(a); const native = kuntaLevel || (sind && V(a, sind.key) != null);
     const label = kuntaLevel ? (byCode[a.muni] || {}).name : a.name;
-    p.bindTooltip(`<b>${esc(label)}</b>${v != null ? `<br>${esc(sind.short || sind.label)}: ${fmtOf(sind)(v)}${native ? "" : " °"}` : ""}`);
+    p.bindTooltip(`<b>${esc(label)}</b>${v != null ? `<br>${esc(sind.short || sind.label)}: ${fmtOf(sind)(v)}${native ? "" : " (kunta)"}` : ""}`);
     if (!isOwn) { p.on("click", () => go(withQ(kuntaLevel ? pageOf(byCode[a.muni]) : pageOf(a)))); p.on("mouseover", () => p.setStyle({ weight: 2.2, color: "#141C18" })); p.on("mouseout", () => p.setStyle({ weight: kuntaLevel ? 0.6 : 1, color: "#FFFFFF" })); }
     else if (e.type === "kunta" && !kuntaLevel) { p.on("click", () => go(withQ(pageOf(a)))); }
     p.addTo(map);
@@ -2682,7 +2711,7 @@ function infraLegendHtml(n) {
 /* ---------- Leaflet layers (macro map) ---------- */
 function lfPopup(a, muni) {
   /* two levels: the selected indicator big + four headline figures and the ways onward; every value behind "all values" */
-  const row = (i, v, own) => `<span class="lfrow"><span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(v)}${own ? markFor(a, i, isQ ? "osa_alue" : "") : " °"}</b></span>`;
+  const row = (i, v, own) => `<span class="lfrow"><span>${esc(i.short || i.label)}</span><b class="${own ? "" : "inh"}">${fmtOf(i)(v)}${own ? markFor(a, i, isQ ? "osa_alue" : "") : " " + MUNI_TAG}</b></span>`;
   const LI = curInds(); const ind = curInd(); const isQ = a.peruspiiri != null;
   const val = i => { const v = V(a, i.key); if (v != null) return { v, own: true }; if (muni && V(muni, i.key) != null) return { v: V(muni, i.key), own: false }; return null; };
   const peers = isQ ? OSA.areas : AREAS; const sel = val(ind);
@@ -2694,16 +2723,16 @@ function lfPopup(a, muni) {
   const n = LI.filter(i => val(i)).length; const type = isQ ? "osa_alue" : "postinumero", code = isQ ? a.code : a.nr;
   return `<div class="lfpop"><b>${esc(a.nr || a.code)} ${esc(a.name)}</b>${MK.year !== LATEST ? ` <span class="tag">${MK.year}</span>` : ""}
     <span class="dim">${a.peruspiiri ? esc(a.peruspiiri) + " · " : ""}${muni ? esc(muni.name) : ""}${a.pop != null ? " · " + nf(a.pop, 0) + " inhabitants" : ""}</span>
-    ${sel ? `<div class="lfbig"><span>${esc(ind.label)}${sel.own ? markFor(a, ind, isQ ? "osa_alue" : "") : " °"}</span><b>${fmtOf(ind)(sel.v)}</b><em>${rk ? `#${rk.r} of ${rk.n} ${sel.own ? (isQ ? "osa-alueet" : "postal codes") : "municipalities"}` : ""}</em></div>` : `<div class="lfbig dim"><span>${esc(ind.label)}</span><b>–</b></div>`}
+    ${sel ? `<div class="lfbig"><span>${esc(ind.label)}${sel.own ? markFor(a, ind, isQ ? "osa_alue" : "") : " " + MUNI_TAG}</span><b class="${sel.own ? "" : "inh"}">${fmtOf(ind)(sel.v)}</b><em>${rk ? rankText(rk) : ""}</em></div>` : `<div class="lfbig dim"><span>${esc(ind.label)}</span><b>–</b></div>`}
     ${ind.note_short ? `<p class="cap">${esc(ind.note_short)}</p>` : ""}
     ${outlookLine(a, isQ ? "osa_alue" : "postinumero") || (muni ? outlookLine(muni, "kunta") : "")}
     ${isQ && a.fc_growth != null ? osaFcCaveat("osa_alue") : ""}
-    ${keys.length ? `<div class="lfkey">${keys.map(({ i, x }) => `<div><span>${esc(i.short || i.label)}${x.own ? (isQ ? peruspiiriMark(i) : "") : " °"}</span><b>${fmtOf(i)(x.v)}</b></div>`).join("")}</div>` : ""}
+    ${keys.length ? `<div class="lfkey">${keys.map(({ i, x }) => `<div><span>${esc(i.short || i.label)}${x.own ? (isQ ? peruspiiriMark(i) : "") : " " + MUNI_TAG}</span><b class="${x.own ? "" : "inh"}">${fmtOf(i)(x.v)}</b></div>`).join("")}</div>` : ""}
     <span class="lfact"><button class="lk mini primary" data-go="${withQ(pageOf(a))}">Open page ›</button>${muni && !MK.muni ? `<button class="lk mini" data-go="map/${muni.code}?ind=${MK.ind}">Zoom to ${esc(muni.name)}</button>` : ""}${muni && microAvail(muni.code) ? `<button class="lk mini" data-go="map/${muni.code}?ind=${MK.ind}&micro=1&mind=${MK.mind}">Buildings ›</button>` : ""}<button class="lk mini" data-go="${chartLink(ind.key, type, code)}">↗ Chart</button></span>
     <details class="lfmore"><summary>All ${n} values</summary>
     ${native ? `<span class="lfsec">${isQ ? "Osa-alue" : "Postal code"}</span><div class="lfrows">${native}</div>` : ""}
-    ${inherited ? `<span class="lfsec">Municipality °</span><div class="lfrows">${inherited}</div>` : ""}
-    ${safety ? `<span class="lfsec">Safety${muni ? " · municipality °" : ""}</span><div class="lfrows">${safety}</div>` : ""}
+    ${inherited ? `<span class="lfsec">From the kunta</span><div class="lfrows">${inherited}</div>` : ""}
+    ${safety ? `<span class="lfsec">Safety${muni ? " · from the kunta" : ""}</span><div class="lfrows">${safety}</div>` : ""}
     ${isQ && a.kk ? `<span class="lfsec">KK survey · ${esc(a.kk.peruspiiri)} ^</span><div class="lfrows">${kkRows(a.kk)}</div>` : ""}</details></div>`;
 }
 /* figures the KK safety survey publishes per peruspiiri but the dashboard does not map: counts and two offence groups */
@@ -3098,7 +3127,7 @@ function anOutlookCard(e, r) {
     <div class="card-head"><h3>Outlook</h3>
       <span class="hint"><span class="tag proj">Projection</span> ${esc(pr.from || "")}→${esc(pr.to || "")} · ${esc(pr.publisher || "")} ${esc(pr.vintage || "")} · ${esc(where)}</span></div>
     ${tiles.length ? `<div class="hl">${tiles.map(i => `<button class="hlc ${MK.ind === i.key ? "on" : ""}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)}">
-      <span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(src[i.key])}</b><em class="dim">${esc(i.unit || "")}</em></button>`).join("")}</div>` : ""}
+      <span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(src[i.key])}</b><em class="dim">${esc(unitLabel(i))}</em></button>`).join("")}</div>` : ""}
     ${projChangeLine(src, isQ ? "osa_alue" : "kunta") ? `<p class="olchg big">${projChangeLine(src, isQ ? "osa_alue" : "kunta")}</p>` : ""}
     ${popOutlookChart(src, { actualSource: isQ ? "Aluesarjat alu_vaerak_004r" : "Tilastokeskus vaerak/11re", projSource: pr.table || pr.publisher })}
     <p class="cap srcrow">${srcLink(pr.src, srcCode(src, isQ ? "osa_alue" : "kunta"), "Verify the projection at source")}
@@ -3142,7 +3171,7 @@ function anRow(e, i, r) {
      n % of the peers", no better/worse wording and no favourable-end fill (docs/OUTLOOK_FI.md §3). */
   const barTitle = nu ? `higher than ${nf(pc ? pc.p : 0, 0)} % of the ${pc ? pc.n : 0} ${peers} — neither end is better`
     : `better than ${nf(pc ? pc.p : 0, 0)} % of the ${pc ? pc.n : 0} ${peers}${lb ? " — lower is better here" : ""}`;
-  return `<tr${nu ? ' class="anneutral"' : ""}><th><span class="thn">${esc(i.label)} <span class="dim">${esc(i.unit || "")}</span></span>${i.proj ? `<span class="tag proj mini">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}<button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
+  return `<tr${nu ? ' class="anneutral"' : ""}><th><span class="thn">${esc(i.label)} <span class="dim">${esc(unitLabel(i))}</span></span>${i.proj ? `<span class="tag proj mini">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}<button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
     ${fmtCell(i, cur.v, !cur.own, e.type === "osa_alue" ? peruspiiriMark(i) : "")}
     <td class="ansrc">${cur.own ? indSrcLink(i, e.type === "postinumero" ? e.o.nr : srcCode(e.o, e.type), "Verify", e.type)
                                 : indSrcLink(i, (r.kunta || {}).code, "Verify", "kunta")}</td>
@@ -3585,7 +3614,7 @@ function lfLabels() {
       areas.slice().sort((x, y) => (y.pop || 0) - (x.pop || 0)).slice(0, 40).forEach(a => {
         const [w, h] = px(mainRing(a)); if (w < 64 || h < 26) return;
         const m = byCode[a.muni]; const own = micro && vk(a) != null; const v = own ? vk(a) : (m ? vk(m) : null);
-        const t = sc.t(v), dark = t != null && t > .55; const val = v != null ? fmtTight(ind)(v) + (own ? "" : " °") : "–";
+        const t = sc.t(v), dark = t != null && t > .55; const val = v != null ? fmtTight(ind)(v) : "–";
         const name = w >= 120 && h >= 36 ? `<b>${esc(a.name)}</b><br>` : "";
         put(centroid(mainRing(a)), name + val, dark);
       });
@@ -3763,7 +3792,7 @@ function lfLayers() {
   lfServicesLayers();
   climLayers();
   lfLabels();
-  setLegend("maplegend", sc, ind, ind.key, micro ? (osaMode() ? "osa-alueet" + (peruspiiriLevel(ind) ? " · ^ one figure per peruspiiri" : "") : "postal codes") : (ind.level === "postinumero" && !MK.muni ? "municipalities · zoom in for postal codes" : "municipalities" + (fine ? ` · ° ${osaMode() ? "osa-alueet" : "postal codes"} take the municipality value` : "")));
+  setLegend("maplegend", sc, ind, ind.key, micro ? (osaMode() ? "osa-alueet" + (peruspiiriLevel(ind) ? " · ^ one figure per peruspiiri" : "") : "postal codes") : (ind.level === "postinumero" && !MK.muni ? "municipalities · zoom in for postal codes" : "municipalities" + (fine ? ` · ${osaMode() ? "osa-alueet" : "postal codes"} take the kunta's value where they publish none` : "")));
   if (LF.ownG) { LF.map.removeLayer(LF.ownG); LF.ownG = null; }
   if (MK.own && D.portfolio) {
     const marks = D.portfolio.properties.filter(p => p.lat != null).map(p => {
@@ -4003,13 +4032,13 @@ function chartSvgBar(withTitle) {
   const vals = rows.map(r => r.v).concat(med != null ? [med] : []); const lo = Math.min(0, ...vals), hi = Math.max(...vals) || 1;
   const labW = 260; const x0 = L0 + labW, x1 = W - R; const x = v => x0 + (v - lo) / (hi - lo || 1) * (x1 - x0);
   const rowH = Math.min(52, (H - T0 - B) / rows.length), bh = rowH * .62;
-  const bars = rows.map((r, i) => { const y = T0 + i * rowH + (rowH - bh) / 2; return `<text x="${x0 - 12}" y="${(y + bh / 2 + 5).toFixed(1)}" text-anchor="end" font-family="${CH_FONT}" font-size="15" fill="#16170F">${esc(r.name)}${r.inh ? " °" : ""}</text>
+  const bars = rows.map((r, i) => { const y = T0 + i * rowH + (rowH - bh) / 2; return `<text x="${x0 - 12}" y="${(y + bh / 2 + 5).toFixed(1)}" text-anchor="end" font-family="${CH_FONT}" font-size="15" fill="#16170F">${esc(r.name)}${r.inh ? " (kunta)" : ""}</text>
     <rect x="${x(Math.min(0, r.v)).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.abs(x(r.v) - x(0)).toFixed(1)}" height="${bh.toFixed(1)}" fill="${r.color}" rx="3"/>
     <text x="${(x(Math.max(0, r.v)) + 8).toFixed(1)}" y="${(y + bh / 2 + 5).toFixed(1)}" font-family="${CH_MONO}" font-size="14" fill="#16170F">${esc(fmtOf(ind)(r.v))}</text>`; }).join("");
   const medLine = med != null ? `<line x1="${x(med).toFixed(1)}" x2="${x(med).toFixed(1)}" y1="${T0 - 8}" y2="${T0 + rows.length * rowH}" stroke="#5C5F52" stroke-width="2" stroke-dasharray="7 5"/><text x="${(x(med) + 6).toFixed(1)}" y="${T0 - 12}" font-family="${CH_MONO}" font-size="12" fill="#5C5F52">${pool === MUNI ? "Finland median" : "Osa-alue median"} ${esc(fmtOf(ind)(med))}</text>` : "";
   const asof = asofText(ind);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${chTitleBlock(withTitle, ind, L0, `${ind.desc || ""}${asof ? " · as of " + asof : ""}`)}
-    <line x1="${x(0).toFixed(1)}" x2="${x(0).toFixed(1)}" y1="${T0}" y2="${T0 + rows.length * rowH}" stroke="#E6E6E0"/>${bars}${medLine}${chFoot(L0, H, ind, rows.some(r => r.inh) ? " · ° = municipality value" : "")}</svg>`;
+    <line x1="${x(0).toFixed(1)}" x2="${x(0).toFixed(1)}" y1="${T0}" y2="${T0 + rows.length * rowH}" stroke="#E6E6E0"/>${bars}${medLine}${chFoot(L0, H, ind, rows.some(r => r.inh) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : "")}</svg>`;
 }
 /* distributions from the building register: one donut per area */
 const DIST_DEFS = { size: ["Dwelling size", ["< 50 m²", "50–79 m²", "80–119 m²", "120+ m²"]], rooms: ["Rooms", ["1 room", "2 rooms", "3 rooms", "4+ rooms"]],
@@ -4050,9 +4079,9 @@ function chartSvgLine(withTitle) {
     <line x1="${x(b.idx).toFixed(1)}" x2="${x(b.idx).toFixed(1)}" y1="${T0}" y2="${H - B}" stroke="transparent" stroke-width="12"><title>${esc(b.text)}</title></line></g>`).join("");
   const legY = H - B + 46; const perRow = 3, colW = (W - L0 - R) / perRow;
   const legend = series.map((s_, k) => { const lx = L0 + (k % perRow) * colW, ly = legY + Math.floor(k / perRow) * 24; const last = [...s_.pts].reverse().find(p => p.v != null);
-    return `<line x1="${lx}" x2="${lx + 26}" y1="${ly - 4}" y2="${ly - 4}" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""}/><text x="${lx + 34}" y="${ly}" font-family="${F}" font-size="14" fill="#16170F">${esc(s_.name)}${s_.inherited ? " °" : ""}${last ? ` <tspan font-family="${M}" fill="#4A4C43">${esc(fmtOf(ind)(last.v))} (${fmtP(last.y)})</tspan>` : ""}</text>`; }).join("");
+    return `<line x1="${lx}" x2="${lx + 26}" y1="${ly - 4}" y2="${ly - 4}" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""}/><text x="${lx + 34}" y="${ly}" font-family="${F}" font-size="14" fill="#16170F">${esc(s_.name)}${s_.inherited ? " (kunta)" : ""}${last ? ` <tspan font-family="${M}" fill="#4A4C43">${esc(fmtOf(ind)(last.v))} (${fmtP(last.y)})</tspan>` : ""}</text>`; }).join("");
   const title = withTitle ? `<text x="${L0}" y="40" font-family="${F}" font-size="24" font-weight="600" fill="#16170F" id="chsvgtitle">${esc(CH.title || chartAutoTitle())}</text><text x="${L0}" y="64" font-family="${M}" font-size="12" fill="#8A8C81">${esc(ind.desc || "")}</text>` : "";
-  const foot = `<text x="${L0}" y="${H - 14}" font-family="${M}" font-size="11" fill="#8A8C81">Source: ${esc(ind.source || "")} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${series.some(s_ => s_.inherited) ? " · ° = municipality value shown for a postal code or quarter" : ""}</text>`;
+  const foot = `<text x="${L0}" y="${H - 14}" font-family="${M}" font-size="11" fill="#8A8C81">Source: ${esc(ind.source || "")} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${series.some(s_ => s_.inherited) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : ""}</text>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${title}
     ${ticks.map(t => `<line x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#EFEFEA"/><text x="${L0 - 10}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-family="${M}" font-size="12" fill="#8A8C81">${esc(fmtTight(ind)(t))}</text>`).join("")}
     ${ys.map((yy, i) => q && !yy.endsWith("K1") ? "" : `<text x="${x(i).toFixed(1)}" y="${H - B + 22}" text-anchor="middle" font-family="${M}" font-size="12" fill="#8A8C81">${q ? yy.slice(0, 4) : yy}</text>`).join("")}
@@ -4098,7 +4127,7 @@ function vCharts() {
       <p class="dim">Tip: every area page and table row has a ↗ that opens it here with the indicator pre-selected.</p></div>`}</div>
     <p class="cap">${esc(ind.desc || "")} ${ind.warn ? "⚠ " + esc(ind.warn) : ""} ${q ? "Quarterly: the publisher's own figure for each quarter, as published." : "Yearly: the publisher's own annual figure — the same figure the map and table show."}${hasNat && CH.nat ? " Dashed line in a series colour = Finland as a whole." : ""}</p>
   </div>
-  ${chartMode() === "line" && ents.length && series.length ? `<div class="card"><div class="card-head"><h3>Data</h3><span class="hint">${esc(ind.unit || "")}</span></div>
+  ${chartMode() === "line" && ents.length && series.length ? `<div class="card"><div class="card-head"><h3>Data</h3><span class="hint">${esc(unitLabel(ind))}</span></div>
     <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>${q ? "Osa-alue" : "Year"}</th>${series.map(s_ => `<th class="num">${esc(s_.name)}</th>`).join("")}</tr></thead>
     <tbody>${ys.map((yy, i) => `<tr><th>${fmtP(yy)}</th>${series.map(s_ => fmtCell(ind, s_.pts[i].v, false)).join("")}</tr>`).join("")}</tbody></table></div></div>` : ""}
   ${chartMode() === "dist" && ents.some(e => e.o.bbr) ? `<div class="card"><div class="card-head"><h3>Data</h3><span class="hint">share of dwellings · count</span></div>
@@ -5153,7 +5182,7 @@ function vSources() {
   const s = ((D.meta && D.meta.sources) || []).concat(OSA && OSA.meta ? OSA.meta.sources || [] : []);
   const defs = (list, title) => `<div class="card"><div class="card-head"><h3>${title}</h3></div>
     <table class="tbl compact"><thead><tr><th>Indicator</th><th>Unit</th><th>Level</th><th>Status</th><th>Definition</th><th>Source</th><th>Caveat</th></tr></thead>
-    <tbody>${list.map(i => `<tr><th>${esc(i.label)}</th><td class="dim">${esc(i.unit || "")}</td><td class="dim">${esc(i.level)}</td><td class="dim">${i.frozen ? `<span class="warnline">Last published ${esc(i.frozen)} — series discontinued by publisher</span>` : "Live"}</td><td>${esc(i.desc || "")}</td><td class="dim">${esc(i.source || "")}</td><td class="dim">${esc(i.warn || "")}</td></tr>`).join("")}</tbody></table></div>`;
+    <tbody>${list.map(i => `<tr><th>${esc(i.label)}</th><td class="dim">${esc(unitLabel(i))}</td><td class="dim">${esc(i.level)}</td><td class="dim">${i.frozen ? `<span class="warnline">Last published ${esc(i.frozen)} — series discontinued by publisher</span>` : "Live"}</td><td>${esc(i.desc || "")}</td><td class="dim">${esc(i.source || "")}</td><td class="dim">${esc(i.warn || "")}</td></tr>`).join("")}</tbody></table></div>`;
   return `${dataTabs()}<div class="card"><div class="card-head"><h3>Data sources and freshness</h3><span class="hint">built ${esc((D.meta && D.meta.built) || "–")}</span></div>
     <table class="tbl compact" data-testid="sources-table" data-sortable><thead><tr><th>Source</th><th>Tables / files</th><th>As of</th><th>Fetched</th><th>Licence</th></tr></thead>
     <tbody>${s.map(x => `<tr><th>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)}</th><td class="dim">${esc(x.tables || "")}</td><td>${esc(x.asof || "")}</td><td class="dim">${x.fetched ? esc(x.fetched) : `${esc((D.meta && D.meta.built) || "–")} <span class="tag">build</span>`}</td><td class="dim">${esc(x.licence || "")}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">no sources recorded</td></tr>`}</tbody></table>

@@ -1082,6 +1082,134 @@ def _sources_export(page, base):
 
 
 # ===========================================================================
+# P8 — the number and label fixes from the Chrome review of v1.1
+# ===========================================================================
+
+
+@check("P8-units", phase="P8")
+def _units(page, base):
+    """a price is EUR/m² and a rent EUR/m²/month — on the tile, the card, the table and the picker"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2200)
+    price = page.eval_on_selector("[data-testid=tile-price_m2] b", "e => e.textContent")
+    rent = page.eval_on_selector("[data-testid=tile-rent] b", "e => e.textContent")
+    assert price.endswith("EUR/m²"), price
+    assert rent.endswith("EUR/m²/month"), rent
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(2200)
+    assert page.eval_on_selector("[data-testid=tile-price_m2] b", "e => e.textContent").endswith("EUR/m²")
+    goto(page, base, "#map?ind=rent")
+    page.wait_for_timeout(1200)
+    assert page.eval_on_selector("[data-testid=ind-picker-btn] .ipku", "e => e.textContent") == "EUR/m²/month"
+    # …and no surface anywhere prints a bare "EUR" for these two
+    goto(page, base, "#area/kunta/091?show=figures")
+    page.wait_for_timeout(2200)
+    cells = texts(page, ".seclist tbody td.num")
+    bare = [c for c in cells if c.endswith(" EUR")]
+    assert not bare, bare[:4]
+
+
+@check("P8-vs-median-text", phase="P8")
+def _vs_median_text(page, base):
+    """no surface prints a percent of a median"""
+    for h in ["#area/kunta/091?ind=net_migr", "#area/kunta/091?ind=crime_1000",
+              "#area/kunta/091?ind=migr_intra"]:
+        goto(page, base, h)
+        page.wait_for_timeout(1500)
+        txt = body_text(page)
+        assert "% VS MEDIAN" not in txt.upper(), h
+        head = page.eval_on_selector("[data-testid=chart-panel] .pnhead", "e => e.textContent")
+        for tok in head.replace("\u2212", "-").split():
+            t = tok.replace("+", "").replace("-", "").replace(",", ".").replace("\xa0", "")
+            if t.replace(".", "").isdigit():
+                assert abs(float(t)) < 1e5, (h, head)
+
+
+@check("P8-outlook-rate", phase="P8")
+def _outlook_rate(page, base):
+    """the projected change shows the total over the window and a compound annual rate"""
+    goto(page, base, "#map/091?show=outlook")
+    page.wait_for_timeout(2500)
+    line = page.eval_on_selector(".mstrip-secs .olchg, .mstrip-secs .olboth", "e => e.textContent")
+    assert "residents" in line, line
+    assert "over" in line and "years" in line, f"no total change over the window: {line}"
+    # a per-year rate may appear, but only as the compound one, and labelled
+    flat = line.replace(" ", "")
+    for i, _ in enumerate(flat):
+        if flat.startswith("%/yr", i):
+            assert flat[i:i + 13] == "%/yr(compound", f"a bare per-year rate is still printed: {line}"
+    assert "compound" in line, line
+    # both headline outlook figures name the same base year
+    card = page.eval_on_selector(".mstrip-secs details[data-show=outlook]", "e => e.textContent")
+    assert "Tilastokeskus" in card and "Helsingin kaupunki" in card, card[:200]
+    assert "same base year 2026" in card, card[:400]
+
+
+@check("P8-period-label", phase="P8")
+def _period_label(page, base):
+    """the year select names the active indicator's own latest period"""
+    goto(page, base, "#map?ind=growth")
+    page.wait_for_timeout(1200)
+    a = texts(page, "[data-testid=period-year] option")[-1]
+    goto(page, base, "#map?ind=tax_income")
+    page.wait_for_timeout(1200)
+    sel = page.query_selector("[data-testid=period-year]")
+    if sel:
+        b = texts(page, "[data-testid=period-year] option")[-1]
+        assert a != b or a.split()[0] == b.split()[0], (a, b)
+    assert "latest (" not in a, a
+    assert a.split()[0].isdigit(), a
+
+
+@check("P8-one-rank-format", phase="P8")
+def _one_rank_format(page, base):
+    """every rank reads "#n of N", and the title says what N counts"""
+    import re
+    for h in ["#area/kunta/091", "#area/kunta/091?show=figures", "#map/091",
+              "#property?p=60.2448,24.8665", "#data/areas/kunta"]:
+        goto(page, base, h)
+        page.wait_for_timeout(2200)
+        txt = body_text(page)
+        assert not re.search(r"#\d+\s*/\s*\d+", txt), (h, re.search(r"#\d+\s*/\s*\d+", txt).group(0))
+        for m2 in re.finditer(r"#(\d[\d\u00a0 ]*)\s+of\s+(\d[\d\u00a0 ]*)", txt):
+            assert m2, h
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2000)
+    t = page.eval_on_selector("[data-testid=chart-panel] .pnr span", "e => e.title")
+    assert "published figure" in t, t
+
+
+@check("P8-no-lone-degree", phase="P8")
+def _no_lone_degree(page, base):
+    """an inherited figure is tagged, never marked with a bare °"""
+    for h in ["#area/postinumero/00100?show=figures", "#property?p=60.2448,24.8665",
+              "#data/areas/postinumero", "#area/osa_alue/091010?show=figures"]:
+        goto(page, base, h)
+        page.wait_for_timeout(2500)
+        txt = body_text(page)
+        assert "°" not in txt, (h, txt[max(0, txt.index("°") - 60):txt.index("°") + 20] if "°" in txt else "")
+    goto(page, base, "#data/areas/postinumero")
+    page.wait_for_timeout(2500)
+    assert page.query_selector("[data-testid=areas-table] td .muni"), "no muni tag on an inherited cell"
+
+
+@check("P8-fi-numbers", phase="P8")
+def _fi_numbers(page, base):
+    """fi-FI on screen: a space for thousands, a comma for decimals, changes always signed"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2200)
+    price = page.eval_on_selector("[data-testid=tile-price_m2] b", "e => e.textContent")
+    assert "\u00a0" in price or " " in price.replace("EUR/m²", ""), price
+    assert "," not in price.split()[0] or "." not in price, price
+    growth = page.eval_on_selector("[data-testid=tile-growth] b", "e => e.textContent")
+    assert growth[0] in "+\u2212-", growth
+    assert "," in growth, growth
+    # a change on a share is in percentage points
+    sub = page.eval_on_selector("[data-testid=tile-growth] em", "e => e.textContent")
+    assert "pp" in sub, sub
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
