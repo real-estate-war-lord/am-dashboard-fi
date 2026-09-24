@@ -1431,7 +1431,8 @@
         "StatFin_Passiivi:asvu/13eb_2025q4"
       ],
       "note": "Room-count classes are combined as a mean weighted by each class's own number of observations — the same arithmetic as the price above. The table covers 580 postal areas, a third of the price table's and a fifth of Paavo's.",
-      "warn": "Discontinued. The last published quarter is 2025Q4 and this series is frozen; it is never extended and never blended with the live kunta-level rent."
+      "warn": "Last published 2025Q4 — series discontinued by publisher. Statistics Finland stopped publishing rents by postal code; nothing replaces them below kunta level, so the frozen series is kept and labelled. It is never extended and never blended with the live kunta-level rent.",
+      "frozen": "2025Q4"
     },
     {
       "key": "vacant",
@@ -4071,7 +4072,7 @@
     }
   ],
   "osa": {
-    "_doc": "The osa-alue layer's indicators are NOT registered here: they are built by scripts/build_osa.py, because every one of them is a share computed from one Aluesarjat table and the registry's source/calc shape would only restate the script. The layer's registry travels with its data in data/processed/osa_alue.json. Its licence differs from the rest of the dashboard — Aluesarjat allows non-commercial use only, which is why the layer carries its own licence line in the UI and in docs/SOURCES.md.",
+    "_doc": "The osa-alue layer's indicators are NOT registered here: they are built by scripts/build_osa.py, because every one of them is a share computed from one Aluesarjat table and the registry's source/calc shape would only restate the script. The layer's registry travels with its data in data/processed/osa_alue.json. Aluesarjat is open for both non-commercial and commercial use; the condition is an attribution naming the database and the underlying source, which the layer carries in the UI and in docs/SOURCES.md.",
     "indicators": []
   },
   "_calcs": {

@@ -69,14 +69,20 @@ Full detail in `docs/SOURCES.md`. The short version:
 - **Tilastokeskus** — StatFin, Paavo and the boundary WFS: **CC BY 4.0**, attribution
   **"Lähde: Tilastokeskus"**.
 - **Kela** — housing allowance, via avoindata.suomi.fi: **CC BY 4.0**.
-- **Verohallinto** — property tax and the municipal income-tax rate: no open-licence
-  statement is published on those pages, so the figures are used with the attribution
-  "Lähde: Verohallinto" and are not republished as an open-licensed dataset.
+- **Verohallinto** — property tax and the municipal income-tax rate: **licence not stated by
+  publisher — public official figures.** Verohallinto's CC BY 4.0 statement covers only the
+  corporate-tax datasets on its open-data page, not these two; used with the attribution
+  "Lähde: Verohallinto" and not republished as an open-licensed dataset.
 - **Helsingin kaupunki / HSY** — osa-alue boundaries: **CC BY 4.0**.
-- ⚠ **Aluesarjat** — every osa-alue figure: **non-commercial use only**, *not* CC BY 4.0.
-  This is the only licence restriction in the dashboard and it is confined to that one
-  layer, where it is labelled in the data, in each indicator's note and in the Sources view.
+- **Aluesarjat** — every osa-alue figure: open for **both non-commercial and commercial
+  use** ("Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin",
+  [terms](https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat)). The
+  condition is a two-part attribution — **"Helsingin seudun aluesarjat -tilastokanta ja
+  Tilastokeskus"** — worded so as not to imply endorsement.
 - **OpenStreetMap** — basemap tiles: ODbL 1.0.
+
+**No source in this dashboard restricts commercial use.** v1.0 said Aluesarjat did; that was
+a misreading of its terms and is corrected in v1.1.
 
 The code in this repository is MIT (`LICENSE`). The data is not ours to license.
 

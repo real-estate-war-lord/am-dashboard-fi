@@ -45,14 +45,34 @@ caveat.
 |---|---|
 | Endpoint | `https://stat.hel.fi/api/v1/fi/Aluesarjat/` (PxWeb v1) — walk the **Finnish** tree; the English one exposes only two of the seven folders, and `api.aluesarjat.fi` does not answer at all |
 | Publisher | Helsingin kaupunki / Uudenmaan liitto and the region's municipalities |
-| Licence | ⚠ **Non-commercial use only** — "Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin". **This is not CC BY 4.0.** Commercial reuse needs the publisher's permission (tilastotietokannat@hel.fi) |
+| Licence | **Open for both non-commercial and commercial use.** Attribution required |
+| Licence page | `https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat` (read 2026-09-24) |
 | Used for | every osa-alue indicator, and Helsingin kaupunki's own population projection by area |
-| Attribution | Lähde: Aluesarjat (Helsingin kaupunki ja Uudenmaan liitto) |
+| Attribution | Lähde: Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus |
 
-**This is the one licence restriction in the whole dashboard, and it is confined to one
-layer.** Everything else here is CC BY 4.0 or equivalent. The osa-alue layer carries the
-restriction in its own `meta.licence`, in every osa-alue indicator's note, and in the
-Sources view, so nobody can lift a figure out of it without seeing the terms. Tables used:
+**Correction to v1.0.** Batch 1 recorded this layer as non-commercial-use-only. That was
+wrong. Helsingin kaupunkitietokeskus's own terms page says, verbatim:
+
+> "Tietoaineistoa saa vapaasti kopioida, levittää, näyttää ja esittää sekä käyttää aineistoa
+> osana muuta teosta."
+>
+> "**Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin.**"
+>
+> "Ehtona käytölle on, että tietoaineiston tekijä on ilmoitettava."
+>
+> "Tilastokanta ja tietoaineiston tekijä ilmoitetaan viittaamalla Helsingin seudun aluesarjat
+> -tilastokantaan ja tietoaineistokohtaisiin lähteisiin." — example: "Helsingin seudun
+> aluesarjat -tilastokanta ja Tilastokeskus"
+>
+> "Tietoaineiston tekijää ei saa ilmoittaa siten, että ilmoitus viittaisi tietoaineiston
+> tekijän tukevan tietoaineiston käyttäjää tai tietoaineiston käyttötapaa."
+
+— https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat, read 2026-09-24.
+
+So there is **no commercial restriction anywhere in this dashboard.** What the terms do
+require is a *two-part* attribution — the database **and** the underlying source — and that
+the wording must not suggest the publisher endorses the user or the use. That is what the
+layer's `meta.licence`, the Sources view and the footer now carry. Tables used:
 `alu_vaerak_004r` (population by age), `alu_vaerak_004p` (population by language and age),
 `alu_asas_005d` (households by size), `alu_askan_005q` (dwellings by occupancy, type and
 tenure), `alu_kou_005n` (education), `alu_vaenn_006c` (Helsinki's projection, PER26).
@@ -74,7 +94,7 @@ as a single municipality, and Helsinki's territorial-sea polygon, which has no r
 | HSY WFS | `https://kartta.hsy.fi/geoserver/wfs` — `taustakartat_ja_aluejaot:seutukartta_pien_2021` |
 | Helsinki WFS | `https://kartta.hel.fi/ws/geoserver/avoindata/wfs` — `avoindata:Piirijako_osaalue` |
 | Licence | **CC BY 4.0** (Helsinki Region Infoshare); both services declare Fees NONE, AccessConstraints NONE |
-| Note | the HSY division is frozen at 2021 — see `docs/GEO.md` §3 |
+| Status | **Last published 2021 — series discontinued by publisher.** HSY has published no later `seutukartta_pien` vintage, so Espoo, Vantaa and Kauniainen have no current sub-area boundary. Helsinki's own `Piirijako_osaalue` is current. See `docs/GEO.md` §3 |
 
 ## 5. Kela — housing allowance (Kelasto)
 
@@ -88,9 +108,38 @@ as a single municipality, and Helsinki's territorial-sea polygon, which has no r
 
 | | |
 |---|---|
-| Route | `https://www.vero.fi` annual published files (property tax %, municipal income tax %) |
-| Licence | Verohallinto open data, free reuse with attribution "Lähde: Verohallinto" |
-| Handling | the source file is downloaded to `data/external/raw/` (not committed); the parsed CSV is committed and pinned in `config/sources.json` |
+| Property tax % | `https://vero2.stat.fi/PXWeb/api/v1/fi/Vero/Kiinteistoverot/kive_202.px` (PxWeb, keyless, 2014–2026) |
+| Income tax % | the annual decision page on `https://www.vero.fi`, table read from the JSON its own front end renders |
+| Licence | **Licence not stated by publisher — public official figures.** Attribution "Lähde: Verohallinto" |
+| Handling | the parsed CSV is committed and the URL pinned in `config/sources.json` |
+
+**What the publisher does and does not say (checked 2026-09-24).** Verohallinto *does* have
+an open-data page, `https://vero.fi/tietoa-verohallinnosta/tilastot/avoin_dat/`, and it
+states: "Aineistoon sovelletaan Creative Commons 4.0 Nimeä -lisenssin käyttöehtoja."
+**But that statement is scoped to the datasets that page lists** — the public corporate
+income-tax data (`yhteisöjen tuloverotuksen julkiset tiedot`, tax years 2020–2024) and its
+amendment data. It does not name the property-tax rates or the municipal income-tax rates,
+and neither `https://www.vero.fi/tietoa-verohallinnosta/tilastot/` nor the `vero2.stat.fi`
+PxWeb table carries any licence statement at all.
+
+We therefore do **not** claim CC BY 4.0 for these two series. They are labelled
+**"Licence not stated by publisher — public official figures"**: statutory tax rates decided
+by each municipal council and published by the tax authority, used with attribution and not
+redistributed as an open-licensed dataset. If Verohallinto extends its CC BY 4.0 statement
+to cover them, this is the one line to change.
+
+## 6b. Frozen series — what has stopped being published
+
+A series the publisher has stopped updating is kept only where nothing replaces it, and it
+is labelled with the same sentence everywhere it appears — in the indicator's ⓘ tooltip, on
+its summary line, and in the Status column of the Sources view:
+
+> **Last published *&lt;period&gt;* — series discontinued by publisher**
+
+| Series | Last published | Why it is kept |
+|---|---|---|
+| `rent_pno` — free-market rent by postal code (`StatFin_Passiivi:asvu/13eb`) | **2025Q4** | Nothing replaces rent below kunta level. Never extended, never blended with the live kunta-level rent |
+| HSY `seutukartta_pien` sub-area boundaries | **2021** | The only published sub-area division for Espoo, Vantaa and Kauniainen |
 
 ## 7. OpenStreetMap (basemap only in v1.0)
 

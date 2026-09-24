@@ -30,6 +30,6 @@
  ],
  "fetched": "2026-09-24",
  "publisher": "Verohallinto",
- "licence": "Verohallinnon tilastot. Attribution 'Lähde: Verohallinto'. No open-licence statement is published on the tax-rate pages themselves, so the figures are used with attribution and not redistributed as an open-licensed dataset.",
+ "licence": "Licence not stated by publisher — public official figures. Attribution 'Lähde: Verohallinto'. Verohallinto's CC BY 4.0 statement (https://vero.fi/tietoa-verohallinnosta/tilastot/avoin_dat/, read 2026-09-24) is scoped to the corporate-tax datasets that page lists and does not name the tax-rate figures; neither the statistics index nor this PxWeb table carries a licence statement.",
  "note": "The 2026 column is marked ennakkotieto (preliminary) by the publisher."
 }

@@ -72,6 +72,11 @@ not CC BY 4.0 like the rest of the dashboard. The restriction is labelled in the
 each osa-alue indicator's note and in the Sources view, and is an open item for the release
 decision.
 
+> **Corrected in v1.1 — this note was wrong.** Aluesarjat's own terms permit commercial use:
+> "Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin"
+> (https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat). The v1.0 text
+> above is left standing because it is what v1.0 shipped; see the v1.1 entry.
+
 ### Not in this release
 
 Test property, Analysis and Compare; climate risk; services; public buildings; infra

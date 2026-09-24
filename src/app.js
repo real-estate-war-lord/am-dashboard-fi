@@ -612,7 +612,9 @@ function tipShow(el) {
   const i = IND.concat(IND_OSA).find(x => x.key === el.dataset.m); if (!i) return;
   if (!TIPEL) { TIPEL = document.createElement("div"); TIPEL.className = "imtip"; document.body.appendChild(TIPEL); }
   TIPEL.innerHTML = `<b>${esc(i.label)}</b>${lowerBetter(i.key) ? `<p class="dim">↓ lower is better</p>` : ""}${i.proj ? `<p class="dim">Projection ${esc(i.proj.from)}→${esc(i.proj.to)} · ${esc(i.proj.publisher)} ${esc(i.proj.vintage)} — not a measurement</p>` : ""}<p><em>Definition</em>${esc(i.desc || "")}</p>` + (i.source ? `<p><em>Source</em>${esc(i.source)}</p>` : "") +
-    (i.note ? `<p><em>Note</em>${esc(i.note)}</p>` : "") + (i.warn ? `<p class="warn"><em>Caveat</em>${esc(i.warn)}</p>` : "");
+    (i.note ? `<p><em>Note</em>${esc(i.note)}</p>` : "") +
+    (i.frozen ? `<p class="warn"><em>Frozen</em>Last published ${esc(i.frozen)} — series discontinued by publisher</p>` : "") +
+    (i.warn ? `<p class="warn"><em>Caveat</em>${esc(i.warn)}</p>` : "");
   TIPEL.style.visibility = "hidden"; TIPEL.style.display = "block";
   const r = el.getBoundingClientRect(), t = TIPEL.getBoundingClientRect();
   let x = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, window.innerWidth - t.width - 8));
@@ -761,7 +763,7 @@ function indExplain(i) {
   const lb = lowerBetter(i.key);
   const src = srcLine(i, asofShort());
   return `<details class="indx" ${UI.indxOpen ? "open" : ""}>
-    <summary><b>${esc(i.label)}</b><span class="tag">${esc(i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level"))}</span><span class="tag">${esc(i.unit || "")}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
+    <summary><b>${esc(i.label)}</b><span class="tag">${esc(i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level"))}</span><span class="tag">${esc(i.unit || "")}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.frozen ? `<span class="tag warnline">Last published ${esc(i.frozen)} — discontinued</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
     <div class="indx-body"><p>${esc(i.desc || "")}${lb ? ` <b>↓ Lower is better</b> — rank #1 is the lowest value.` : ""}${neutralDir(i.key) ? ` <b>Neither end is better</b> — a shrinking area is not failing and a growing one is not succeeding, so this is ranked by size only, never good to bad.` : ""}</p>
     ${i.proj && i.proj.caveat ? `<p class="warnline">⚠ ${esc(i.proj.caveat)}</p>` : ""}
     ${i.note ? `<p class="dim"><em>Note</em> ${esc(i.note)}</p>` : ""}
@@ -3766,8 +3768,8 @@ function vSources() {
   /* a view of its own since v1.0: national macro is out of scope for the Finland edition */
   const s = ((D.meta && D.meta.sources) || []).concat(OSA && OSA.meta ? OSA.meta.sources || [] : []);
   const defs = (list, title) => `<div class="card"><div class="card-head"><h3>${title}</h3></div>
-    <table class="tbl compact"><thead><tr><th>Indicator</th><th>Unit</th><th>Level</th><th>Definition</th><th>Source</th><th>Caveat</th></tr></thead>
-    <tbody>${list.map(i => `<tr><th>${esc(i.label)}</th><td class="dim">${esc(i.unit || "")}</td><td class="dim">${esc(i.level)}</td><td>${esc(i.desc || "")}</td><td class="dim">${esc(i.source || "")}</td><td class="dim">${esc(i.warn || "")}</td></tr>`).join("")}</tbody></table></div>`;
+    <table class="tbl compact"><thead><tr><th>Indicator</th><th>Unit</th><th>Level</th><th>Status</th><th>Definition</th><th>Source</th><th>Caveat</th></tr></thead>
+    <tbody>${list.map(i => `<tr><th>${esc(i.label)}</th><td class="dim">${esc(i.unit || "")}</td><td class="dim">${esc(i.level)}</td><td class="dim">${i.frozen ? `<span class="warnline">Last published ${esc(i.frozen)} — series discontinued by publisher</span>` : "Live"}</td><td>${esc(i.desc || "")}</td><td class="dim">${esc(i.source || "")}</td><td class="dim">${esc(i.warn || "")}</td></tr>`).join("")}</tbody></table></div>`;
   return `<div class="card"><div class="card-head"><h3>Data sources and freshness</h3><span class="hint">built ${esc((D.meta && D.meta.built) || "–")}</span></div>
     <table class="tbl compact"><thead><tr><th>Source</th><th>Tables / files</th><th>As of</th><th>Fetched</th><th>Licence</th></tr></thead>
     <tbody>${s.map(x => `<tr><th>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)}</th><td class="dim">${esc(x.tables || "")}</td><td>${esc(x.asof || "")}</td><td class="dim">${esc(x.fetched || "")}</td><td class="dim">${esc(x.licence || "")}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">no sources recorded</td></tr>`}</tbody></table>

@@ -12,9 +12,10 @@ Fetches what it needs into data/raw/aluesarjat/ (git-ignored, stamped) and write
 
 It runs after scripts/build_makro.py, which writes the per-kunta files it amends.
 
-**Licence.** Aluesarjat is *not* CC BY 4.0: its terms allow non-commercial use. That is
-recorded in the layer's own meta, shown in the UI's Sources view, and written in
-docs/SOURCES.md. Nothing else in this repository carries that restriction.
+**Licence.** Aluesarjat is open for **both non-commercial and commercial use**; the only
+condition is attribution naming the database and the underlying source, worded so as not to
+imply endorsement. That is recorded in the layer's own meta, shown in the UI's Sources view,
+and written in docs/SOURCES.md. (v1.0 wrongly recorded it as non-commercial-only.)
 
 **The join.** Aluesarjat's ten-digit area code is exactly Helsingin kaupunki's `kokotunnus`,
 which data/geo/osa_alueet.geojson stores verbatim, so areas join on it directly — 296 of
@@ -50,8 +51,9 @@ FORECAST_VINTAGE = "PER26"     # the city's current base projection
 
 HUE = {"demo": [10, 88, 70], "stock": [40, 84, 128], "jobs": [166, 88, 24],
        "size": [90, 60, 150], "warn": [166, 42, 22]}
-NC = ("Aluesarjat publishes this for non-commercial use only — it is not CC BY 4.0 like the "
-      "rest of this dashboard. Commercial reuse needs the publisher's permission.")
+NC = ("Aluesarjat is open for both non-commercial and commercial use. Attribution must name "
+      "the database and the underlying source — \"Helsingin seudun aluesarjat -tilastokanta ja "
+      "Tilastokeskus\" — and must not imply the publisher endorses the use.")
 
 # table path -> the selection to pull. Every dimension is named: a variable left out of an
 # Aluesarjat query is eliminated to its total, silently.
@@ -289,12 +291,13 @@ def main():
         "built": dt.date.today().isoformat(), "years": years,
         "latest_year": years[-1] if years else "",
         "level": "osa_alue", "kunnat": sorted({a["muni"] for a in areas}),
-        "attribution": "Lähde: Aluesarjat (Helsingin kaupunki ja Uudenmaan liitto) · "
+        # The terms ask for the database AND the underlying source, both named (docs/SOURCES.md §3)
+        "attribution": "Lähde: Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus · "
                        "boundaries Helsingin kaupunki ja HSY (CC BY 4.0)",
-        "licence": A.LICENCE,
-        "note": "Osa-alue figures come from Aluesarjat, whose terms allow non-commercial use "
-                "only. Where an indicator's definition differs from the kunta level it carries "
-                "its own name rather than the kunta's.",
+        "licence": A.LICENCE, "licence_url": A.LICENCE_URL,
+        "note": "Osa-alue figures come from Aluesarjat, which is open for both non-commercial "
+                "and commercial use against a named attribution. Where an indicator's definition "
+                "differs from the kunta level it carries its own name rather than the kunta's.",
         "sources": [{"key": s.get("table"), "label": s.get("label") or s.get("table"),
                      "url": s.get("verify_at_source"), "tables": s.get("table"),
                      "asof": (s.get("updated") or "")[:10], "fetched": s.get("fetched"),

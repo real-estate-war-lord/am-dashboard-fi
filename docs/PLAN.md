@@ -216,7 +216,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 
 | # | Phase | State | Commit |
 |---|---|---|---|
-| 8b | Licence corrections | ☐ | |
+| 8b | Licence corrections | ✅ | `fix: licence corrections from the v1.0 review` |
 | 9 | Probe for layers | ☐ | |
 | 10 | Test property + Analysis + Compare | ☐ | |
 | 11 | Climate risk | ☐ | |
@@ -228,8 +228,25 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 
 ## 9. Status log, batch 2
 
-_(filled in as the phases land)_
+### Phase 8b — Licence corrections ✅
+- **⚠1 closed, and it was our error.** Helsinki's terms page, re-read 2026-09-24, permits
+  commercial use in so many words. v1.0 quoted half the sentence and read the missing half as
+  a prohibition. **No source in this dashboard restricts commercial use.** The correction runs
+  through `aluesarjat.py`, `build_osa.py`, the six cached stamps, `indicators.json`,
+  `SOURCES.md` §3 (with the verbatim quote and URL), README and CHANGELOG.
+- The terms' real condition — a **two-part attribution**, database *and* underlying source —
+  is now what the footer and the Sources view carry: "Lähde: Helsingin seudun aluesarjat
+  -tilastokanta ja Tilastokeskus".
+- **⚠2 answered, not closed:** Verohallinto's CC BY 4.0 statement exists but is scoped to the
+  corporate-tax datasets on its open-data page and names neither tax-rate series. Both are now
+  labelled "Licence not stated by publisher — public official figures", with the CC BY 4.0 page
+  recorded beside them.
+- **Frozen series** get one standard sentence in three places (ⓘ tooltip, summary line, a new
+  Status column in Sources), driven by a machine-readable `frozen` field so it cannot drift:
+  `rent_pno` 2025Q4, HSY boundaries 2021. `SOURCES.md` §6b lists them together.
+- Checks: validate ✓ 50 indicators · links ✓ 4/4 · test ✓ 24+15 · build ✓ 2.4 MB · screenshot
+  `docs/screenshots/v1_1_p8b-1.png`; `grep` confirms 0 occurrences of the old claim in `dist/`.
 
 ## 10. Resume point, batch 2
 
-Branch `v1.1-layers` created off `v1.0-build`'s tip. Plan appended. Starting phase 8b.
+Phase 8b committed. Phase 9 (probe for layers) in progress — four research subagents out.

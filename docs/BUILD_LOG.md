@@ -289,11 +289,87 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 
 | # | Item | Where |
 |---|---|---|
-| 1 | **Aluesarjat is non-commercial-use-only.** Every osa-alue figure carries it. Not CC BY 4.0 like everything else. A release decision, not a technical one. | `docs/SOURCES.md` §3 |
-| 2 | **Verohallinto publishes no licence statement** on the tax-rate pages. Used with attribution, not republished as an open dataset. | `docs/SOURCES.md` §6 |
+| 1 | ~~**Aluesarjat is non-commercial-use-only.**~~ **CLOSED in v1.1 phase 8b — the claim was wrong.** See below. | `docs/SOURCES.md` §3 |
+| 2 | **Verohallinto publishes no licence statement** on the tax-rate pages — **re-checked and confirmed in v1.1 phase 8b**, now labelled "Licence not stated by publisher — public official figures". | `docs/SOURCES.md` §6 |
 | 3 | **Postal-code rents are frozen at 2025Q4** and nothing replaces them below kunta level. | `rent_pno` caveat |
 | 4 | **No municipal construction data exists in Finland.** Three indicators are maakunta figures shown on kunnat, marked ^. | `docs/PROBE_FI.md` gap 1 |
 | 5 | **Three postal-code classification vintages** (1 724 / 580 / 3 018) are never reconciled; 701 of 3 018 areas carry a price. | `docs/GEO.md` §2 |
 | 6 | **Unoccupied dwellings has one year** (2025) and no history. | `vacant` caveat |
 | 7 | The municipal income-tax rate is read from a **decision page's embedded JSON**, the only scraped route in the repo. It fails loudly if the page's shape changes. | `scripts/import_verohallinto.py` |
 | 8 | HSY's sub-area division is **frozen at 2021**; Espoo, Vantaa and Kauniainen have no current boundary vintage, and Kauniainen's nine areas have no published names. | `docs/GEO.md` §3 |
+
+
+---
+
+## Phase 8b — Licence corrections from the v1.0 review (branch `v1.1-layers`)
+
+### ⚠1 CLOSED — Aluesarjat is **not** non-commercial-only
+
+v1.0 recorded the osa-alue layer as restricted to non-commercial use. The terms page was
+re-read on **2026-09-24** at
+`https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat`. It says, verbatim:
+
+> "Tietoaineistoa saa vapaasti kopioida, levittää, näyttää ja esittää sekä käyttää aineistoa
+> osana muuta teosta."
+>
+> "**Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin.**"
+>
+> "Ehtona käytölle on, että tietoaineiston tekijä on ilmoitettava."
+>
+> "Tilastokanta ja tietoaineiston tekijä ilmoitetaan viittaamalla Helsingin seudun aluesarjat
+> -tilastokantaan ja tietoaineistokohtaisiin lähteisiin." — example: "Helsingin seudun
+> aluesarjat -tilastokanta ja Tilastokeskus"
+>
+> "Tietoaineiston tekijää ei saa ilmoittaa siten, että ilmoitus viittaisi tietoaineiston
+> tekijän tukevan tietoaineiston käyttäjää tai tietoaineiston käyttötapaa."
+
+The v1.0 sentence quoted only the first half of the commercial clause and read the missing
+half as a prohibition. It was a misreading, not a change at the publisher's end.
+
+**What the terms actually require** is a *two-part attribution* — the database **and** the
+underlying source — and that the wording must not suggest the publisher endorses the user or
+the use. Both are now carried.
+
+| Fixed in | How |
+|---|---|
+| `scripts/aluesarjat.py` | `LICENCE` rewritten, `LICENCE_URL` added, module docstring corrected |
+| `scripts/build_osa.py` | `NC` note rewritten, layer `meta.note` rewritten, `meta.licence_url` added |
+| `data/raw/aluesarjat/*.meta.json` | the licence stamped into the 6 cached pulls rewritten in place (it is metadata *about* the licence, not fetched data) |
+| `config/indicators.json` | the `osa` registry `_doc` |
+| `docs/SOURCES.md` §3 | the quote, the URL, the read date and the correction stated plainly |
+| `README.md`, `CHANGELOG.md` | the licence list; the v1.0 changelog note left standing with a correction beside it |
+| the Sources view | picks the corrected licence up from `osa_alue.json` `meta` on rebuild |
+
+**Consequence: no source in this dashboard restricts commercial use.**
+
+### ⚠2 — Verohallinto: the licence statement exists but does not cover what we use
+
+Checked 2026-09-24:
+
+| Page | What it says |
+|---|---|
+| `https://vero.fi/tietoa-verohallinnosta/tilastot/avoin_dat/` | "Aineistoon sovelletaan Creative Commons 4.0 Nimeä -lisenssin käyttöehtoja." — **but scoped to the datasets that page lists**: yhteisöjen tuloverotuksen julkiset tiedot 2020–2024 and the amendment data |
+| `https://www.vero.fi/tietoa-verohallinnosta/tilastot/` | no licence, terms or reuse statement at all |
+| `https://vero2.stat.fi/PXWeb/api/v1/fi/Vero/Kiinteistoverot/kive_202.px` | PxWeb metadata carries no licence field |
+
+Neither the property-tax rates nor the municipal income-tax rates are named by the CC BY 4.0
+statement. **Decision: do not claim CC BY 4.0 for them.** They are labelled
+**"Licence not stated by publisher — public official figures"** in `config/sources.json`,
+`docs/SOURCES.md` §6 and the README, with the CC BY 4.0 page recorded beside them so the
+next reader can see exactly what was and was not covered. ⚠2 stays open as a *fact about the
+publisher*, no longer as an unanswered question.
+
+### ⚠3 / ⚠8 — frozen series now say so in one standard sentence
+
+Any series the publisher has stopped updating now carries, in its ⓘ tooltip, on its summary
+line and in a new **Status** column in the Sources view:
+
+> **Last published *&lt;period&gt;* — series discontinued by publisher**
+
+| Series | Last published |
+|---|---|
+| `rent_pno` — free-market rent by postal code | 2025Q4 |
+| HSY `seutukartta_pien` sub-area boundaries | 2021 |
+
+A machine-readable `frozen` field on the indicator drives the UI, so the phrase cannot drift
+between the three places it appears. `docs/SOURCES.md` §6b lists them together.
