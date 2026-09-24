@@ -1607,6 +1607,20 @@ th .thn{display:inline}
 .ancmp td.anbetter::after{content:"\00a0\25cf";font-size:8px;vertical-align:middle}
 @media (max-width:640px){.ancmpvs{display:none}}
 
+/* Climate risk: the publisher's own WMS on top of the choropleth, with the publisher's own
+   depth legend. The legend stacks with the other overlay legends and folds away. */
+.climseg .sg{font-size:11px}
+.maplegend.climlegend{max-width:270px}
+.ollegend{font-family:var(--mono);font-size:11px;line-height:1.45}
+.ollegend>summary{cursor:pointer;list-style:none;padding:2px 0}
+.ollegend>summary::-webkit-details-marker{display:none}
+.ollegend>summary::before{content:"\25b8 ";color:var(--dim)}
+.ollegend[open]>summary::before{content:"\25be "}
+.ollbody{padding:4px 0 2px}
+.ollbody .olrow{display:flex;align-items:center;gap:6px;padding:1px 0}
+.ollbody .olrow i{width:12px;height:12px;border:1px solid rgba(0,0,0,.25);flex:0 0 auto}
+.ollbody .cap{margin:6px 0 0}
+
 .tp-pin i{display:block;width:16px;height:16px;border-radius:50%;background:var(--pin);
   border:3px solid #fff;box-shadow:0 0 0 1px var(--pin),0 1px 5px rgba(0,0,0,.4)}
 .lfpop .tplab{font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:-.02em;color:var(--ink);

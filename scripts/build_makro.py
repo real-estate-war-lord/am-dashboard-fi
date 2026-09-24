@@ -154,6 +154,10 @@ def source_cells(src, ind):
         return kela_cells(src), [kela_stamp()], {}
     if src.get("src") == "csv":
         return csv_cells(src), [csv_stamp(src)], {}
+    if src.get("src") == "climate":
+        return climate_cells(src), [climate_stamp(src)], {}
+    if src.get("src") == "infra":
+        return infra_cells(src), [infra_stamp()], {}
     say(f"  ⚠ {ind['key']}: unknown source type {src.get('src')!r} — skipped")
     return {}, [], {}
 
@@ -185,6 +189,105 @@ def csv_cells(src):
             except ValueError:
                 continue
     return out
+
+
+_climate = None
+
+
+def climate_load():
+    """data/processed/climate.json, built by scripts/build_climate.py.
+
+    It is read here rather than computed here because computing it needs numpy and pillow
+    (requirements-geo.txt) and `make build` must keep working on a plain Python — the same
+    arrangement the services layer uses. The file is committed; `make climate` rebuilds it.
+    """
+    global _climate
+    if _climate is None:
+        p = ROOT / "data" / "processed" / "climate.json"
+        _climate = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        if not _climate:
+            say("  ⚠ data/processed/climate.json missing — run `make climate`")
+    return _climate
+
+
+def climate_cells(src):
+    """{area: {period: {code: value}}} out of climate.json.
+
+    Climate figures have no time series: a flood zone is a published map with an edition, not
+    an annual observation. They are stamped with the edition year so the page can say when the
+    map was drawn, and every year of the dashboard's history shows the same figure — which is
+    the truth about a hazard map, not a gap.
+    """
+    d = climate_load()
+    block = (d.get(src["block"]) or {}).get(src["geo"]) or {}
+    # the publisher's own edition year, not the day we built the file: a hazard map has an
+    # edition, and labelling it with today's date would claim a freshness it does not have
+    meta = ((d.get("meta") or {}).get(src["block"]) or {})
+    year = str(src.get("period") or meta.get("year") or (d.get("built") or "")[:4])
+    out = {}
+    for area, vals in block.items():
+        for code, v in vals.items():
+            if v is None:
+                continue
+            out.setdefault(norm_area(area), {}).setdefault(year, {})[code] = float(v)
+    return out
+
+
+def climate_stamp(src):
+    d = climate_load()
+    m = ((d.get("meta") or {}).get(src["block"]) or {})
+    return {"table": f"climate/{src['block']}", "label": m.get("source", ""),
+            "verify_at_source": m.get("verify_at_source", ""), "licence": m.get("licence", ""),
+            "updated": m.get("year") or (d.get("built") or ""), "fetched": d.get("built", ""),
+            "publisher": m.get("source", "")}
+
+
+_infra = None
+
+
+def infra_load():
+    global _infra
+    if _infra is None:
+        p = ROOT / "data" / "processed" / "infra_index.json"
+        _infra = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        if not _infra:
+            say("  ⚠ data/processed/infra_index.json missing — run `make infra`")
+    return _infra
+
+
+def infra_cells(src):
+    """Counts out of the infra index: projects in the area, and projects within 1 200 m.
+
+    **Only `major` projects are counted.** Väylävirasto's own list runs from a multi-year rail
+    programme down to repainting one bridge, and a repaint is not a growth signal. `major` is
+    the agency's own behaviour, not our judgement: it wrote a project page for the project.
+    Counted over projects that have not opened, because a finished road is not a signal either.
+    """
+    d = infra_load()
+    if not d:
+        return {}
+    major = set(d.get("major") or [])
+    opened = set(d.get("opened") or [])
+    year = str((d.get("built") or "")[:4])
+    out = {}
+    for key, m in (d.get("areas") or {}).items():
+        level, _, code = key.partition(":")
+        if level != src["geo"]:
+            continue
+        inside = [i for i in m.get("in", []) if i in major and i not in opened]
+        near = [i for i in m.get("near", []) if i in major and i not in opened]
+        out.setdefault(norm_area(code), {}).setdefault(year, {})[src["as"]] = float(
+            len(inside) if src["as"] == "projects_upcoming" else len(set(inside) | set(near)))
+    return out
+
+
+def infra_stamp():
+    d = infra_load()
+    return {"table": "infra/index", "label": "Väylävirasto — hanketiedot",
+            "verify_at_source": "https://vayla.fi/kaikki-hankkeet",
+            "licence": "CC BY 4.0 — Lähde: Väylävirasto",
+            "updated": d.get("built", ""), "fetched": d.get("built", ""),
+            "publisher": "Väylävirasto"}
 
 
 def csv_stamp(src):

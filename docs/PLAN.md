@@ -219,9 +219,9 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 | 8b | Licence corrections | ✅ | `fix: licence corrections from the v1.0 review` |
 | 9 | Probe for layers | ✅ | `chore: FI layer probe` |
 | 10 | Test property + Analysis + Compare | ✅ | `feat: test property, address search, Analysis and Compare` |
-| 11 | Climate risk | ☐ | |
-| 12 | Services + Public buildings | ☐ | |
-| 13 | Infra projects | ☐ | |
+| 11 | Climate risk | ✅ | `feat: climate risk — SYKE flood hazard and STUK radon` |
+| 12 | Services + Public buildings | ✅ | `feat: services and public buildings` |
+| 13 | Infra projects | ✅ | `feat: infrastructure projects` |
 | 14 | Schools | ☐ | |
 | 15 | Buildings, energy, zoning, grid | ☐ | |
 | 16 | Verify, docs, wrap-up | ☐ | |
@@ -302,6 +302,68 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 - Checks: validate ✓ · test ✓ **38 py + 27 js** · build ✓ 2.4 MB · browser console clean ·
   screenshots `docs/screenshots/v1_1_p10-{1,2,3}.png`.
 
+### Phase 11 — Climate risk ✅
+- **8 indicators in a new Climate group**: 4 flood-hazard zone shares (sea and watercourse,
+  1/100a and 1/1000a), the flood-mapped coverage share, and 3 radon rows — at kunta, postal and
+  (flood) osa-alue level. Overlay **Climate risk** draws SYKE's own WMS live, in its own pane
+  above the choropleth, with SYKE's own depth legend.
+- **The zones cannot be shipped**: 3.4 M + 4.0 M polygon fragments, and SYKE's own bulk zips are
+  5.6 GB each. So the share is measured from the publisher's rendering at 25 m/px, tiled per
+  kunta, and our own rings are rasterised onto the identical grid. 209 of 308 kunnat are mapped.
+- **The mistake worth recording.** The first version counted any non-transparent pixel and put
+  **a quarter of Kallio — a hill — in a 1/100a sea flood zone**. SYKE's default style is
+  cartographic: its palest fill `#D1FFFF` is the class `vesistö`, the water body, so the whole
+  Gulf of Finland read as flooded. The fix is the publisher's own class list, fetched from its
+  `GetLegendGraphic` and its WFS: a flat SLD plus an explicit CQL list, `antialias:none`.
+  Helsinki now reads **5.3 %** at 1/100a; the most exposed areas are the Vantaanjoki delta and
+  the Kalasatama waterfront, and Kallio is not in the top ten. `docs/CLIMATE_FI.md` §1.
+- `kuiva maa` — SYKE's own "dry land inside the mapped area" class — gives a publisher-defined
+  land mask, so **"not mapped" and "no hazard" are never collapsed into a 0**.
+- A second rasteriser bug: drawing all polygons into one image let one polygon's **hole erase
+  another's fill**, which erased the mapped extent over central Helsinki. Each polygon is now
+  rasterised on its own and OR-ed in.
+- **Not built, and each asked of the publisher:** sea-level scenarios (avoindata.fi returns 0
+  datasets; the only machine-readable thing is 453 Helsinki-only points) and stormwater flood
+  maps (HSY's 397 layers and Helsinki's 304 contain none).
+- Checks: validate ✓ · links ✓ (the STUK verify URL was a 404 and is fixed) · test ✓ · build ✓.
+
+### Phase 12 — Services + Public buildings ✅
+- **113 372 service points** in 308 kunnat and **8 601 public buildings**, each point naming its
+  own publisher. Groceries, food & drink and pharmacies from OpenStreetMap; stops from **HSL's
+  own GTFS inside the HSL region and OSM elsewhere**, with 18 478 OSM stops inside the HSL
+  region dropped rather than double-counted.
+- **There is no keyless national GTFS** — Digitransit answers 401 — so the mixed sourcing is
+  stated rather than smoothed over.
+- **Ryhti cannot classify a public building**: its open classification has seven codes and
+  `07 Julkinen rakennus` is undivided. Proved from the publisher's own codelist, then not used.
+  Palvelukartta covers the four Helsinki-region municipalities; OSM covers the rest.
+- Finland's public buildings carry **no permit case and no floor area**. The Danish density rule
+  keyed on both and therefore drew **nothing**; it is now a plain zoom floor, and the
+  existing/open-case toggle is not shown where no cases exist.
+- Danish vocabulary retired: `s-train` → tram/ferry modes, `Rejseplanen` → HSL, `BBR` → the
+  actual sources. `docs/SERVICES_FI.md`.
+
+### Phase 13 — Infra projects ✅
+- **169 projects**: 7 curated by hand in `data/external/infra_fi.csv` with the page every figure
+  was read from, plus **162 of Väylävirasto's own hanke records** with the agency's own
+  schedules and **its own published alignments**.
+- **Where a publisher gives more than one estimate, all of them are carried.** Lentorata's owner
+  publishes €2 078 m (MAKU 103.9, 2015=100) *and* €2.9 bn (VAT 0 %); Länsirata's publishes
+  €3 bn, €3.8 bn and a €3.4–4.0 bn range. None is averaged and none is silently preferred.
+- **No alignment is drawn by hand.** Five of the seven big projects have none published, so they
+  have no geometry and `map: false` — and a bug had to be fixed for them to exist at all: the
+  Danish build filtered the project list on `f.geometry`, which would have **silently dropped
+  Kruunusillat, Lentorata, Länsirata, Itärata and Tampere phase 2**, the five biggest projects
+  in the country.
+- Two rule-based trims, both on the agency's own facts: a project that had finished *and* never
+  got a project page is left out (105 completed maintenance records), and `major` — which is
+  what the growth signals count — means the agency wrote it a page (46 of 267).
+- New indicators `projects_upcoming` and `stations_planned_1200m`; `budget_mdkk` renamed
+  `budget_meur` with a `price_base` beside it.
+- **Size:** the page hit 3.30 MB against a 3.00 MB ceiling. Fixed properly rather than by
+  shaving: the 140 kB of alignments moved to a lazy `dist/infra.json`, fetched the first time
+  anything wants to draw one. Page 2.9 MB.
+
 ## 10. Resume point, batch 2
 
-Phases 8b, 9 and 10 committed. Phase 11 (Climate risk) next: the route is SYKE's WMS raster tiled per kunta plus the mapped-extent vectors, because the zones cannot be fetched as vectors at any sane size (docs/PROBE_FI.md, batch-2 finding 3).
+Phases 8b–13 committed. Two long fetches are still running in the background and must finish before phases 15–16: `scripts/fetch_flood.py` (SYKE tiles, ~1 680) and `scripts/fetch_buildings.py` (3.8 M Ryhti buildings). Re-run `make climate` when the flood fetch ends. Phase 14 (schools) next.

@@ -133,6 +133,61 @@ def yoy(pop):
             for i in range(1, len(ys)) if pop[ys[i - 1]]}
 
 
+def load_climate():
+    """The osa-alue block of data/processed/climate.json, if scripts/build_climate.py has run.
+
+    Only the Helsinki-region kunnat have an osa-alue layer, and they are exactly the coastal
+    ones where a sea-flood figure means something, so this is the level where it earns its
+    place. Stdlib only: the raster work happened in build_climate.py.
+    """
+    p = PROC / "climate.json"
+    if not p.exists():
+        say("  · no data/processed/climate.json — osa-alue climate skipped (run `make climate`)")
+        return {}, {}
+    d = json.loads(p.read_text(encoding="utf-8"))
+    block = (d.get("flood") or {}).get("osa_alue") or {}
+    say(f"  · climate: {len(block)} osa-alueet carry a flood figure")
+    return block, (d.get("meta") or {}).get("flood") or {}
+
+
+def climate_indicators(meta):
+    """The same four zones and the coverage row as the kunta level, worded for this level."""
+    src = meta.get("source", "Suomen ympäristökeskus (Syke)")
+    yr = meta.get("year", "")
+    res = meta.get("res_m", 25)
+    common = (f"Measured from Suomen ympäristökeskus's own flood-hazard polygons at {res:.0f} m per "
+              f"pixel, counted inside this osa-alue's land. The zones are published as millions of "
+              f"raster-derived fragments and cannot be fetched as vectors at a usable size — the "
+              f"method is in docs/CLIMATE_FI.md.")
+    warn = ("SYKE flood-maps designated areas, not the whole country. An osa-alue with no figure is "
+            "NOT MAPPED, which is not the same as no flood hazard. Screening indicators for "
+            "comparing areas, not a property-level risk assessment.")
+
+    def ci(key, label, short, desc, direction="lower_better", hue="warn"):
+        return {"key": key, "label": label, "short": short, "unit": "% of land", "fmt": "pct1",
+                "group": "Climate", "direction": direction, "level": "osa_alue", "hue": HUE[hue],
+                "desc": desc, "note": common, "warn": warn,
+                "source": src + (f" — edition {yr}" if yr else "")}
+    return [
+        ci("flood_sea_100", "Sea flood hazard zone — 1/100a", "Sea flood 1/100a",
+           "Share of the osa-alue's land inside the sea flood hazard zone for a 1-in-100-year "
+           "flood. A return period is a probability, not a date."),
+        ci("flood_sea_1000", "Sea flood hazard zone — 1/1000a", "Sea flood 1/1000a",
+           "Share of the osa-alue's land inside the sea flood hazard zone for a 1-in-1000-year "
+           "flood — the rarer extreme, which always contains the 1/100a zone."),
+        ci("flood_river_100", "Watercourse flood hazard zone — 1/100a", "River flood 1/100a",
+           "Share of the osa-alue's land inside the watercourse flood hazard zone for a "
+           "1-in-100-year flood: rivers and lakes, not the sea."),
+        ci("flood_river_1000", "Watercourse flood hazard zone — 1/1000a", "River flood 1/1000a",
+           "Share of the osa-alue's land inside the watercourse flood hazard zone for a "
+           "1-in-1000-year flood."),
+        ci("flood_mapped", "Flood-mapped share of the area", "Flood-mapped",
+           "Share of the osa-alue's land that SYKE has flood-mapped at all. A coverage figure, "
+           "not a hazard figure: where it is 0 nobody has assessed the area, and where it is "
+           "high a 0 above is a real 0.", direction="neutral", hue="size"),
+    ]
+
+
 def indicators():
     def ind(key, label, short, unit, fmt, group, direction, desc, hue, note):
         return {"key": key, "label": label, "short": short, "unit": unit, "fmt": fmt,
@@ -212,6 +267,9 @@ def main():
     obs_fc, proj_fc = forecast(got["forecast"][0], None)
 
     inds = indicators()
+    climate, climate_meta = load_climate()
+    if climate:
+        inds.extend(climate_indicators(climate_meta))
     areas, matched, unmatched = [], 0, []
     for f in feats:
         p = f["properties"]
@@ -259,6 +317,13 @@ def main():
                 row["fc_growth"] = round((p1 / p0 - 1) * 100, 2)
         if code10 in obs_fc:
             row["pop_hist"] = {y: v for y, v in sorted(obs_fc[code10].items())[-30:]}
+        # Climate: not a series. A flood-hazard map has an edition, not an annual observation,
+        # so the figure is attached flat and the source line carries the edition year.
+        cl = climate.get(row["code"])
+        if cl:
+            for k, v in cl.items():
+                if k != "land_km2" and v is not None:
+                    row[k] = v
         row["_hist"] = {k: {y: v for y, v in list(sorted(s.items()))[-YEARS:]} for k, s in hist.items()}
         row["_rings"] = rings
         areas.append(row)

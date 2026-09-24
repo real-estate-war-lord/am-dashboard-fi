@@ -141,6 +141,38 @@ its summary line, and in the Status column of the Sources view:
 | `rent_pno` — free-market rent by postal code (`StatFin_Passiivi:asvu/13eb`) | **2025Q4** | Nothing replaces rent below kunta level. Never extended, never blended with the live kunta-level rent |
 | HSY `seutukartta_pien` sub-area boundaries | **2021** | The only published sub-area division for Espoo, Vantaa and Kauniainen |
 
+## 6c. Suomen ympäristökeskus (Syke) — flood hazard zones
+
+| | |
+|---|---|
+| WFS | `https://paikkatiedot.ymparisto.fi/geoserver/inspire_nz/wfs` — the mapped-extent layers |
+| WMS | `https://paikkatiedot.ymparisto.fi/geoserver/inspire_nz/wms` — the zones, both measured and drawn from here |
+| Layers | `inspire_nz:NZ.Tulvavaaravyohykkeet_{Meritulva,Vesistotulva}_1_{100,1000}a` |
+| Key | none |
+| Licence | **CC BY 4.0** — "Lähde: Suomen ympäristökeskus (Syke)" |
+| Verify at source | `https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios` |
+
+**The host is `paikkatiedot`, plural.** `paikkatieto.ymparisto.fi` answers HTTP 200 with an IIS
+default page and its `/geoserver/` is a 404 — it looks alive and is not.
+
+**The zones are measured, not shipped.** They are 3.4 M and 4.0 M polygon fragments for the two
+1/100a layers alone, and SYKE's own bulk zips are 5.59 GB and 5.65 GB. The dashboard carries the
+area shares; the map overlay draws SYKE's own WMS live. The method, and the mistake that made the
+first version count the whole Gulf of Finland as flooded, are in `docs/CLIMATE_FI.md`.
+
+## 6d. Säteilyturvakeskus (STUK) — radon
+
+| | |
+|---|---|
+| Files | `radontilasto_pientalot_kunta_ja_koko_suomi_2023.xlsx` and `..._postinumero_2023.xlsx` on `stuk.fi` |
+| Licence | **CC BY 4.0** — "Lähde: Säteilyturvakeskus (STUK)" |
+| Verify at source | `https://stuk.fi/pientalojen-radonpitoisuudet-kunnittain` and `https://stuk.fi/pientalojen-radonpitoisuudet-postinumeroalueittain` |
+| Coverage | 301 kunnat · 1 567 postal areas · 152 298 measurements, 2023 |
+
+Measured in **detached houses only**, from voluntary measurements. A blank in STUK's own table
+is a suppressed figure, not a zero, and stays blank. Pertunmaa appears in the 2023 file and not
+in kuntajako 2026 — it merged, and its figure is left out rather than folded into its successor.
+
 ## 7. OpenStreetMap (basemap only in v1.0)
 
 | | |

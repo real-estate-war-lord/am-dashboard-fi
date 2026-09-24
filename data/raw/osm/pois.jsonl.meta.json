@@ -1,0 +1,20 @@
+{
+ "source": "OpenStreetMap — Geofabrik finland-latest extract",
+ "url": "https://download.geofabrik.de/europe/finland-latest.osm.pbf",
+ "licence": "ODbL 1.0 — © OpenStreetMap contributors",
+ "verify_at_source": "https://www.openstreetmap.org/",
+ "fetched": "2026-09-24",
+ "points": 133514,
+ "by_category": {
+  "stop": 107481,
+  "culture": 2736,
+  "food": 12936,
+  "pharmacy": 785,
+  "grocery": 3005,
+  "health": 1087,
+  "school": 3403,
+  "kindergarten": 2081
+ },
+ "pbf_bytes": 767442456,
+ "note": "A point is kept only when a mapper chose one of the tags listed in scripts/fetch_services.py; nothing is inferred. A feature mapped as a way is kept at the mean of its nodes."
+}

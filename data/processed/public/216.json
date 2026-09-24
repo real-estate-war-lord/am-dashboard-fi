@@ -1,0 +1,1 @@
+{"kunta":"216","name":"Kannonkoski","n":2,"buildings":[{"cat":"culture","kind":"existing","name":"Kannonkosken kunnankirjasto","address":"","lat":62.978065,"lon":25.271328,"src":"osm","sub":"amenity=library"},{"cat":"education","kind":"existing","name":"Kannonkosken koulu","address":"","lat":62.978083,"lon":25.27035,"src":"osm","sub":"amenity=school"}]}

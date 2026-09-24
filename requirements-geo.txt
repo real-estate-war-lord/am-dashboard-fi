@@ -1,0 +1,12 @@
+# Geometry and raster work only — scripts/fetch_flood.py, scripts/build_climate.py and the
+# kunta-ring simplification in scripts/build_dashboard.py.
+#
+# Nothing else in this repository needs these, and the dashboard build does not:
+# data/processed/climate.json is committed, so `make build` and the GitHub Actions
+# workflow keep working on a plain Python with no extra packages.
+#
+#   python3 -m pip install -r requirements-geo.txt
+#
+shapely==2.1.2       # mapped-extent unions, kunta ∩ extent, ring simplification
+numpy==2.3.3         # the flood masks: 280 M pixels is not a pure-Python loop
+pillow==11.3.0       # decodes the publisher's PNG tiles and rasterises our own polygons

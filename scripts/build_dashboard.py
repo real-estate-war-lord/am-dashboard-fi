@@ -127,7 +127,14 @@ def main():
         "micro": micro_idx,
         # infrastructure overlay: only the features meant for the map (scripts/build_infra.py, docs/INFRA.md)
         # every project: the map layer filters on `map`, the Pipeline table lists them all
-        "infra": {"features": (infra or {}).get("features", []), "meta": (infra or {}).get("meta")} if infra else None,
+        # Infra: the PROPERTIES of every project inline — the Pipeline table, the nav count and
+        # the CSV export all need them — and the GEOMETRY in a lazy dist/infra.json, because it
+        # is 200 kB that only the map overlay ever uses. A project whose alignment is not
+        # published keeps its row and simply never gets a geometry.
+        "infra": {"features": [{"type": "Feature", "geometry": None, "properties": f["properties"]}
+                               for f in (infra or {}).get("features", [])],
+                  "meta": (infra or {}).get("meta"),
+                  "lazy": "infra.json"} if infra else None,
         "infra_index": (infra_index or {}).get("areas") if infra_index else None,
         # public buildings: counts per area inline, the buildings themselves loaded on demand (dist/public/<kunta>.json)
         # public buildings: counts per area inline; the school aggregates ride along in the same areas
@@ -208,6 +215,16 @@ def main():
         for f in (PROC / "micro").glob("*.json"):
             shutil.copy(f, md / f.name)
         print(f"copied {len(list(md.glob('*.json')))} micro files → {md}")
+    if infra:
+        geo_only = {"type": "FeatureCollection", "meta": (infra or {}).get("meta"),
+                    "features": [{"type": "Feature", "geometry": f["geometry"],
+                                  "properties": {"id": f["properties"]["id"]}}
+                                 for f in infra["features"] if f.get("geometry")]}
+        dest = out.parent / "infra.json"
+        dest.write_text(json.dumps(geo_only, ensure_ascii=False, separators=(",", ":")),
+                        encoding="utf-8")
+        print(f"wrote {dest} ({dest.stat().st_size/1024:.0f} kB) · "
+              f"{len(geo_only['features'])} alignments, loaded when the overlay is switched on")
     kunnat_lookup(out.parent)
     n = out.stat().st_size
     print(f"wrote {out} ({n/1e6:.1f} MB) · {len(data['municipalities'])} kunnat · {len(data['areas'])} areas")
