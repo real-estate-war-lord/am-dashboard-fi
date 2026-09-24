@@ -258,3 +258,42 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | `api.aluesarjat.fi` does not answer, and the English tree exposes two of seven folders | The **Finnish** tree at `stat.hel.fi/api/v1/fi/Aluesarjat/` is the route. Recorded in `docs/SOURCES.md`. |
 | The Aluesarjat verify-at-source links 404'd | PxWeb's UI folder is the API path joined with double underscores and prefixed by the database name. Fixed, and `make links` now sweeps all 25 clean. |
 | The area page's mini-map opened on Denmark | The Danish default centre had survived in `arMapInit`. It now starts from the current view and always fits the area, whose bounding box is inline even before its rings are fetched. |
+
+---
+
+## Phase 8 — Verify, docs, wrap-up
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ |
+| `make links` (full sweep) | ✓ **25 of 25** |
+| `make test` | ✓ 24 python + 15 node |
+| `make build` | ✓ `index.html` **2 414 kB**, every dist file inside the 3 MB ceiling |
+| `make fixture` | ✓ renders |
+| `make verify` | ✓ **57 checks, 0 disagreements** |
+| `docs/verification/v1_0.csv` | ✓ 14 341 rows — 308 kunnat × 50 indicators, long format |
+| Screenshots | ✓ 21 in `docs/screenshots/`, hero copied to `docs/screenshot.png` |
+| Dormant views | ✓ Pipeline, Test property and Sources all render an honest state; Pipeline is now hidden from the nav until its layer has data |
+
+### Decisions logged in phase 8
+
+| ⚠ | Decision |
+|---|---|
+| What should "verification" mean? | Not a test of the build's own cached pulls. `scripts/verify.py` makes a **fresh request to the publisher**, redoes the arithmetic from the returned cells, and compares with what `makro.json` carries. A build reading the wrong cell, dividing by the wrong denominator or joining the wrong vintage would fail these checks and would pass a test of its own cache. |
+| A nav item for a layer with no data | Hidden until the layer exists, so nobody is sent to an empty page. Batch 2 restores Pipeline automatically when its file lands. |
+| `data/processed` is 15 MB and is committed | It has to be: the Pages workflow builds the page from the committed processed data and never touches a source. The build is deterministic — a rebuild from the same pulls produces byte-identical files, so a refresh only commits what actually changed. |
+
+---
+
+## Open ⚠ at the end of batch 1
+
+| # | Item | Where |
+|---|---|---|
+| 1 | **Aluesarjat is non-commercial-use-only.** Every osa-alue figure carries it. Not CC BY 4.0 like everything else. A release decision, not a technical one. | `docs/SOURCES.md` §3 |
+| 2 | **Verohallinto publishes no licence statement** on the tax-rate pages. Used with attribution, not republished as an open dataset. | `docs/SOURCES.md` §6 |
+| 3 | **Postal-code rents are frozen at 2025Q4** and nothing replaces them below kunta level. | `rent_pno` caveat |
+| 4 | **No municipal construction data exists in Finland.** Three indicators are maakunta figures shown on kunnat, marked ^. | `docs/PROBE_FI.md` gap 1 |
+| 5 | **Three postal-code classification vintages** (1 724 / 580 / 3 018) are never reconciled; 701 of 3 018 areas carry a price. | `docs/GEO.md` §2 |
+| 6 | **Unoccupied dwellings has one year** (2025) and no history. | `vacant` caveat |
+| 7 | The municipal income-tax rate is read from a **decision page's embedded JSON**, the only scraped route in the repo. It fails loudly if the page's shape changes. | `scripts/import_verohallinto.py` |
+| 8 | HSY's sub-area division is **frozen at 2021**; Espoo, Vantaa and Kauniainen have no current boundary vintage, and Kauniainen's nine areas have no published names. | `docs/GEO.md` §3 |

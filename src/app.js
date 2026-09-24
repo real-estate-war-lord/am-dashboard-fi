@@ -434,11 +434,14 @@ const VIEWS = [
 const NAV_GROUPS = [["Market intelligence", ["makro", "table", "charts", "pipeline"]], ["Analysis", ["analysis"]], ["Reference", ["sources"]]];
 const viewOf = id => VIEWS.find(v => v[0] === id) || VIEWS[0];
 
+/* A view whose layer has no data is not offered: batch 2 brings the infrastructure pipeline,
+   and until its file exists the nav does not send anyone to an empty page. */
+const navHas = id => id !== "pipeline" || INFRA_ALL.length > 0;
 function renderNav() {
   const on = S.view === "area" ? "makro" : S.view === "project" ? "pipeline" : ["public", "publist", "school", "schoollist"].includes(S.view) ? "makro" : S.view;
-  document.getElementById("nav").innerHTML = NAV_GROUPS.map(([lab, ids]) => `<div class="nav-glab">${lab}</div>` +
-    ids.map(id => { const v = viewOf(id), h = id === "analysis" ? anNavLink() : v[3];
-      return `<button class="nav-item ${on === id ? "on" : ""}" data-go="${esc(h)}" title="${esc(v[2])}"><b>${v[1]}</b></button>`; }).join("")).join("");
+  document.getElementById("nav").innerHTML = NAV_GROUPS.map(([lab, ids]) => ids.filter(navHas).length ? `<div class="nav-glab">${lab}</div>` +
+    ids.filter(navHas).map(id => { const v = viewOf(id), h = id === "analysis" ? anNavLink() : v[3];
+      return `<button class="nav-item ${on === id ? "on" : ""}" data-go="${esc(h)}" title="${esc(v[2])}"><b>${v[1]}</b></button>`; }).join("") : "").join("");
 }
 /* the top bar is a breadcrumb: Finland › municipality › area — every step is a link, the last one is where you are */
 function crumbs() {

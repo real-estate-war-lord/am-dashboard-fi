@@ -8,6 +8,8 @@ probe:      ## live endpoint probe of every batch-1 source → docs/PROBE_FI.md
 	$(PY) scripts/probe_fi.py
 validate:   ## check every table/variable/value code in config against the live StatFin metadata
 	$(PY) scripts/validate_config.py && $(PY) scripts/check_source_links.py --quick --sample 2
+verify:     ## recompute figures straight from the publisher and compare with the page
+	$(PY) scripts/verify.py
 links:      ## the full source-link sweep: every verify-at-source URL fetched (slow)
 	$(PY) scripts/check_source_links.py
 geo:        ## vendor kunta / maakunta / postinumero / osa-alue polygons (Tilastokeskus + Paavo + HSY)
@@ -25,4 +27,4 @@ test:       ## every unit test (python + js)
 fixture:    ## synthetic render check (never ship)
 	$(PY) tests/make_fixture.py && $(PY) scripts/build_dashboard.py --data tests/fixture_makro.json --osa tests/fixture_osa.json --out dist/fixture.html
 refresh: fetch build
-.PHONY: probe validate links geo fetch build serve fixture refresh test test-js
+.PHONY: probe validate verify links geo fetch build serve fixture refresh test test-js

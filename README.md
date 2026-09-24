@@ -1,42 +1,117 @@
 # Macro Dashboard — Finland
 
 A single-page map of Finland's housing market and demographics, built only from open
-official data: **kunta → postinumeroalue → osa-alue**, with prices, rents, income,
-demographics, taxes, safety and the population outlook side by side.
+official data. Three levels — **kunta → postinumeroalue → osa-alue** — with prices, rents,
+income, demographics, construction, taxes, safety and the population outlook side by side.
 
-> **Status: v1.0 in progress.** The build plan is `docs/BUILD_PLAN_FI.md` §7 and the live
-> checklist is `docs/PLAN.md`. This README is filled in properly at phase 8.
+![The macro map, old-flat prices per m²](docs/screenshot.png)
+
+**Live:** _(GitHub Pages link goes here once `main` is published)_
+
+## What is in it
+
+| | Count |
+|---|---|
+| Kunnat | **308** (kuntajako 2026) |
+| Postinumeroalueet | **3 018** (Paavo `pno_tilasto_2026`) |
+| Osa-alueet | **306** — Helsinki 148, Espoo 88, Vantaa 61, Kauniainen 9 |
+| Indicators | **50** at kunta and postal level, **9** more at osa-alue level |
+| Groups | Demographics · Income & jobs · Housing stock · Market · Construction · Taxes · Safety · Outlook |
+
+Every area has its own page, every indicator its own definition, source, period and a link
+to the publisher's own table. The Table view puts every area side by side and exports CSV;
+the Charts view plots any indicator for up to eight areas, yearly or quarterly, and exports
+PNG or CSV.
 
 ## The rule this project runs on
 
-Every figure is an official published number, or plain arithmetic on official numbers — a
-difference, a share, a sum, a per-1 000. Nothing here is modelled, fitted, assumed or
-imputed. A suppressed cell is shown as `–` and is never read as zero; an area we do not
-cover reads "Not covered yet". Every figure carries its source, its period, the date we
-fetched it and a link to the publisher's own table.
+**Every figure is an official published number, or plain arithmetic on official numbers** —
+a difference, a share, a sum, a ratio, a per-1 000. Nothing here is modelled, fitted,
+assumed or imputed.
+
+- A **suppressed** cell is shown as `–` and is never read as zero.
+- An area we do not cover reads **"Not covered yet"**, which is also not a zero.
+- Where a figure is published for a **coarser area** than the one you are looking at, it is
+  marked **°** (a kunta figure on a postal area) or **^** (a maakunta figure on a kunta) —
+  never silently passed off as that area's own measurement.
+- Where two publishers measure the same thing differently, both are shown with the gap
+  stated, never averaged. See `docs/OUTLOOK_FI.md` §4.
+- Where a definition differs between levels, it gets a **different name**, not the same name
+  with a different meaning behind it.
+
+`scripts/verify.py` re-queries the publishers, redoes the arithmetic from the returned
+cells, and compares the result with what the page carries: **57 checks, 0 disagreements**
+(`docs/VERIFICATION.md`). The full export is `docs/verification/v1_0.csv` — 14 341 rows,
+every kunta × every indicator, long format.
 
 ## Run it
 
 ```bash
-make validate    # check every code against live StatFin metadata
-make fetch       # pull the tables
-make build       # -> dist/index.html
-make serve       # http://localhost:8080
-make fixture     # synthetic render check (never publish a build from this)
+make probe      # live endpoint probe of every source  → docs/PROBE_FI.md
+make validate   # every table/variable/value code checked against live metadata
+make geo        # vendor the boundary layers (a pinned vintage; not part of the refresh)
+make fetch      # pull every registered table, throttled, stamped
+make build      # raw + geo + external → data/processed → dist/index.html
+make verify     # recompute figures straight from the publisher and compare
+make test       # unit tests (python + node)
+make serve      # http://localhost:8080
+make fixture    # synthetic render check — never publish a build made from this
 ```
 
-Python 3.10+, standard library only. Node is optional and used for the JavaScript syntax
-check and the parser unit tests.
+Python 3.10+, **standard library only**. Node is optional: it runs the JavaScript syntax
+check, the parser unit tests, and `mapshaper` for boundary simplification (there is a pure
+Python fallback). No API keys are needed for anything in this repository.
 
 ## Sources and licences
 
-`docs/SOURCES.md`. The short version: Statistics Finland's StatFin, Paavo and boundary WFS
-are CC BY 4.0 and require the attribution **"Lähde: Tilastokeskus"**; Aluesarjat and the
-Helsinki-region boundary services are CC BY 4.0; the basemap is © OpenStreetMap
-contributors (ODbL). The code in this repository is MIT.
+Full detail in `docs/SOURCES.md`. The short version:
+
+- **Tilastokeskus** — StatFin, Paavo and the boundary WFS: **CC BY 4.0**, attribution
+  **"Lähde: Tilastokeskus"**.
+- **Kela** — housing allowance, via avoindata.suomi.fi: **CC BY 4.0**.
+- **Verohallinto** — property tax and the municipal income-tax rate: no open-licence
+  statement is published on those pages, so the figures are used with the attribution
+  "Lähde: Verohallinto" and are not republished as an open-licensed dataset.
+- **Helsingin kaupunki / HSY** — osa-alue boundaries: **CC BY 4.0**.
+- ⚠ **Aluesarjat** — every osa-alue figure: **non-commercial use only**, *not* CC BY 4.0.
+  This is the only licence restriction in the dashboard and it is confined to that one
+  layer, where it is labelled in the data, in each indicator's note and in the Sources view.
+- **OpenStreetMap** — basemap tiles: ODbL 1.0.
+
+The code in this repository is MIT (`LICENSE`). The data is not ours to license.
 
 ## Honest limits
 
-Filled in at phase 8. The known ones going in: no days-on-market or supply (only the
-commercial portals have them), no transaction-level prices, crime only at kunta level, and
-Finland publishes no comprehensive-school results.
+- **No days-on-market and no supply.** Only the commercial portals have them.
+- **No transaction-level prices.** MML's kauppahintarekisteri is paid; `ashi`'s postal-code
+  averages are what the dashboard shows.
+- **Crime only at kunta level.** Finland publishes no open crime data below municipality,
+  and no quarterly municipal crime data at all.
+- **No comprehensive-school results.** Finland does not publish them. Upper-secondary
+  matriculation results exist and are a later phase.
+- **No municipal construction data anywhere.** Statistics Finland publishes dwellings
+  started, completed and permitted by **maakunta** only, so every kunta shows its region's
+  rate, marked ^.
+- **Postal-code rents stop at 2025Q4.** `asvu/13eb` was discontinued; the series is frozen,
+  labelled with its end date, and never extended. The live replacement is kunta level.
+- **Three postal-code universes.** Prices are on the 2022 classification (1 724 areas),
+  rents on a third (580), Paavo on 2026 (3 018). They are never reconciled: an area shows a
+  price only if its own code exists in the price universe. See `docs/GEO.md` §2.
+- **Paavo runs two years behind.** The 2026 release carries 2024 figures, and the UI labels
+  the statistics year, never the release year.
+- **Espoo's and Vantaa's own area projections are not shown** — different vintages, different
+  end years.
+
+## Documentation
+
+| File | What it is |
+|---|---|
+| `docs/PLAN.md` | the build plan and its status, phase by phase |
+| `docs/BUILD_LOG.md` | every check and every decision, with the reasoning |
+| `docs/PROBE_FI.md` | the live endpoint probe, and what it changed about the plan |
+| `docs/SOURCES.md` | every source, route, licence and attribution |
+| `docs/GEO.md` | levels, classification vintages, and the traps |
+| `docs/DATA_FOLDERS.md` | the one-way data flow and who writes what |
+| `docs/OUTLOOK_FI.md` | how projections are handled |
+| `docs/VERIFICATION.md` | figures recomputed from source and compared |
+| `docs/RUNBOOK.md` | how to refresh, and what to do when a source breaks |

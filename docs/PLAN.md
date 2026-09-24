@@ -65,7 +65,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 5 | Taxes (rows 29–30) | ✅ | `feat: municipal tax rates` |
 | 6 | Safety + Outlook (rows 31–33) | ✅ | `feat: safety and outlook` |
 | 7 | Osa-alue level (row 34) | ✅ | `feat: osa-alue level` |
-| 8 | Verify, docs, wrap-up | ☐ | |
+| 8 | Verify, docs, wrap-up | ✅ | `docs: v1.0 verification, README and changelog` |
 
 ---
 
@@ -141,8 +141,19 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - ⚠ **Aluesarjat is non-commercial-use-only, not CC BY 4.0.** The one licence restriction in the dashboard, confined to this layer and labelled everywhere it appears. Open item for the release decision.
 - Checks: validate ✓ · links ✓ **25/25** · test ✓ · build ✓ 2 429 kB · fixture ✓.
 
+### Phase 8 — Verify, docs, wrap-up ✅
+- `scripts/verify.py` re-queries the publishers, redoes the arithmetic and compares with the page: **57 checks, 0 disagreements** across 5 kunnat × 4 indicators, 5 postal codes × 5 and 3 osa-alueet × 4. `docs/VERIFICATION.md` records every one with the cells it used.
+- `docs/verification/v1_0.csv`: 14 341 rows, 308 kunnat × 50 indicators, long format with the source table and period beside every figure.
+- README rewritten with the screenshot, how to run, the licence position and the honest limits; CHANGELOG v1.0 drafted; `make verify` added.
+- Eight open ⚠ written down in `docs/BUILD_LOG.md`, headed by the Aluesarjat non-commercial licence.
+- Final: validate ✓ · links ✓ 25/25 · test ✓ 24+15 · build ✓ 2 414 kB · fixture ✓ · verify ✓.
+
+**Batch 1 is complete.** Nothing merged, tagged or pushed.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 8 — verification (`docs/VERIFICATION.md` + `docs/verification/v1_0.csv`), README, CHANGELOG, final checks and the closing summary.
+**Batch 1 finished on branch `v1.0-build`.** Nothing is merged, tagged or pushed.
+
+**Next action (a human's):** review `dist/index.html` on localhost (`make build && make serve`), then decide the two licence questions in `docs/BUILD_LOG.md` → "Open ⚠" before releasing. Batch 2 starts from `docs/BUILD_PLAN_FI.md` §7 on a new branch `v1.1-layers`.
