@@ -1,0 +1,38 @@
+.env
+data/raw/*.csv
+data/geo/raw/
+dist/fixture.html
+tests/fixture_*.json
+__pycache__/
+.DS_Store
+# local run logs
+validate.txt
+fetch.txt
+*.log
+dist/index.html
+data/raw/bbr_schema.json
+data/raw/bbr/
+data/raw/bbr_schema.graphql
+dist/micro/
+data/raw/dar/
+data/raw/dar_schema.graphql
+
+# source PDFs (re-downloaded per data/external/SOURCES.md; the extracted CSVs are committed)
+data/external/*.pdf
+dist/infra_projects.geojson
+dist/infra_index.json
+data/raw/public/
+dist/public_index.json
+dist/public/
+data/raw/uddstat/
+dist/geo
+
+# services-layer probe downloads (never committed)
+data/raw/probe/
+data/raw/services/
+dist/services/
+
+# forecast raw pulls (re-downloadable per docs/FORECAST_SOURCES.md; tableinfo JSON is committed)
+data/raw/forecast/**/*.csv
+data/raw/forecast/**/*.pdf
+data/raw/verify/
