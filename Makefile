@@ -13,7 +13,7 @@ links:      ## the full source-link sweep: every verify-at-source URL fetched (s
 geo:        ## vendor kunta / maakunta / postinumero / osa-alue polygons (Tilastokeskus + Paavo + HSY)
 	$(PY) scripts/fetch_geo_fi.py && $(PY) scripts/fetch_paavo.py
 fetch:      ## pull every StatFin table named in config/indicators.json, and the file sources
-	$(PY) scripts/fetch_statfin.py && $(PY) scripts/import_kela.py
+	$(PY) scripts/fetch_statfin.py && $(PY) scripts/import_kela.py && $(PY) scripts/import_verohallinto.py
 build:      ## raw -> processed -> dist/index.html
 	$(PY) scripts/build_makro.py && $(PY) scripts/build_dashboard.py
 serve:      ## open the dashboard locally

@@ -152,8 +152,44 @@ def source_cells(src, ind):
         return data, stamps, labels
     if src.get("src") == "kela":
         return kela_cells(src), [kela_stamp()], {}
+    if src.get("src") == "csv":
+        return csv_cells(src), [csv_stamp(src)], {}
     say(f"  ⚠ {ind['key']}: unknown source type {src.get('src')!r} — skipped")
     return {}, [], {}
+
+
+def csv_cells(src):
+    """A committed CSV written by one of the scripts/import_*.py files.
+
+    The source names its own columns, so a new file source needs no new code here:
+        area_col   the kunta code, read as a string
+        period_col the year or month
+        code_col   which cell this row is (optional; one-measure files leave it out)
+        value_col  the number
+    """
+    p = ROOT / src["file"]
+    if not p.exists():
+        say(f"  ⚠ {src['file']} missing — run its scripts/import_*.py")
+        return {}
+    out = {}
+    with p.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f, delimiter=src.get("delimiter", ";")):
+            area = norm_area(row[src["area_col"]])
+            t = str(row[src["period_col"]])
+            code = row[src["code_col"]] if src.get("code_col") else src.get("as", "value")
+            raw = row[src["value_col"]]
+            if raw in ("", None):
+                continue                       # an empty cell is missing, not zero
+            try:
+                out.setdefault(area, {}).setdefault(t, {})[code] = float(raw)
+            except ValueError:
+                continue
+    return out
+
+
+def csv_stamp(src):
+    p = ROOT / (src["file"] + ".meta.json")
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
 _kela = None

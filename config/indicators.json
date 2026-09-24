@@ -1,5 +1,5 @@
 {
-  "_doc": "Indicator registry for the Finland edition. One indicator = one entry in `indicators`. **The hard-data rule: every entry here is an official published figure or plain arithmetic on official figures — a difference, a share, a sum, a per-1,000. No entry may use an assumption, a fitted trend, a cap or a model of our own.** FIELDS — `key`: the id used in makro.json, the URL hash and the CSV export. `label` / `short` / `unit`: UI text. `level`: the finest geography the indicator natively exists at — 'kunta' | 'postinumero' | 'osa_alue'; a coarser value shown on a finer polygon is marked ° in the UI. `group`: which section of the indicator select it sits in (GROUP_ORDER in src/app.js: Demographics, Income & jobs, Housing stock, Market, Construction, Taxes, Safety, Outlook, Schools, Growth signals). `hue`: RGB target for the choropleth ramp (paper #E8EDE7 → hue). `fmt`: a key of FMT in src/app.js. `direction`: 'higher_better' | 'lower_better' | 'neutral' — which end of the scale is favourable; 'neutral' is never coloured good/bad and never carries the '↓ lower is better' note. `desc` / `note` / `warn`: the ⓘ details, the glossary line and the caveat. `chip: true` puts the indicator in the quick-pick chip row. SOURCES — `sources` is the list the fetcher pulls, one entry per level: {`src`: 'statfin' | 'paavo' | 'aluesarjat' | 'kela' | 'vero' | 'hri', `table`: '<db>/<id>' for StatFin (e.g. 'ashi/13mt'), `vars`: {<variable code>: [<value codes>]} exactly as the PxWeb metadata spells them, `geo`: the level this source serves, `area_var`: the PxWeb variable holding the area code, `contents`: the contentscode value the number comes from}. A variable left out of `vars` is returned as its total only when the PxWeb metadata says elimination=true — scripts/validate_config.py checks that for every entry. `src_verify` is the list behind the 'Verify at source' link; each entry carries `geo`, and either `table` ('<db>/<id>', which becomes the pxdata.stat.fi table page) or a full `url` for a file source. VINTAGES — a StatFin area variable carries its classification year in its own name (`postinumeroalue_4_20220101`, `alue_2026`). It is recorded verbatim in `vars`, and two tables on different vintages are never joined silently: docs/GEO.md lists which vintage each table is on and what we do about it. CALCS — `calc` names the post-processing in scripts/build_makro.py: 'passthrough', 'share_of_total', 'yoy_pct', 'per_1000_dwellings', 'ratio_pct', 'sum4q', 'rolling4q_per_1000_pop', 'rolling4q_per_1000_dwellings', 'rolling4q_yoy_pct', 'forecast'. `select` narrows the rows a calc sees; a value may be a list of codes, in which case matching rows are summed. `history_from` is the first year of the yearly history in Charts; `map_from` the first year the map/table year selector offers. SUPPRESSION — Paavo suppresses areas under 30 residents / 10 households and StatFin's ashi and asvu suppress cells with too few observations. A suppressed cell is null and is shown as '–'. It is never read as 0, and an area we do not cover reads 'Not covered yet' rather than a number. A source entry may carry `cells`: {published code: the indicator's code}, for when the same figure is spelled differently in two tables — ashi/13mt names blocks of flats by room count while ashi/13mx names them 3, and neither table is wrong.",
+  "_doc": "Indicator registry for the Finland edition. One indicator = one entry in `indicators`. **The hard-data rule: every entry here is an official published figure or plain arithmetic on official figures — a difference, a share, a sum, a per-1,000. No entry may use an assumption, a fitted trend, a cap or a model of our own.** FIELDS — `key`: the id used in makro.json, the URL hash and the CSV export. `label` / `short` / `unit`: UI text. `level`: the finest geography the indicator natively exists at — 'kunta' | 'postinumero' | 'osa_alue'; a coarser value shown on a finer polygon is marked ° in the UI. `group`: which section of the indicator select it sits in (GROUP_ORDER in src/app.js: Demographics, Income & jobs, Housing stock, Market, Construction, Taxes, Safety, Outlook, Schools, Growth signals). `hue`: RGB target for the choropleth ramp (paper #E8EDE7 → hue). `fmt`: a key of FMT in src/app.js. `direction`: 'higher_better' | 'lower_better' | 'neutral' — which end of the scale is favourable; 'neutral' is never coloured good/bad and never carries the '↓ lower is better' note. `desc` / `note` / `warn`: the ⓘ details, the glossary line and the caveat. `chip: true` puts the indicator in the quick-pick chip row. SOURCES — `sources` is the list the fetcher pulls, one entry per level: {`src`: 'statfin' | 'paavo' | 'aluesarjat' | 'kela' | 'vero' | 'hri', `table`: '<db>/<id>' for StatFin (e.g. 'ashi/13mt'), `vars`: {<variable code>: [<value codes>]} exactly as the PxWeb metadata spells them, `geo`: the level this source serves, `area_var`: the PxWeb variable holding the area code, `contents`: the contentscode value the number comes from}. A variable left out of `vars` is returned as its total only when the PxWeb metadata says elimination=true — scripts/validate_config.py checks that for every entry. `src_verify` is the list behind the 'Verify at source' link; each entry carries `geo`, and either `table` ('<db>/<id>', which becomes the pxdata.stat.fi table page) or a full `url` for a file source. VINTAGES — a StatFin area variable carries its classification year in its own name (`postinumeroalue_4_20220101`, `alue_2026`). It is recorded verbatim in `vars`, and two tables on different vintages are never joined silently: docs/GEO.md lists which vintage each table is on and what we do about it. CALCS — `calc` names the post-processing in scripts/build_makro.py: 'passthrough', 'share_of_total', 'yoy_pct', 'per_1000_dwellings', 'ratio_pct', 'sum4q', 'rolling4q_per_1000_pop', 'rolling4q_per_1000_dwellings', 'rolling4q_yoy_pct', 'forecast'. `select` narrows the rows a calc sees; a value may be a list of codes, in which case matching rows are summed. `history_from` is the first year of the yearly history in Charts; `map_from` the first year the map/table year selector offers. SUPPRESSION — Paavo suppresses areas under 30 residents / 10 households and StatFin's ashi and asvu suppress cells with too few observations. A suppressed cell is null and is shown as '–'. It is never read as 0, and an area we do not cover reads 'Not covered yet' rather than a number. A source entry may carry `cells`: {published code: the indicator's code}, for when the same figure is spelled differently in two tables — ashi/13mt names blocks of flats by room count while ashi/13mx names them 3, and neither table is wrong. A source with `src: \"csv\"` reads a committed file written by one of the scripts/import_*.py scripts, naming its own columns (area_col, period_col, code_col or `as`, value_col).",
   "history_years": 12,
   "indicators": [
     {
@@ -1775,6 +1775,264 @@
       ],
       "note": "Maakunta level — see 'Dwellings completed'. A permit is the earliest published signal of future supply; not every permit is built. The denominator is the dwelling stock published by Paavo for the same maakunta (the sum of its kunnat's published stocks), latest year.",
       "warn": "Maakunta level. Two municipalities in the same maakunta always show the same number."
+    },
+    {
+      "key": "tax_home",
+      "label": "Property tax, permanent dwelling",
+      "short": "Property tax",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Kiinteistöveroprosentti for a building in permanent residential use (vakituisen asumisen %) — the rate that applies to an ordinary home.",
+      "calc": "passthrough",
+      "num": [
+        "vakituinen_asuinrakennus"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_kiinteistovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "code_col": "category"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/"
+        }
+      ],
+      "source": "Verohallinto, kiinteistöveroprosentit kunnittain (kive_202)",
+      "tables": [
+        "vero/kive_202"
+      ],
+      "note": "The applied percentage as published by Verohallinto, not an effective rate: what an owner actually pays also depends on the taxable value of the property, which this dashboard does not carry. The 2026 column is the publisher's own preliminary figure (ennakkotieto). Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": ""
+    },
+    {
+      "key": "tax_other",
+      "label": "Property tax, other dwelling",
+      "short": "Other dwelling",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Kiinteistöveroprosentti for a residential building not in permanent use (muun kuin vakituisen asumisen %) — holiday homes and second homes.",
+      "calc": "passthrough",
+      "num": [
+        "muu_asuinrakennus"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_kiinteistovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "code_col": "category"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/"
+        }
+      ],
+      "source": "Verohallinto, kiinteistöveroprosentit kunnittain (kive_202)",
+      "tables": [
+        "vero/kive_202"
+      ],
+      "note": "The applied percentage as published by Verohallinto, not an effective rate: what an owner actually pays also depends on the taxable value of the property, which this dashboard does not carry. The 2026 column is the publisher's own preliminary figure (ennakkotieto). Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": ""
+    },
+    {
+      "key": "tax_general",
+      "label": "Property tax, general (building)",
+      "short": "General tax",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Yleinen kiinteistövero-% for buildings — the rate for everything the specific categories do not cover.",
+      "calc": "passthrough",
+      "num": [
+        "yleinen_rakennus"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_kiinteistovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "code_col": "category"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/"
+        }
+      ],
+      "source": "Verohallinto, kiinteistöveroprosentit kunnittain (kive_202)",
+      "tables": [
+        "vero/kive_202"
+      ],
+      "note": "The applied percentage as published by Verohallinto, not an effective rate: what an owner actually pays also depends on the taxable value of the property, which this dashboard does not carry. The 2026 column is the publisher's own preliminary figure (ennakkotieto). Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": ""
+    },
+    {
+      "key": "tax_land",
+      "label": "Property tax, general (land)",
+      "short": "Land tax",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Yleinen kiinteistövero-% for land (maapohja).",
+      "calc": "passthrough",
+      "num": [
+        "yleinen_maapohja"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_kiinteistovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "code_col": "category"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/"
+        }
+      ],
+      "source": "Verohallinto, kiinteistöveroprosentit kunnittain (kive_202)",
+      "tables": [
+        "vero/kive_202"
+      ],
+      "note": "The applied percentage as published by Verohallinto, not an effective rate: what an owner actually pays also depends on the taxable value of the property, which this dashboard does not carry. The 2026 column is the publisher's own preliminary figure (ennakkotieto). Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": ""
+    },
+    {
+      "key": "tax_undev",
+      "label": "Property tax, undeveloped building site",
+      "short": "Undeveloped site",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Rakentamattoman rakennuspaikan % — the higher rate a municipality may set on a zoned but unbuilt plot. Where it is high, the municipality is pushing owners to build.",
+      "calc": "passthrough",
+      "num": [
+        "rakentamaton_rakennuspaikka"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_kiinteistovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "code_col": "category"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/"
+        }
+      ],
+      "source": "Verohallinto, kiinteistöveroprosentit kunnittain (kive_202)",
+      "tables": [
+        "vero/kive_202"
+      ],
+      "note": "The applied percentage as published by Verohallinto, not an effective rate: what an owner actually pays also depends on the taxable value of the property, which this dashboard does not carry. The 2026 column is the publisher's own preliminary figure (ennakkotieto). Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": "Not every municipality sets this rate; where none is set the figure is missing, which is not the same as a rate of zero."
+    },
+    {
+      "key": "tax_income",
+      "label": "Municipal income tax",
+      "short": "Income tax",
+      "unit": "%",
+      "fmt": "pct2",
+      "group": "Taxes",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        123,
+        62,
+        40
+      ],
+      "desc": "Kunnallisveroprosentti — the municipal income tax rate, as decided by the municipality and published by Verohallinto.",
+      "calc": "passthrough",
+      "num": [
+        "tulovero"
+      ],
+      "sources": [
+        {
+          "src": "csv",
+          "geo": "kunta",
+          "file": "data/external/vero_tulovero.csv",
+          "area_col": "kunta",
+          "period_col": "year",
+          "value_col": "pct",
+          "as": "tulovero"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/"
+        }
+      ],
+      "source": "Verohallinto, kuntien ja seurakuntien tuloveroprosentit",
+      "tables": [
+        "vero/tuloveroprosentit"
+      ],
+      "note": "Rates fell sharply in 2023 when health and social services moved to the hyvinvointialueet and the state took the funding with them — a 2022 rate and a 2023 rate are not comparable, and this series starts at the current decision. Lower is better is read from an owner's side — a lower rate is a lower holding cost. It is not a judgement about the municipality: the same rate funds its services.",
+      "warn": "One year only: Verohallinto publishes the rate as an annual decision, not as a time series, so there is no history here."
     }
   ],
   "osa": {

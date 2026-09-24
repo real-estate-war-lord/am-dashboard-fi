@@ -1,0 +1,33 @@
+{
+  "_doc": "Pinned URLs for the sources that are files or pages rather than an API. Every one was fetched live and recorded in docs/PROBE_FI.md. When a URL moves, fix it here — nothing else in the repository hard-codes it.",
+  "verohallinto_kiinteistovero": {
+    "label": "Verohallinto — kiinteistöveroprosentit kunnittain",
+    "route": "PxWeb",
+    "api": "https://vero2.stat.fi/PXWeb/api/v1/fi/Vero/Kiinteistoverot/kive_202.px",
+    "page": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/",
+    "years": "2014–2026",
+    "publisher": "Verohallinto",
+    "licence": "Verohallinnon tilastot. Attribution 'Lähde: Verohallinto'. No open-licence statement is published on the tax-rate pages themselves, so the figures are used with attribution and not redistributed as an open-licensed dataset.",
+    "note": "The 2026 column is marked ennakkotieto (preliminary) by the publisher."
+  },
+  "verohallinto_tulovero": {
+    "label": "Verohallinto — kuntien ja seurakuntien tuloveroprosentit",
+    "route": "decision page, table embedded as JSON in a :rows= attribute",
+    "page": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/",
+    "history": {
+      "2026": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/"
+    },
+    "publisher": "Verohallinto",
+    "licence": "Attribution 'Lähde: Verohallinto'.",
+    "note": "The rate is published as a decision, not as a statistic: no PxWeb table anywhere carries the municipal income tax percentage. The page's table is read from the JSON its own front end uses. Rows are matched to kunnat by name against kuntajako 2026 and every unmatched name is reported."
+  },
+  "kela_asumistuki": {
+    "label": "Kela — yleinen asumistuki, saajaruokakunnat kunnittain",
+    "route": "CKAN datastore SQL",
+    "api": "https://avoindata.suomi.fi/data/api/3/action/datastore_search_sql",
+    "resource": "a3be1d46-1c33-4a59-84d4-66a348b1551c",
+    "page": "https://avoindata.suomi.fi/data/fi/dataset/kelan-etuuksien-saajat-ja-maksetut-etuudet",
+    "publisher": "Kela",
+    "licence": "CC BY 4.0 — Lähde: Kela"
+  }
+}

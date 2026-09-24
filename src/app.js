@@ -31,7 +31,7 @@ const nf = (n, d = 1) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleStr
 const sign = (n, f) => n == null || isNaN(n) ? "–" : (n > 0 ? "+" : "") + f(n);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const FMT = {
-  pct0: v => nf(v, 0) + " %", pct1: v => nf(v, 1) + " %", signpct1: v => sign(v, x => nf(x, 1) + " %"),
+  pct0: v => nf(v, 0) + " %", pct1: v => nf(v, 1) + " %", pct2: v => nf(v, 2) + " %", signpct1: v => sign(v, x => nf(x, 1) + " %"),
   keur: v => nf(v / 1000, 0) + " k€", eur0: v => nf(v, 0) + " EUR", eur1: v => nf(v, 1) + " EUR",
   int: v => nf(v, 0), days: v => nf(v, 0) + " d", m2: v => nf(v, 0) + " m²", per1000: v => per1000(v) + " / 1,000", idx: v => nf(v, 1),
   /* grade points: signed, one decimal, no unit — the socioeconomic reference difference */

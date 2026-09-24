@@ -1,0 +1,19 @@
+{
+ "source": "Verohallinto — kuntien ja seurakuntien tuloveroprosentit",
+ "route": "decision page, table embedded as JSON in a :rows= attribute",
+ "verify_at_source": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/",
+ "pages": {
+  "2026": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/"
+ },
+ "measure": "kunnallisveroprosentti (column_1 of the decision table)",
+ "years": [
+  "2026"
+ ],
+ "kunnat": 308,
+ "rows": 308,
+ "unmatched": [],
+ "fetched": "2026-09-24",
+ "publisher": "Verohallinto",
+ "licence": "Attribution 'Lähde: Verohallinto'.",
+ "note": "The rate is published as a decision, not as a statistic: no PxWeb table anywhere carries the municipal income tax percentage. The page's table is read from the JSON its own front end uses. Rows are matched to kunnat by name against kuntajako 2026 and every unmatched name is reported."
+}

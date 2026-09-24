@@ -62,7 +62,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 2 | Geometry | ✅ | `data: Finnish boundary layers` |
 | 3 | Area indicators (rows 1–11) | ✅ | `feat: area indicators` |
 | 4 | Market indicators (rows 12–21) | ✅ | `feat: market indicators` |
-| 5 | Taxes (rows 29–30) | ☐ | |
+| 5 | Taxes (rows 29–30) | ✅ | `feat: municipal tax rates` |
 | 6 | Safety + Outlook (rows 31–33) | ☐ | |
 | 7 | Osa-alue level (row 34) | ☐ | |
 | 8 | Verify, docs, wrap-up | ☐ | |
@@ -121,8 +121,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - **Size:** kunta history moved to `dist/hist.json`; the page is 2 137 kB with a hard 3 MB guard in the build.
 - Checks: validate ✓ · links ✓ 14/14 · test ✓ 24+15 · build ✓ · fixture ✓ · 9 spot-checks reconcile exactly.
 
+### Phase 5 — Taxes ✅
+- 6 indicators in a new **Taxes** group, kunta level: property tax on a permanent dwelling, on another dwelling, general (building), general (land), undeveloped building site, and the municipal income-tax rate. **34 indicators live.**
+- Property tax comes from **Verohallinto's own keyless PxWeb** (`vero2.stat.fi`, `kive_202`), 2014–2026 — a far better route than the annual spreadsheet the spec expected.
+- The municipal income-tax rate is published as a *decision*, not a statistic, anywhere; it is read from the JSON its own page renders, with the URL pinned in the new `config/sources.json` and every unmatched municipality name failing the import.
+- New: `scripts/import_verohallinto.py`, `config/sources.json`, and a generic `csv` source type in the engine.
+- Checks: validate ✓ · links ✓ · test ✓ · build ✓ 2 224 kB · all six Helsinki rates match the published decision.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 5 — taxes (rows 29–30): `import_verohallinto.py`, property-tax % and municipal income-tax % per kunta, group "Taxes".
+**Next action:** Phase 6 — Safety (`rpk`, kunta, lower_better, direction-aware ranks) + Outlook (Väestöennuste 2024 `vaenn/14wx`, dashed projected segment, Helsinki city forecast by osa-alue).

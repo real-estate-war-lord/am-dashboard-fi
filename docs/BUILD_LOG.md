@@ -177,3 +177,28 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | `raku/15f6` publishes one year | Unoccupied dwellings has no history. Said so in the caveat rather than reaching into the frozen `asas` archive, which is on a different classification. |
 | The page passed 3 MB again as market rows landed | **Kunta history moved to `dist/hist.json`**, fetched when a chart, an area page or any period other than the latest asks for a series. The build now records each indicator's own period list, so the year selector and the chart axis are right before any history is fetched. The page is 2 137 kB, with room for phases 5–8. `build_dashboard.py` now fails the build if any dist file passes 3 MB, rather than warning. |
 | The observed-population series was inline for every kunta but read by one area page at a time | Moved into that kunta's own lazy file. |
+
+---
+
+## Phase 5 — Taxes (rows 29–30)
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ 34 indicators |
+| `make links` | ✓ including the two Verohallinto pages |
+| `python3 scripts/import_verohallinto.py` | ✓ 20 020 property-tax rows (308 kunnat, 2014–2026) · 308 income-tax rows (2026) |
+| `make build` | ✓ `index.html` 2 224 kB |
+| `make test` | ✓ 24 + 15 |
+| Spot-check | ✓ Helsinki 2026: permanent dwelling **0,41 %** · other dwelling **0,93 %** · general building **0,93 %** · general land **1,30 %** · undeveloped site **4,30 %** · municipal income tax **5,30 %** — every one matches the published decision |
+
+### Decisions logged in phase 5
+
+| ⚠ | Decision |
+|---|---|
+| The spec expected an annual XLSX from vero.fi | Better route found and used: **Verohallinto runs its own keyless PxWeb** at `vero2.stat.fi`, table `kive_202`, with the applied percentage per kunta per category for **2014–2026**. That is thirteen years of history instead of one file, and it needs no spreadsheet parsing. |
+| **The municipal income-tax rate is not a statistic anywhere.** Not in StatFin, not in `Kuntien_avainluvut`, not in Verohallinto's own PxWeb, not on avoindata.fi | Verohallinto publishes it as an annual *decision*. Its page renders the table from JSON in a `:rows=` attribute, and that JSON is read, with the URL pinned in the new `config/sources.json`. The rows carry names, not codes, so they are matched against kuntajako 2026 and **every unmatched name fails the import**. That caught Maarianhamina, whose boundary name is "Maarianhamina - Mariehamn"; bilingual names are now registered as aliases and all 308 match. |
+| Only one year of income-tax history | Said so in the caveat. The 2023 hyvinvointialue reform cut every municipal rate by about 12 pp when health and social care moved to the wellbeing services counties, so an older rate is not comparable with a current one anyway — also said, rather than quietly splicing a series across the break. |
+| `direction` for a tax rate | `lower_better`, read explicitly from an owner's side, with the note saying it is not a judgement about the municipality: the same rate funds its services. |
+| 199 of 308 kunnat have an undeveloped-site rate | Not every municipality sets one. A missing rate is shown as `–` with a caveat saying it is not a rate of zero. |
+| Verohallinto states no open licence on the tax-rate pages | Recorded honestly in `docs/SOURCES.md` and in `config/sources.json`: the figures are used with the attribution "Lähde: Verohallinto" and are not republished as an open-licensed dataset. |
+| A third file-based source after Kela | Generalised into a `csv` source type in `build_makro.py` that names its own columns, so the next file source needs no new engine code. |

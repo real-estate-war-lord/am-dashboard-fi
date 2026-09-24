@@ -1,0 +1,35 @@
+{
+ "source": "Verohallinto — kiinteistöveroprosentit kunnittain",
+ "api": "https://vero2.stat.fi/PXWeb/api/v1/fi/Vero/Kiinteistoverot/kive_202.px",
+ "verify_at_source": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/",
+ "table": "kive_202",
+ "measure": "Veroprosentti — the applied property-tax percentage",
+ "categories": {
+  "2": "Vakituisen asumisen %",
+  "3": "Muun kuin vakituisen asumisen %",
+  "7": "Yleinen kiinteistövero-% (rakennus)",
+  "11": "Yleinen kiinteistövero-% (maapohja)",
+  "13": "Rakentamattoman rakennuspaikan %"
+ },
+ "years": "2014–2026",
+ "kunnat": 308,
+ "rows": 20020,
+ "not_a_kunta": [
+  "000",
+  "01",
+  "02",
+  "04",
+  "05",
+  "06",
+  "07",
+  "08",
+  "09",
+  "099",
+  "10",
+  "11"
+ ],
+ "fetched": "2026-09-24",
+ "publisher": "Verohallinto",
+ "licence": "Verohallinnon tilastot. Attribution 'Lähde: Verohallinto'. No open-licence statement is published on the tax-rate pages themselves, so the figures are used with attribution and not redistributed as an open-licensed dataset.",
+ "note": "The 2026 column is marked ennakkotieto (preliminary) by the publisher."
+}
