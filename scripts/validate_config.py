@@ -57,15 +57,40 @@ def check_source(ind, s, show, cache):
     elim = [k for k, v in vars_.items() if v.get("elimination")]
     print(f"  • {ind['key']} → {name} · {m.get('title', '')[:70]}")
     print(f"      vars: {', '.join(vars_)} · eliminable: {elim or 'none'}")
+    # The registry names the cells it wants twice over: explicitly in `vars`, and implicitly
+    # through the indicator's `num`/`den`, which scripts/fetch_statfin.py turns into the
+    # contentscode selection. Both are checked here, the same way the fetcher reads them.
+    sel = dict(s.get("vars") or {})
+    if "contentscode" in vars_ and "contentscode" not in sel:
+        known = set(vars_["contentscode"]["values"])
+        implied = [c for c in list(ind.get("num") or []) + list(ind.get("den") or []) if c in known]
+        unknown = [c for c in list(ind.get("num") or []) + list(ind.get("den") or [])
+                   if c not in known and c not in {v for vv in sel.values() for v in vv}]
+        if implied:
+            sel["contentscode"] = implied
+            print(f"      · contentscode taken from num/den: {', '.join(implied)}")
+        if unknown and s.get("src") == "statfin" and not any(
+                c in {x for vv in (s.get("vars") or {}).values() for x in vv} for c in unknown):
+            # a code the indicator needs from a different source is fine; one that matches
+            # nothing anywhere is not, and the build would silently produce nulls
+            other = set()
+            for s2 in ind.get("sources", []):
+                other |= {x for vv in (s2.get("vars") or {}).values() for x in vv}
+                if s2.get("src") != "statfin":
+                    other.add(s2.get("as") or "")
+            for c in unknown:
+                if c not in other:
+                    bad(f"{ind['key']}/{name}: {c!r} is in num/den but is not a value of any "
+                        f"variable of this table and no other source provides it")
     # every variable must be either asked for or eliminable, or the API returns a cross-product
     for code, v in vars_.items():
-        if code not in (s.get("vars") or {}) and not v.get("elimination") and not v.get("time"):
+        if code not in sel and not v.get("elimination") and not v.get("time"):
             bad(f"{ind['key']}/{name}: variable {code!r} is neither selected nor eliminable — "
                 f"add it to `vars` or the pull will silently mix its categories")
     area_var = s.get("area_var")
     if area_var and area_var not in vars_:
         bad(f"{ind['key']}/{name}: area_var {area_var!r} not in table; available: {list(vars_)}")
-    for code, values in (s.get("vars") or {}).items():
+    for code, values in sel.items():
         if code not in vars_:
             bad(f"{ind['key']}/{name}: variable {code!r} not in table; available: {list(vars_)}")
             continue

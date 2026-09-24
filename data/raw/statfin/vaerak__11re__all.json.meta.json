@@ -1,0 +1,29 @@
+{
+ "table": "vaerak/11re",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vaerak/11re.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__vaerak/11re.px/",
+ "query": {
+  "ikaryhma_10_20180101": [
+   "SSS"
+  ],
+  "sukupuoli_9_20180101": [
+   "SSS"
+  ],
+  "contentscode": [
+   "vaerak-vaesto"
+  ],
+  "alue_23_20260101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-04-01T05:00:00Z",
+ "label": "Population 31.12. by Area, Age, Sex, Year and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for growth",
+ "cells": 16686
+}

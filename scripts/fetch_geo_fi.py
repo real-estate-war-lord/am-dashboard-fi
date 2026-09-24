@@ -255,7 +255,14 @@ def main():
              "licence": "CC BY 4.0 — Lähde: Tilastokeskus"}
     G.write_geojson(G.GEO / "kunnat.geojson", kunnat,
                     dict(stamp, layer=KUNTA_LAYER, simplified=f"{kpct * 100:.2f}% ({ktool})",
-                         land_area_km2=round(karea)))
+                         land_area_km2=round(karea), lod="detail"))
+    csimp, cpct, ctool = G.lod([{"type": "Feature", "properties": {"kunta": f["properties"]["kunta"]},
+                                 "geometry": f["geometry"]} for f in kunnat], 620_000, "kunnat (coarse)")
+    G.write_geojson(G.GEO / "kunnat_coarse.geojson",
+                    [f for f in csimp if G.rings_of(f["geometry"])],
+                    dict(stamp, layer=KUNTA_LAYER, simplified=f"{cpct * 100:.2f}% ({ctool})", lod="coarse",
+                         note="Drawn at national zoom and inlined in the page; the detailed rings in "
+                              "kunnat.geojson back the test-property pin lookup."))
     G.write_geojson(G.GEO / "maakunnat.geojson", maakunnat,
                     dict(stamp, layer=MAAKUNTA_LAYER, simplified=f"{mpct * 100:.2f}% ({mtool})"))
     G.write_geojson(G.GEO / "osa_alueet.geojson", osa,

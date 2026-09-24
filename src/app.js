@@ -83,14 +83,19 @@ const projOf = key => { const i = indOf(key); return (i && i.proj) || null; };
    (the file sources: Paavo, Aluesarjat, Verohallinto, Kela). Nothing here is hard-coded per
    vintage — when 13mt gains a new postal-code vintage the link follows the data.
      https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__ashi/statfin_ashi_pxt_13mt.px/ */
-const STATFIN_UI = "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin";
+const STATFIN_UI = "https://pxdata.stat.fi/PxWeb/pxweb/en";
 function srcUrl(src, code) {
   if (!src) return "";
   if (src.url) return src.url;
   if (!src.table) return "";
-  const [db, id] = String(src.table).split("/");
+  /* "<db>/<id>", or "<database>:<db>/<id>" for the frozen archive and the Paavo database */
+  let t = String(src.table), database = "StatFin";
+  if (t.includes(":")) { const i = t.indexOf(":"); database = t.slice(0, i); t = t.slice(i + 1); }
+  const [db, id] = t.split("/");
   if (!db || !id) return "";
-  return `${STATFIN_UI}/StatFin__${db}/statfin_${db}_pxt_${id}.px/`;
+  const pid = database.endsWith("Passiivi") && !id.startsWith("statfinpas_")
+    ? `statfinpas_${db}_pxt_${id}` : id;
+  return `${STATFIN_UI}/${database}/${database}__${db}/${pid}.px/`;
 }
 /* the link itself — always a new tab, always naming who publishes it */
 function srcLink(src, code, label) {
@@ -147,6 +152,54 @@ const YEARS = [...new Set([...((D.meta && D.meta.years) || []), ...((D.osa && D.
 const LATEST = (D.meta && D.meta.latest_year) || (YEARS[YEARS.length - 1] || "");
 const MK = { ind: (IND[0] || {}).key, muni: null, own: false, year: LATEST, osaView: "osa_alue", micro: false, mind: "rented_pct", infra: false, pub: false, srv: false };
 /* Micro (building) layer: dist/micro/<kunta>.json, loaded on demand; D.micro = index {code: {file, n}} */
+/* ---------- lazy payloads ----------
+   3 018 postal polygons cannot fit in the page next to their values and their history, so
+   the build splits them (scripts/build_makro.py):
+     dist/area/<kunta>.json   the detailed rings and the full history of one kunta's postal
+                              areas — fetched the first time that kunta is opened
+     dist/monthly.json        every monthly series — fetched the first time a monthly
+                              indicator is selected
+   Both merge into the objects the rest of the page already uses, so nothing downstream has
+   to know they arrived late. Until a file lands the areas simply have no rings and no
+   history, which the UI says out loud rather than drawing an empty map. */
+const PNO = { loaded: {}, busy: {}, err: {} };
+function pnoLoad(kunta, then) {
+  const k = String(kunta || "");
+  if (!k || PNO.loaded[k] || PNO.busy[k] || PNO.err[k]) return PNO.loaded[k];
+  PNO.busy[k] = true;
+  fetch(`area/${encodeURIComponent(k)}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      (d.areas || []).forEach(row => { const a = byNr[row.nr]; if (!a) return; a.rings = row.rings || []; a.hist = row.hist || {}; });
+      PNO.loaded[k] = true; delete PNO.busy[k];
+      if (then) then();
+    })
+    .catch(() => { PNO.err[k] = true; delete PNO.busy[k]; if (then) then(); });
+  return false;
+}
+const pnoReady = k => !!PNO.loaded[String(k || "")];
+/* every kunta whose polygons the current screen needs */
+function pnoNeed(codes, then) { (codes || []).filter(Boolean).forEach(c => pnoLoad(c, then)); }
+
+const MONTHLY_KEYS = new Set(((D.meta && D.meta.monthly_keys) || []));
+const isMonthly = key => MONTHLY_KEYS.has(key);
+const MON = { data: null, busy: false, err: false };
+function monLoad(then) {
+  if (MON.data || MON.busy || MON.err) return MON.data;
+  MON.busy = true;
+  fetch("monthly.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      MON.data = d;
+      Object.entries(d.kunta || {}).forEach(([code, rows]) => {
+        const m = byCode[code]; if (!m) return;
+        m.hist = m.hist || {};
+        Object.entries(rows).forEach(([k, series]) => { m.hist[k] = series; const ts = Object.keys(series).sort(); if (ts.length) m[k] = series[ts[ts.length - 1]]; });
+      });
+      MON.busy = false; if (then) then();
+    })
+    .catch(() => { MON.err = true; MON.busy = false; if (then) then(); });
+  return null;
+}
+
 const MICRO_IDX = (D.micro && D.micro.municipalities) || {};
 const MICRO = {};                                  /* code → {meta, b:[…]} once loaded */
 const MICRO_INDS = [
@@ -217,7 +270,8 @@ const HL_KEYS = ["growth", "price_m2", "rent", "unemp", "renters", "income_med",
 /* the municipality card on the map adds these after the first four headline figures */
 const STRIP_EXTRA = ["crime_1000"];
 /* quick-pick indicator chips next to the indicator select; registry entries with `chip: true` follow */
-const QUICK_KEYS = ["growth", "price_m2", "rent", "unemp", "renters", "income_med"].concat(IND.filter(i => i.chip).map(i => i.key));
+const QUICK_KEYS = [...new Set(["growth", "price_m2", "rent", "unemp", "renters", "income_med"]
+  .concat(IND.filter(i => i.chip).map(i => i.key)))];
 /* link into the chart generator with one area pre-selected */
 const chartLink = (key, type, code) => `charts?ind=${encodeURIComponent(key)}&a=${type}:${code}&y0=&y1=&med=1`;
 /* link into the one-property Analysis sheet */
@@ -346,6 +400,11 @@ function renderTop() {
 const RENDER = { makro: vMakro, table: vTable, area: vArea, charts: vCharts, sources: vSources, pipeline: vPipeline, project: vProject,
                  public: vPublic, publist: vPubList, school: vSchool, schoollist: vSchoolList, analysis: vAnalysis };
 function render() {
+  /* a monthly indicator's series is not in the page — ask for it once, then re-render */
+  if (isMonthly(MK.ind) && !MON.data && !MON.err) monLoad(() => renderKeep());
+  if (S.view === "area" && AR.type === "postinumero" && byNr[AR.code] && !pnoReady(byNr[AR.code].muni))
+    pnoLoad(byNr[AR.code].muni, () => renderKeep());
+  if (S.view === "area" && AR.type === "kunta" && !pnoReady(AR.code)) pnoLoad(AR.code, () => renderKeep());
   renderNav(); renderTop();
   const body = document.getElementById("body");
   body.innerHTML = (RENDER[S.view] || vMakro)();
@@ -675,7 +734,16 @@ function yearSelect() {
 const mainRing = a => (a.rings || []).slice().sort((x, y) => y.length - x.length)[0] || [];
 const centroid = ring => ring.reduce((o, p) => [o[0] + p[0] / ring.length, o[1] + p[1] / ring.length], [0, 0]);
 function muniAreas(code) { return (osaMode() && isOsaMuni(code)) ? OSA.areas.filter(a => String(a.muni) === String(code)) : AREAS.filter(a => a.muni === code); }
-function boundsOf(list) { const pts = []; list.forEach(a => (a.rings || []).forEach(r => r.forEach(p => pts.push(p)))); return pts.length ? L.latLngBounds(pts) : null; }
+/* Bounds from whatever the object has: its rings if they are loaded, otherwise the bounding
+   box the build ships inline for every area. A camera move must never wait on a fetch. */
+function boundsOf(list) {
+  const pts = [];
+  (list || []).forEach(a => {
+    if (a.rings && a.rings.length) a.rings.forEach(r => r.forEach(p => pts.push(p)));
+    else if (a.bb) { pts.push([a.bb[0], a.bb[1]]); pts.push([a.bb[2], a.bb[3]]); }
+  });
+  return pts.length ? L.latLngBounds(pts) : null;
+}
 function applyPendingFit() {
   if (!LF.map || !LF.pendingFit) return;
   const b = boundsOf(muniAreas(LF.pendingFit)); LF.pendingFit = null;
@@ -2209,6 +2277,7 @@ function lfMicroLayers() {
   if (cnt) cnt.textContent = `${nf(rows.length, 0)} of ${nf(d.meta.n, 0)} buildings · ${nf(rows.reduce((s_, r) => s_ + r[2], 0), 0)} dwellings`;
 }
 function lfLayers() {
+  if (isMonthly(MK.ind) && !MON.data && !MON.err) monLoad(() => { if (LF.map) lfLayers(); renderKeep(); });
   if (LF.map && microMode()) { lfMicroLayers(); return; }
   lfDrop("microG");
   if (!LF.map) return;
@@ -2219,13 +2288,18 @@ function lfLayers() {
   const micro = fine && (osaMode() ? osaOwn(ind.key) : ind.level === "postinumero");
   LF.level = (fine ? "micro" : zoom < 8 ? "national" : "macro") + (osaMode() ? "-osa" : "") + (MK.muni || "");
   lfDrop("areaG", "labG");
-  const areas = MK.muni ? muniAreas(MK.muni) : AREAS;
+  /* Nationally the map draws kunta polygons: the postal rings are not in the page, they are
+     fetched per kunta. Nothing is lost by it — the Danish edition drew postal outlines at
+     national zoom but still coloured them by their municipality's value. */
+  if (MK.muni && !pnoReady(MK.muni) && !PNO.err[MK.muni]) pnoLoad(MK.muni, () => { if (S.view === "makro" && LF.map) { lfLayers(); applyPendingFit(); } });
+  const areas = MK.muni ? muniAreas(MK.muni) : MUNI;
   const munis = MK.muni ? [byCode[MK.muni]].filter(Boolean) : MUNI;
   const vk = o => V(o, ind.key);
   const sc = scaleOf(micro ? areas.filter(a => vk(a) != null) : munis, vk, null, ind);
   const polys = [];
   areas.forEach(a => {
-    const m = byCode[a.muni];
+    const m = a.muni ? byCode[a.muni] : a;          /* a kunta polygon is its own parent */
+    if (!a.rings || !a.rings.length) return;
     const src = micro && vk(a) != null ? a : m;
     const t = src ? sc.t(vk(src)) : null;
     const w = fine ? 1.4 : 0.8;
@@ -2236,6 +2310,13 @@ function lfLayers() {
   });
   LF.areaG = L.layerGroup(polys).addTo(LF.map);
   LF.ctx = { areas, munis, sc, micro, ind, vk };
+  if (MK.muni && !polys.length) {
+    const note = PNO.err[MK.muni]
+      ? "The postal-code boundaries for this kunta could not be loaded — open the dashboard through a server (make serve) or the published link, not as a file on disk."
+      : "Loading the postal-code boundaries for this kunta…";
+    const el = document.getElementById("maplegend");
+    if (el) el.innerHTML = `<div class="leg"><span class="dim">${esc(note)}</span></div>`;
+  }
   lfInfraLayers();
   lfPublicLayers();
   lfServicesLayers();

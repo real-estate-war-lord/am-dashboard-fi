@@ -89,8 +89,7 @@ class TableNames(unittest.TestCase):
 
     def test_verify_at_source_url(self):
         self.assertEqual(statfin.ui_url("ashi/13mt"),
-                         "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__ashi/"
-                         "statfin_ashi_pxt_13mt.px/")
+                         "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__ashi/13mt.px/")
 
     def test_archive_api_path_uses_the_long_id(self):
         """Live StatFin serves '13mt.px'; the frozen archive serves the long spelling."""

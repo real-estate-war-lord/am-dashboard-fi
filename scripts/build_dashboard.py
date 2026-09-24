@@ -152,8 +152,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     # the infrastructure layer is inlined in the page, and also served as files so it can be reused
-    for src in (ROOT / "data" / "geo" / "infra_projects.geojson", PROC / "infra_index.json", PROC / "public_index.json",
-                PROC / "schools.json"):
+    for src in (ROOT / "data" / "geo" / "infra_projects.geojson", PROC / "infra_index.json",
+                PROC / "public_index.json", PROC / "schools.json", PROC / "monthly.json"):
         if src.exists():
             import shutil
             shutil.copy(src, out.parent / src.name)
@@ -166,6 +166,20 @@ def main():
         for f in pub.glob("*.json"):
             shutil.copy(f, pd_ / f.name)
         print(f"copied {len(list(pd_.glob('*.json')))} public-building files → {pd_}")
+    # the per-kunta lazy payload: detailed postal rings and their history, fetched by the page
+    # the first time a kunta is opened (scripts/build_makro.py writes them)
+    ad = PROC / "area"
+    if ad.exists():
+        import shutil
+        dd = out.parent / "area"
+        dd.mkdir(exist_ok=True)
+        for f in dd.glob("*.json"):
+            f.unlink()
+        for f in ad.glob("*.json"):
+            shutil.copy(f, dd / f.name)
+        files = list(dd.glob("*.json"))
+        big = max((f.stat().st_size for f in files), default=0)
+        print(f"copied {len(files)} per-kunta area files → {dd} (largest {big/1024:.0f} kB)")
     srv = PROC / "services"
     if srv.exists():
         import shutil

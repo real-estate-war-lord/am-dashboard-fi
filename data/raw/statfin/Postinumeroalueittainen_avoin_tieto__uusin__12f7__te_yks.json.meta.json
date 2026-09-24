@@ -1,0 +1,23 @@
+{
+ "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/Postinumeroalueittainen_avoin_tieto/uusin/12f7.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/Postinumeroalueittainen_avoin_tieto/Postinumeroalueittainen_avoin_tieto__uusin/12f7.px/",
+ "query": {
+  "contentscode": [
+   "te_yks"
+  ],
+  "postinumeroalue_4_20260101": [
+   "*"
+  ],
+  "timeperiod_y": [
+   "*"
+  ]
+ },
+ "updated": "2026-09-15T05:00:00Z",
+ "label": "9. All data groups by Postal code area, Year and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for avg_m2, flats, growth, higher_ed, income_hh, income_med, m2_person, renters, single, unemp, young",
+ "cells": 45285
+}

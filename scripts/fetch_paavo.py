@@ -139,7 +139,27 @@ def main():
                     {"layer": layer, "layer_year": args.year, "statistics_year": year,
                      "crs": "EPSG:4326", "publisher": "Tilastokeskus",
                      "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
-                     "simplified": f"{pct * 100:.2f}% ({tool})"})
+                     "simplified": f"{pct * 100:.2f}% ({tool})", "lod": "detail"})
+
+    # 3. the coarse level of detail — what the page inlines for the national view
+    csimp, cpct, ctool = G.lod([{"type": "Feature", "properties": {"i": i}, "geometry": f["geometry"]}
+                                for i, f in enumerate(feats)], 620_000, "postinumerot (coarse)")
+    cgeom = {f["properties"]["i"]: f["geometry"] for f in csimp}
+    cgj = []
+    for i, f in enumerate(feats):
+        g = cgeom.get(i)
+        if not g or not G.rings_of(g):
+            continue
+        p = f["properties"]
+        cgj.append({"type": "Feature",
+                    "properties": {"nr": str(p.get("postinumeroalue") or "").zfill(5)},
+                    "geometry": g})
+    G.write_geojson(G.GEO / "postinumerot_coarse.geojson", cgj,
+                    {"layer": layer, "crs": "EPSG:4326", "publisher": "Tilastokeskus",
+                     "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+                     "simplified": f"{cpct * 100:.2f}% ({ctool})", "lod": "coarse",
+                     "note": "Drawn at national zoom only. Opening a kunta fetches the detailed "
+                             "rings from dist/area/<kunta>.json."})
 
     problems = []
     if lost:

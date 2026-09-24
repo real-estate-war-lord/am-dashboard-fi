@@ -262,6 +262,18 @@ def ring_area_km2(rings):
 
 # ---------------------------------------------------------------- writing
 
+def lod(features, budget, label):
+    """A coarser copy of the same features, for the layer the page inlines.
+
+    Two levels of detail, because 3 018 postal polygons cannot both be sharp enough to drill
+    into and small enough to inline in one HTML file. The coarse set draws the country; the
+    detailed set is fetched per kunta when one is opened. Both come from the same download,
+    so they can never disagree about which areas exist.
+    """
+    got, pct, tool = simplify(features, budget=budget, label=label)
+    return got, pct, tool
+
+
 def write_geojson(path, features, meta):
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

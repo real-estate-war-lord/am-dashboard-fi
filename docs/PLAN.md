@@ -60,7 +60,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 | 0 | Plan + clean skeleton | ✅ | `feat: Finland skeleton` |
 | 1 | Probe | ✅ | `chore: FI endpoint probe` |
 | 2 | Geometry | ✅ | `data: Finnish boundary layers` |
-| 3 | Area indicators (rows 1–11) | ☐ | |
+| 3 | Area indicators (rows 1–11) | ✅ | `feat: area indicators` |
 | 4 | Market indicators (rows 12–21) | ☐ | |
 | 5 | Taxes (rows 29–30) | ☐ | |
 | 6 | Safety + Outlook (rows 31–33) | ☐ | |
@@ -107,8 +107,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - Two bugs the checks caught: all 61 Vantaa osa-alueet collapsing onto one code (HSY publishes Vantaa at *tila* level), and kunnat with no maakunta (no boundary layer carries the mapping).
 - Checks: `make geo` ✓ · `make validate` ✓ · `make test` ✓ 24+15 · `make build` ✓ · `make fixture` ✓.
 
+### Phase 3 — Area indicators ✅
+- 14 indicators live: growth, median income, household income, 20–34, one-person households, renters, unemployment (annual Paavo, both levels) and monthly (TEM, kunta), tertiary education, kerrostalo share, average dwelling size, m² per person, foreign-language speakers, housing-allowance households.
+- **Paavo is the backbone** (`12f7` postal / `12f8` kunta, 2010–2024): the same definitions at both levels, so a kunta and a postal figure are directly comparable. Other sources appear only where Paavo has nothing.
+- New: `scripts/fetch_statfin.py` (one selection per table, chunked under the cell cap, stamped), `scripts/import_kela.py` (CKAN datastore, CC BY 4.0), `scripts/build_makro.py` (the calc engine: passthrough / share_pct / ratio_pct / yoy_pct, suppression preserved as null).
+- **Size:** the first build was 3.3 MB. Split into two lazy payloads — `dist/area/<kunta>.json` (detailed postal rings + history) and `dist/monthly.json` — bringing the page to 2 810 kB with makro.json at 2 212 kB.
+- Checks: validate ✓ · links ✓ 6/6 · test ✓ 24+15 · build ✓ · fixture ✓ · 8 of 8 spot-checks reconcile exactly against the published cells.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 3 — area indicators (rows 1–11): `config/indicators.json`, `scripts/fetch_statfin.py`, `scripts/build_makro.py` (with the level-of-detail split decided in phase 2).
+**Next action:** Phase 4 — market indicators (rows 12–21): prices (`ashi` 13mt/13mu/13mx), rents (`asvu` 15fa live + the frozen 13eb), production (`raku`, maakunta only), stock and vacancy (`raku/15f6`), net migration (`muutl`).

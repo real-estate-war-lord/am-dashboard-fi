@@ -1,9 +1,795 @@
 {
   "_doc": "Indicator registry for the Finland edition. One indicator = one entry in `indicators`. **The hard-data rule: every entry here is an official published figure or plain arithmetic on official figures — a difference, a share, a sum, a per-1,000. No entry may use an assumption, a fitted trend, a cap or a model of our own.** FIELDS — `key`: the id used in makro.json, the URL hash and the CSV export. `label` / `short` / `unit`: UI text. `level`: the finest geography the indicator natively exists at — 'kunta' | 'postinumero' | 'osa_alue'; a coarser value shown on a finer polygon is marked ° in the UI. `group`: which section of the indicator select it sits in (GROUP_ORDER in src/app.js: Demographics, Income & jobs, Housing stock, Market, Construction, Taxes, Safety, Outlook, Schools, Growth signals). `hue`: RGB target for the choropleth ramp (paper #E8EDE7 → hue). `fmt`: a key of FMT in src/app.js. `direction`: 'higher_better' | 'lower_better' | 'neutral' — which end of the scale is favourable; 'neutral' is never coloured good/bad and never carries the '↓ lower is better' note. `desc` / `note` / `warn`: the ⓘ details, the glossary line and the caveat. `chip: true` puts the indicator in the quick-pick chip row. SOURCES — `sources` is the list the fetcher pulls, one entry per level: {`src`: 'statfin' | 'paavo' | 'aluesarjat' | 'kela' | 'vero' | 'hri', `table`: '<db>/<id>' for StatFin (e.g. 'ashi/13mt'), `vars`: {<variable code>: [<value codes>]} exactly as the PxWeb metadata spells them, `geo`: the level this source serves, `area_var`: the PxWeb variable holding the area code, `contents`: the contentscode value the number comes from}. A variable left out of `vars` is returned as its total only when the PxWeb metadata says elimination=true — scripts/validate_config.py checks that for every entry. `src_verify` is the list behind the 'Verify at source' link; each entry carries `geo`, and either `table` ('<db>/<id>', which becomes the pxdata.stat.fi table page) or a full `url` for a file source. VINTAGES — a StatFin area variable carries its classification year in its own name (`postinumeroalue_4_20220101`, `alue_2026`). It is recorded verbatim in `vars`, and two tables on different vintages are never joined silently: docs/GEO.md lists which vintage each table is on and what we do about it. CALCS — `calc` names the post-processing in scripts/build_makro.py: 'passthrough', 'share_of_total', 'yoy_pct', 'per_1000_dwellings', 'ratio_pct', 'sum4q', 'rolling4q_per_1000_pop', 'rolling4q_per_1000_dwellings', 'rolling4q_yoy_pct', 'forecast'. `select` narrows the rows a calc sees; a value may be a list of codes, in which case matching rows are summed. `history_from` is the first year of the yearly history in Charts; `map_from` the first year the map/table year selector offers. SUPPRESSION — Paavo suppresses areas under 30 residents / 10 households and StatFin's ashi and asvu suppress cells with too few observations. A suppressed cell is null and is shown as '–'. It is never read as 0, and an area we do not cover reads 'Not covered yet' rather than a number.",
   "history_years": 12,
-  "indicators": [],
+  "indicators": [
+    {
+      "key": "growth",
+      "label": "Population growth",
+      "short": "Growth",
+      "unit": "% / yr",
+      "fmt": "signpct1",
+      "group": "Demographics",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "chip": true,
+      "desc": "Change in the number of inhabitants over one year, %. Kunta figures are Statistics Finland's population statistics at 31 December; postal-code figures are Paavo, which runs two years behind.",
+      "calc": "yoy_pct",
+      "num": [
+        "he_vakiy"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaerak/11re",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_y",
+          "vars": {
+            "ikaryhma_10_20180101": [
+              "SSS"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaerak-vaesto"
+            ]
+          },
+          "as": "he_vakiy"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaerak/11re"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus vaerak 11re (kunta, 31 Dec) · Paavo 12f7 (postinumero)",
+      "tables": [
+        "vaerak/11re",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+      ],
+      "note": "Kunta and postal-code growth come from two different releases and two different years. Each level's own period is shown in the 'as of' line; they are never averaged together.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "income_med",
+      "label": "Median income of inhabitants",
+      "short": "Median inc.",
+      "unit": "€ / yr",
+      "fmt": "eur0",
+      "group": "Income & jobs",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Median disposable monetary income of inhabitants aged 18 or over (Paavo hr_mtu).",
+      "calc": "passthrough",
+      "num": [
+        "hr_mtu"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures.",
+      "chip": true
+    },
+    {
+      "key": "income_hh",
+      "label": "Mean household income",
+      "short": "Household inc.",
+      "unit": "€ / yr",
+      "fmt": "eur0",
+      "group": "Income & jobs",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Average disposable monetary income per household-dwelling unit (Paavo tr_ktu).",
+      "calc": "passthrough",
+      "num": [
+        "tr_ktu"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "young",
+      "label": "Share aged 20–34",
+      "short": "20–34",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Demographics",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "desc": "Inhabitants aged 20–34 as a share of all inhabitants (Paavo he_20_24 + he_25_29 + he_30_34 ÷ he_vakiy).",
+      "calc": "share_pct",
+      "num": [
+        "he_20_24",
+        "he_25_29",
+        "he_30_34"
+      ],
+      "den": [
+        "he_vakiy"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures.",
+      "chip": true
+    },
+    {
+      "key": "single",
+      "label": "One-person households",
+      "short": "1-person",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Demographics",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "desc": "One-person household-dwelling units as a share of all households (Paavo te_yks ÷ te_taly).",
+      "calc": "share_pct",
+      "num": [
+        "te_yks"
+      ],
+      "den": [
+        "te_taly"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "renters",
+      "label": "Renter households",
+      "short": "Renters",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        40,
+        84,
+        128
+      ],
+      "desc": "Household-dwelling units living in a rented dwelling, as a share of all households (Paavo te_vuok_as ÷ te_taly).",
+      "calc": "share_pct",
+      "num": [
+        "te_vuok_as"
+      ],
+      "den": [
+        "te_taly"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures.",
+      "chip": true
+    },
+    {
+      "key": "unemp",
+      "label": "Unemployment rate",
+      "short": "Unemp.",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Income & jobs",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        166,
+        88,
+        24
+      ],
+      "desc": "Unemployed as a share of the labour force, where the labour force is the employed plus the unemployed (Paavo pt_tyott ÷ (pt_tyoll + pt_tyott)). Paavo publishes the counts, not the rate; the division is ours and is plain arithmetic on the two published cells.",
+      "calc": "ratio_pct",
+      "num": [
+        "pt_tyott"
+      ],
+      "den": [
+        "pt_tyoll",
+        "pt_tyott"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures.",
+      "chip": true
+    },
+    {
+      "key": "higher_ed",
+      "label": "Tertiary education",
+      "short": "Tertiary",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Income & jobs",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        28,
+        92,
+        78
+      ],
+      "desc": "Inhabitants aged 18 or over with a tertiary degree, as a share of all inhabitants aged 18 or over (Paavo ko_al_kork + ko_yl_kork ÷ ko_ika18y).",
+      "calc": "share_pct",
+      "num": [
+        "ko_al_kork",
+        "ko_yl_kork"
+      ],
+      "den": [
+        "ko_ika18y"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "flats",
+      "label": "Dwellings in blocks of flats",
+      "short": "Kerrostalo",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        40,
+        84,
+        128
+      ],
+      "desc": "Dwellings in blocks of flats (kerrostalo) as a share of all dwellings (Paavo ra_kt_as ÷ ra_asunn).",
+      "calc": "share_pct",
+      "num": [
+        "ra_kt_as"
+      ],
+      "den": [
+        "ra_asunn"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "avg_m2",
+      "label": "Average dwelling size",
+      "short": "Ø m²",
+      "unit": "m²",
+      "fmt": "m2",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Average floor area per dwelling (Paavo ra_as_kpa).",
+      "calc": "passthrough",
+      "num": [
+        "ra_as_kpa"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "m2_person",
+      "label": "Floor area per person",
+      "short": "m² / person",
+      "unit": "m²",
+      "fmt": "m2",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "Average floor area per person in occupied dwellings (Paavo te_as_valj).",
+      "calc": "passthrough",
+      "num": [
+        "te_as_valj"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        },
+        {
+          "src": "statfin",
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+          "area_var": "postinumeroalue_4_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+        },
+        {
+          "geo": "postinumero",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f7"
+        }
+      ],
+      "source": "Tilastokeskus, Paavo 12f7 / 12f8 (postal code area / municipality)",
+      "tables": [
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f7",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Paavo, Statistics Finland's postal-code statistics. The same definitions are used at kunta and postinumero level, so the two are directly comparable. Paavo suppresses an area with fewer than 30 residents or 10 households — a suppressed figure is shown as – and is never read as zero.",
+      "warn": "Paavo's statistics year lags its release by two years: the 2026 release carries 2024 figures."
+    },
+    {
+      "key": "foreign",
+      "label": "Foreign-language speakers",
+      "short": "Foreign lang.",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Demographics",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        10,
+        88,
+        70
+      ],
+      "desc": "Inhabitants whose registered mother tongue is neither a national language (Finnish, Swedish or Sami) nor unknown, as a share of the population — Statistics Finland's published 'FOREIGN LANGUAGES, TOTAL' (code 02) divided by the population total.",
+      "calc": "share_pct",
+      "num": [
+        "02"
+      ],
+      "den": [
+        "SSS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "vaerak/11rm",
+          "area_var": "alue_23_20260101",
+          "time_var": "timeperiod_y",
+          "split_var": "kieli_15_20180102",
+          "vars": {
+            "kieli_15_20180102": [
+              "SSS",
+              "02"
+            ],
+            "sukupuoli_9_20180101": [
+              "SSS"
+            ],
+            "contentscode": [
+              "vaerak-vaesto"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "vaerak/11rm"
+        }
+      ],
+      "source": "Tilastokeskus vaerak 11rm (population by language, 31 Dec)",
+      "tables": [
+        "vaerak/11rm"
+      ],
+      "note": "Published only per kunta. Postal areas and osa-alueet show the kunta figure, marked °. Language is the one registered in the population information system, which is not the same as country of birth or citizenship.",
+      "warn": ""
+    },
+    {
+      "key": "unemp_m",
+      "label": "Unemployment rate, monthly",
+      "short": "Unemp. (m)",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Income & jobs",
+      "direction": "lower_better",
+      "level": "kunta",
+      "hue": [
+        166,
+        88,
+        24
+      ],
+      "desc": "Unemployed jobseekers as a share of the labour force, published monthly by the Ministry of Economic Affairs and Employment's employment service statistics. This is a different definition from the annual Paavo rate and the two are not comparable.",
+      "calc": "passthrough",
+      "num": [
+        "TYOTOSUUS"
+      ],
+      "sources": [
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "tyonv/12tf",
+          "area_var": "Alue",
+          "time_var": "timeperiod_m",
+          "monthly": true,
+          "vars": {
+            "contentscode": [
+              "TYOTOSUUS",
+              "TYOTTOMATLOPUSSA",
+              "TYOVOIMATK"
+            ]
+          }
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "table": "tyonv/12tf"
+        }
+      ],
+      "source": "Tilastokeskus / TEM tyonv 12tf (työnvälitystilasto, monthly)",
+      "tables": [
+        "tyonv/12tf"
+      ],
+      "note": "TEM counts registered unemployed jobseekers at the end of the month. Statistics Finland's Labour Force Survey and Paavo's register-based rate both differ from it — never read the two rates as the same number measured twice.",
+      "warn": "A different definition from the annual rate above. Compare month to month, not to Paavo."
+    },
+    {
+      "key": "kela",
+      "label": "Housing-allowance households",
+      "short": "Housing allow.",
+      "unit": "%",
+      "fmt": "pct1",
+      "group": "Income & jobs",
+      "direction": "neutral",
+      "level": "kunta",
+      "hue": [
+        166,
+        42,
+        22
+      ],
+      "desc": "Households receiving general housing allowance (yleinen asumistuki) as a share of all household-dwelling units. Kela publishes the recipient count; the denominator is Paavo's household total for the same kunta, and the division is plain arithmetic on two published cells.",
+      "calc": "share_pct",
+      "num": [
+        "kela_saajat"
+      ],
+      "den": [
+        "te_taly"
+      ],
+      "sources": [
+        {
+          "src": "kela",
+          "geo": "kunta",
+          "file": "data/external/kela_asumistuki.csv",
+          "as": "kela_saajat"
+        },
+        {
+          "src": "statfin",
+          "geo": "kunta",
+          "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
+          "area_var": "alue_36_20260101",
+          "time_var": "timeperiod_y"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://avoindata.suomi.fi/data/fi/dataset/kelan-etuuksien-saajat-ja-maksetut-etuudet"
+        }
+      ],
+      "source": "Kela, yleinen asumistuki, saajaruokakunnat kunnittain (avoindata.suomi.fi, CC BY 4.0) · denominator Tilastokeskus Paavo 12f8 te_taly",
+      "tables": [
+        "kela/yleinen_asumistuki",
+        "Postinumeroalueittainen_avoin_tieto:uusin/12f8"
+      ],
+      "note": "Kela counts recipient households (saajaruokakunta) at the end of the month; Paavo counts household-dwelling units (asuntokunta) at 31 December. The two are close but not identical concepts, so read the share as an order of magnitude, not a precise ratio.",
+      "warn": "Kela's monthly recipient count and Paavo's annual household count are different concepts measured at different dates."
+    }
+  ],
   "osa": {
     "_doc": "The osa-alue layer's own indicators (Aluesarjat). Same fields; `level` is always 'osa_alue'.",
     "indicators": []
+  },
+  "_calcs": {
+    "passthrough": "the published cell itself: num[0]",
+    "share_pct": "sum(num) / sum(den) * 100 — both from the same table, area and period",
+    "ratio_pct": "sum(num) / sum(den) * 100 where den is a list that includes num (a rate whose denominator the publisher does not publish, e.g. unemployed / (employed + unemployed))",
+    "yoy_pct": "(v[t] / v[t-1] - 1) * 100 on num[0]"
   }
 }

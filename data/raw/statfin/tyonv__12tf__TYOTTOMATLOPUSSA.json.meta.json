@@ -1,0 +1,23 @@
+{
+ "table": "tyonv/12tf",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/tyonv/12tf.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/StatFin/StatFin__tyonv/12tf.px/",
+ "query": {
+  "contentscode": [
+   "TYOTTOMATLOPUSSA"
+  ],
+  "Alue": [
+   "*"
+  ],
+  "timeperiod_m": [
+   "*"
+  ]
+ },
+ "updated": "2026-09-22T05:00:00Z",
+ "label": "Percentage of unemployed jobseekers of the entire workforce at the end of the month by Region, Month and Information",
+ "fetched": "2026-09-24",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "note": "for unemp_m",
+ "cells": 89252
+}

@@ -1,0 +1,18 @@
+{
+ "source": "Kela — yleinen asumistuki, saajaruokakunnat kunnittain",
+ "route": "https://avoindata.suomi.fi/data/api/3/action/datastore_search_sql?sql=… (CKAN datastore SQL)",
+ "resource": "a3be1d46-1c33-4a59-84d4-66a348b1551c",
+ "dataset": "https://avoindata.suomi.fi/data/fi/dataset/kelan-etuuksien-saajat-ja-maksetut-etuudet",
+ "benefit": "Yleinen asumistuki",
+ "measure": "saaja_lkm — recipient households (ruokakunta) at the end of the month",
+ "selection": "aikatyyppi='Kuukausi'; December of every year, plus the newest published month",
+ "why_not_annual": "aikatyyppi='Vuosi' counts distinct households during the year, which is a flow several times larger than the month-end stock; it is not comparable with a household count at a point in time.",
+ "periods": "201812–202608",
+ "months": 9,
+ "kunnat": 312,
+ "rows": 2764,
+ "latest": 202608,
+ "fetched": "2026-09-24",
+ "publisher": "Kela",
+ "licence": "CC BY 4.0 — Lähde: Kela"
+}

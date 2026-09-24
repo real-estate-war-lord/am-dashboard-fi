@@ -90,3 +90,46 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 | `mapshaper` is not installed on this machine | Run through `npx --yes mapshaper@0.6.102`, with a Visvalingam pass written in `scripts/geo_common.py` as the fallback so `make geo` works without node. Whichever ran is recorded in each file's `meta.simplified` and in `ATTRIBUTION.txt`. |
 | `postinumerot.geojson` at 2.9 MB is 97 % of the ceiling, and 3 018 rings cannot also fit inline in `dist/index.html` with their values and history | The committed file stays the detailed one. Phase 3 splits it into two levels of detail: a coarse set inlined for the national view, and per-kunta detail fetched when a kunta is drilled into. Logged here so phase 3 does not rediscover it. |
 | Paavo's layer year is not its statistics year | `pno_tilasto_2026` carries statistics for **2024**, verified against PxWeb. Both years are written into the file's `meta` and the UI labels the statistics year. |
+
+---
+
+## Phase 3 — Area indicators (rows 1–11)
+
+| Check | Result |
+|---|---|
+| `make validate` | ✓ 14 indicators, 5 StatFin tables, every code checks out; 6 verify-at-source links reachable |
+| `make links` (full sweep) | ✓ 6 of 6 |
+| `make fetch` | ✓ 24 StatFin pulls (9.5 MB raw, stamped) + Kela 2 764 rows |
+| `make build` | ✓ `makro.json` 2 212 kB · `monthly.json` 531 kB · 308 per-kunta files (largest 200 kB) · `index.html` 2 810 kB — all under the 3 MB ceiling |
+| `make test` | ✓ 24 python + 15 node |
+| Spot-check against source | ✓ 8 of 8 reconcile exactly (below) |
+| Screenshots | ✓ `docs/screenshots/v10-1..4.png` — national map, Helsinki drilled in, table, 00100 area page |
+
+### Spot-check, phase 3 (recomputed straight from the PxWeb cells)
+
+| Area | Indicator | Published cells | Recomputed | On the page |
+|---|---|---|---|---|
+| 00100 | population | he_vakiy | 18 492 | 18 492 |
+| 00100 | renters | 5 352 ÷ 10 544 | 50,759 % | 50,8 % |
+| 00100 | median income | hr_mtu | 34 408 € | 34 408 € |
+| 00100 | unemployment | 834 ÷ (10 107 + 834) | 7,623 % | 7,6 % |
+| 00100 | aged 20–34 | (1 683+2 402+1 771) ÷ 18 492 | 31,668 % | 31,7 % |
+| 091 | renters | 194 095 ÷ 359 689 | 53,962 % | 54,0 % |
+| 091 | median income | hr_mtu | 29 159 € | 29 159 € |
+| 091 | population growth | 694 392 ÷ 684 018 − 1 | +1,517 % | +1,5 % |
+
+### Decisions logged in phase 3
+
+| ⚠ | Decision |
+|---|---|
+| Two candidate backbones: StatFin's thematic databases, or Paavo | **Paavo** (`12f7` postal, `12f8` kunta/maakunta, 2010–2024), because it publishes the *same definitions at both levels*. A kunta figure and a postal figure are therefore directly comparable, which is not true of the Danish edition. Only where Paavo has nothing — foreign-language speakers, monthly unemployment, housing allowance — does another source appear. |
+| Population growth: Paavo ends at 2024, `vaerak` reaches 2025 | Kunta growth comes from `vaerak/11re` (to 2025), postal growth from Paavo (to 2024). The two levels' periods are recorded separately in `asof` and shown in the ⓘ line; they are never averaged. This is the Danish edition's own pattern. |
+| Paavo publishes unemployment as two counts, not a rate | `pt_tyott ÷ (pt_tyoll + pt_tyott)` — the labour force is the employed plus the unemployed. The division is ours and is stated in the indicator's definition. It is plain arithmetic on two published cells, which the hard-data rule allows; an assumed participation rate would not be. |
+| Kela's newest month is 2026-08 but Paavo's household count ends 2024 | The share is computed only where both exist, so it ends at **2024**. Extending it with a carried-forward household count would be an assumption. The raw Kela series is kept in `data/external/kela_asumistuki.csv` to 2026-08 for the verification export. |
+| Kela's annual rows are a flow, not a stock | `aikatyyppi='Vuosi'` counts *distinct households during the year* and is several times the month-end figure. Only `Kuukausi` rows are read, and a year is its **December** value — a stock, like the household count it is divided by. Written into `import_kela.py` and its stamp. |
+| Kelasto has no API | Kela's WebFOCUS reports need a browser session. The same figures are on avoindata.suomi.fi's CKAN datastore under **CC BY 4.0**, and that is the route used. Helsinki 2026-08 = 44 228 households, which matches the Kelasto page. |
+| 3 018 postal polygons plus their values and history do not fit in one HTML file (3.3 MB on the first build) | **Two levels of detail and two lazy payloads.** The page inlines coarse kunta rings, every kunta's annual history, and every postal area's latest values and bounding box. `dist/area/<kunta>.json` carries the detailed postal rings and their history, fetched when a kunta is opened; `dist/monthly.json` carries every monthly series, fetched when a monthly indicator is selected. Result: 2 810 kB inline. Both files come from the same build, so they cannot disagree about which areas exist. |
+| The national map used to draw all 3 018 postal polygons | It now draws the 308 kunta polygons. Nothing is lost: the Danish edition coloured those postal outlines by their municipality's value anyway, so they carried no information of their own at that zoom. |
+| Monthly unemployment and annual Paavo unemployment are different definitions | Registered as two indicators, each with its own caveat saying so, rather than one series spliced from two sources. |
+| Verify-at-source URLs returned HTTP 500 | The `statfin_<db>_pxt_<id>.px` spelling that appears in older links is dead; the PxWeb UI wants the same id the API uses (`.../StatFin__vaerak/11re.px/`). Fixed in `statfin.ui_url`, in `srcUrl()` in the page, and in the 24 stamps already written. `make links` now sweeps all six clean. |
+| `validate_config.py` did not know the `num`/`den` → contentscode convention the fetcher uses | Taught it the same rule, and it now also fails when a code in `num`/`den` matches no value of any variable and no other source provides it. |

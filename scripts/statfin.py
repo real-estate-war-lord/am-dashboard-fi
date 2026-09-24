@@ -78,12 +78,15 @@ def table_url(name):
 
 
 def ui_url(name):
-    """The published table page a reader can open — the 'Verify at source' destination."""
+    """The published table page a reader can open — the 'Verify at source' destination.
+
+    Same id as the API path, in the PxWeb UI's own folder spelling:
+    .../PxWeb/pxweb/en/<database>/<database>__<db>/<id>.px/  (probed 2026-09-24; the
+    statfin_<db>_pxt_<id> spelling that appears in older links answers HTTP 500).
+    """
     database, db, tid = split_table(name)
-    if database.endswith("Passiivi"):
-        return (f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/"
-                f"{api_id(database, db, tid)}.px/")
-    return f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/statfin_{db}_pxt_{tid}.px/"
+    return (f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/"
+            f"{api_id(database, db, tid)}.px/")
 
 
 def _open(req):
