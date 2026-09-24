@@ -125,7 +125,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   equal height) → `<details>` toggles in `show=`; KEY FIGURES block removed; inherited values labelled.
 - ☑ **P6 Test property** — `#property?p=lat,lon[:label]`, the shared study row on the pin's finest
   area, always 5 tiles, no filler; draggable mini-map with ⤢; `<details>` sections; per-map panes.
-- ☐ **P7 Export ▾** — one menu in the sidebar footer and the Data header; long schema; projects and
+- ☑ **P7 Export ▾** — one menu in the sidebar footer and the Data header; long schema; projects and
   nearby in their own files; UTF-8 BOM `;` CSV; unit/magnitude assertion.
 - ☐ **P8 Number and label fixes** — EUR/m² and EUR/m²/month units; vs-median in pp or absolute, never
   % of a median; compound annual outlook rate; period label per indicator; `#n of N` everywhere; fi-FI.
@@ -393,6 +393,52 @@ Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 45/45.
 7. **Per-map panes and renderers** (from P1) are asserted here: the mini map draws through
    `map._am.pub`, never through the macro map's layers.
 
+### P7 — Export ▾ and the long schema ☑
+Commit: `feat: v2.0 P7 — one export menu, one long schema, and every row says where it came from`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 51/51.
+
+**Built**
+1. **Five items, two places** — sidebar footer and Data header: *This view (CSV)* · *All area data
+   (long)* · *Projects* · *Test property* · *Sources catalogue*. Test property is offered only when a
+   pin exists; Projects only when the layer does.
+2. **The long schema**, one row per area × indicator × period:
+   `level, code, name, parent_code, parent_name, maakunta, population, indicator, label, unit, period,
+   period_type, value, value_type, inherited_from, direction, source, table_id, source_url, as_of,
+   fetched, licence` — 168 k rows over the three levels, and **every row carries a source, a fetch
+   date and a licence.**
+3. **Inherited values are in the file.** A postinumero or osa-alue that does not publish an indicator
+   gets one row at the latest period with `value_type=inherited` and `inherited_from` set — the same
+   figure the tiles show. Latest period only: a full inherited history would repeat each kunta's
+   series 3 018 times, 1.8 M rows.
+4. **`period_type`** tells a reader what `period` is: `year | quarter | month | school_year |
+   return_period | projection | window | snapshot`. A projection's period is `2026→2040`, never a year.
+5. **Projects in their own file**, with the fields this layer actually publishes; never an indicator
+   column. `projectKunnat()` reads the served kunnat out of the spatial index (a project with no
+   published alignment is simply not in it, and its `kunnat` is honestly empty).
+6. **Test property** writes two files: the pin's figures on the long schema behind
+   `property_label, lat, lon`, and `…_nearby_…csv` with `kind, name, type, status, distance_m,
+   source, source_url` for the infra, public buildings and schools around it.
+7. **The machine/human boundary is the export.** UTF-8 with a BOM and `;` (what a Finnish Excel opens
+   without an import dialog), but `.` decimals and no grouping. Screen formatting — fi-FI spaces and
+   commas — stops here.
+8. **`assertUnit()`** refuses to let a unit disagree with its number: a `k€` label on a value ≥ 10 000,
+   or `mio €` on one ≥ 1 000 000, is counted and reported in the toast and the console. (The Danish
+   edition shipped `kDKK` labels on raw DKK; the Finnish EUR fields are clean, and now stay clean.)
+9. **One-line status toast** naming the file and its size, bottom-left, never a modal.
+
+**Decisions added**
+- **D15 — the projects schema follows this layer's own fields** (`price_base`, `major`, `curated`,
+  `notes`) rather than the Danish spec's (`status_note`, `opening_original`, `stations` as published):
+  a column that is always empty is worse than one that is not there.
+- **D16 — the sidebar Export menu is positioned against the viewport**, not inside the sidebar: the
+  sidebar scrolls, and a popover positioned inside it was clipped by its own container — the footer
+  menu opened into nothing.
+
+**Two more bugs fixed**
+- `geomStats()` threw on any project whose alignment the publisher has not drawn (`geometry: null`),
+  which killed the projects export outright.
+- `SCHOOLS` is `{schools:[…]}`, not an array; the nearby file's school rows threw on it.
+
 ## 6. Next
 
-Start P7 — Export ▾ and the long schema.
+Start P8 — the number and label fixes.

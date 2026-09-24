@@ -944,6 +944,144 @@ def _tp_panes(page, base):
 
 
 # ===========================================================================
+# P7 — Export ▾ and the long schema
+# ===========================================================================
+
+
+LONG_HEADER = ("level;code;name;parent_code;parent_name;maakunta;population;indicator;label;unit;"
+               "period;period_type;value;value_type;inherited_from;direction;source;table_id;"
+               "source_url;as_of;fetched;licence")
+
+
+def _export(page, base, where, item, route="#data/areas/kunta"):
+    goto(page, base, route)
+    page.wait_for_timeout(1800)
+    page.click(f"{where} [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    return download_text(page, lambda: page.click(f"{where} [data-testid=export-menu] [data-export={item}]"))
+
+
+@check("P7-menu", phase="P7")
+def _export_menu_items(page, base):
+    """the same five items in both places, and the sidebar one is not clipped by its own column"""
+    goto(page, base, "#property?p=60.2448,24.8665")
+    page.wait_for_timeout(2800)
+    for where in [".exfoot", ]:
+        page.click(f"{where} [data-testid=export-btn]")
+        page.wait_for_timeout(250)
+        items = page.eval_on_selector_all(f"{where} [data-testid=export-menu] [data-export]",
+                                          "els => els.map(e => e.dataset.export)")
+        assert items == ["view", "areas", "projects", "property", "sources"], items
+        box = boxes(page, f"{where} [data-testid=export-menu]")[0]
+        assert box["w"] > 100 and box["h"] > 60, box
+        assert box["y"] >= 0 and box["bottom"] <= page.evaluate("window.innerHeight"), box
+    goto(page, base, "#data/areas/kunta")
+    page.wait_for_timeout(1200)
+    page.click(".datatabs [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    assert page.query_selector(".datatabs [data-testid=export-menu] [data-export=areas]")
+
+
+@check("P7-long-schema", phase="P7")
+def _long_schema(page, base):
+    """all area data is the long schema, every row sourced, no project or macro rows"""
+    txt = _export(page, base, ".datatabs", "areas")
+    lines = txt.splitlines()
+    assert lines[0] == LONG_HEADER, lines[0]
+    assert len(lines) > 10000, len(lines)
+    cols = lines[0].split(";")
+    idx = {c: i for i, c in enumerate(cols)}
+    rows = [ln.split(";") for ln in lines[1:]]
+    levels = {r[idx["level"]] for r in rows}
+    assert levels <= {"kunta", "postinumero", "osa_alue"}, levels
+    assert not [r for r in rows if not r[idx["source"]]], "a row with no source"
+    assert not [r for r in rows if not r[idx["fetched"]]], "a row with no fetch date"
+    assert not [r for r in rows if not r[idx["licence"]]], "a row with no licence"
+    # the decimal is a point and there is no thousands grouping
+    bad = [r[idx["value"]] for r in rows[:5000] if "," in r[idx["value"]] or " " in r[idx["value"]]]
+    assert not bad, bad[:3]
+    # a value inherited from the kunta says so, and says which
+    inh = [r for r in rows if r[idx["value_type"]] == "inherited"]
+    assert inh, "nothing marked inherited"
+    assert all(r[idx["inherited_from"]] for r in inh), "inherited with no parent code"
+    assert all(r[idx["level"]] in ("postinumero", "osa_alue") for r in inh)
+    # a projection is never an actual
+    proj = [r for r in rows if r[idx["indicator"]].startswith("fc_")]
+    assert proj and all(r[idx["value_type"]] == "projection" for r in proj)
+    assert all(r[idx["period_type"]] == "projection" for r in proj)
+    assert all("→" in r[idx["period"]] for r in proj)
+
+
+@check("P7-unit-agreement", phase="P7")
+def _unit_agreement(page, base):
+    """the unit and the magnitude agree — a k€ label never sits on a five-figure number"""
+    txt = _export(page, base, ".datatabs", "areas")
+    lines = txt.splitlines()
+    idx = {c: i for i, c in enumerate(lines[0].split(";"))}
+    bad = []
+    for ln in lines[1:]:
+        r = ln.split(";")
+        u, v = r[idx["unit"]], r[idx["value"]]
+        if not v:
+            continue
+        try:
+            n = abs(float(v))
+        except ValueError:
+            continue
+        if ("k€" in u or "kEUR" in u) and n >= 1e4:
+            bad.append((r[idx["indicator"]], u, v))
+        if ("mio" in u.lower() or "MEUR" in u) and n >= 1e6:
+            bad.append((r[idx["indicator"]], u, v))
+    assert not bad, bad[:5]
+
+
+@check("P7-projects-own-file", phase="P7")
+def _projects_own_file(page, base):
+    """the projects file has its own schema and no indicator column"""
+    txt = _export(page, base, ".datatabs", "projects", "#data/projects")
+    lines = txt.splitlines()
+    head = lines[0].split(";")
+    assert "indicator" not in head and "value" not in head, head
+    assert head[:5] == ["id", "name", "type", "status", "opening"], head[:5]
+    assert len(lines) > 100, len(lines)
+
+
+@check("P7-property-export", phase="P7")
+def _property_export(page, base):
+    """the pin's file leads with the property columns, and a second file lists what is near it"""
+    goto(page, base, "#property?p=60.2448,24.8665")
+    page.wait_for_timeout(3200)
+    page.click(".exfoot [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    got = []
+    page.on("download", lambda d: got.append(d))
+    with page.expect_download(timeout=15000) as dl:
+        page.click(".exfoot [data-testid=export-menu] [data-export=property]")
+    first = pathlib.Path(dl.value.path()).read_text(encoding="utf-8-sig")
+    page.wait_for_timeout(2500)
+    assert first.splitlines()[0] == "property_label;lat;lon;" + LONG_HEADER, first.splitlines()[0]
+    row = first.splitlines()[1].split(";")
+    assert row[0] and row[1] == "60.2448" and row[2] == "24.8665", row[:3]
+    names = [d.suggested_filename for d in got]
+    assert any("nearby" in n for n in names), names
+    near = pathlib.Path([d for d in got if "nearby" in d.suggested_filename][0].path()).read_text(encoding="utf-8-sig")
+    assert near.splitlines()[0] == "kind;name;type;status;distance_m;source;source_url", near.splitlines()[0]
+
+
+@check("P7-sources-export", phase="P7")
+def _sources_export(page, base):
+    """the sources catalogue is one row per source, with a licence on every one"""
+    txt = _export(page, base, ".datatabs", "sources", "#data/sources")
+    lines = txt.splitlines()
+    assert lines[0] == "key;label;publisher;tables;as_of;fetched;licence;url;used_for", lines[0]
+    idx = {c: i for i, c in enumerate(lines[0].split(";"))}
+    rows = [ln.split(";") for ln in lines[1:]]
+    assert len(rows) >= 10, len(rows)
+    assert all(r[idx["fetched"]] for r in rows), "a source with no fetch date"
+    assert all(r[idx["licence"]] for r in rows), "a source with no licence"
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

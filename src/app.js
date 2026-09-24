@@ -1641,32 +1641,23 @@ function vTable() {
     ${srcNote()}
   </div>`;
 }
-function exportCsv() {
-  const cols = tableCols(true), rows = tableRows();
-  const head = [T.level === "osa_alue" ? "quarter" : T.level === "postinumero" ? "area" : "municipality", T.level === "postinumero" ? "postal_code" : "code", T.level === "osa_alue" ? "district" : T.level === "postinumero" ? "municipality" : "region", "population"].concat(cols.map(i => i.key));
-  const lines = [head.join(";")].concat(rows.map(r => { const m = T.level === "postinumero" ? (byCode[r.muni] || {}) : r;
-    return [r.name, T.level === "postinumero" ? r.nr : r.code, T.level === "osa_alue" ? (r.peruspiiri || "") : T.level === "postinumero" ? (m.name || "") : (r.region || ""), r.pop ?? ""].concat(cols.map(i => V(r, i.key) ?? (T.level === "postinumero" || (T.level === "osa_alue" && !osaOwn(i.key)) ? (V(T.level === "osa_alue" ? osaParent(r) : m, i.key) ?? "") : ""))).map(v => String(v).replace(/;/g, ",")).join(";"); }));
-  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `am-dashboard-fi_${T.level}_${MK.year}_${(D.meta && D.meta.built) || "data"}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
 /* ---------- Export ▾ ----------
    One menu, two places: the sidebar footer and the Data page header. It replaces v1.1's single
    "⤓ Export data" button and the four lines of explanation under it — the explanation is now one
-   line per item, where the item is. Every file is UTF-8 with a BOM and ";"-separated, because that
-   is what a Finnish Excel opens without an import dialog. */
+   line per item, where the item is. */
 const EXPORT_ITEMS = [
   ["view", "This view (CSV)", () => `what is on screen — ${T.level === "osa_alue" ? "osa-alueet" : T.level === "postinumero" ? "postal codes" : "kunnat"}, wide`],
-  ["areas", "All area data (long)", () => "every level, indicator and year, one row each"],
+  ["areas", "All area data (long)", () => "every level, indicator and period, one row each"],
   ["projects", "Projects", () => `${INFRA_ALL.length} infrastructure projects, their own schema`],
+  ["property", "Test property", () => (TP.lat != null || AN.a) ? "the pin's figures, plus what is around it" : "pin a property first"],
   ["sources", "Sources catalogue", () => "one row per source: publisher, tables, as-of, licence"],
 ];
-const exportAvail = id => id !== "projects" || INFRA_ALL.length > 0;
+const exportAvail = id => (id !== "projects" || INFRA_ALL.length > 0)
+  && (id !== "property" || TP.lat != null || !!AN.a);
 function exportBtn(where) {
   return `<div class="exwrap ${where === "foot" ? "exfoot" : ""}">
     <button class="xbtn" data-testid="export-btn" data-exopen aria-haspopup="menu" aria-expanded="${UI.exOpen ? "true" : "false"}">⤓ Export ▾</button>
-    <div class="exmenu" data-testid="export-menu" role="menu" ${UI.exOpen ? "" : 'hidden'}>${EXPORT_ITEMS.filter(x => exportAvail(x[0])).map(([id, label, cap]) =>
+    <div class="exmenu" data-testid="export-menu" role="menu" ${UI.exOpen ? "" : "hidden"}>${EXPORT_ITEMS.filter(x => exportAvail(x[0])).map(([id, label, cap]) =>
       `<button role="menuitem" data-export="${id}"><b>${esc(label)}</b><em>${esc(cap())}</em></button>`).join("")}</div></div>`;
 }
 function exportClose() { if (!UI.exOpen) return; UI.exOpen = false; document.querySelectorAll(".exwrap").forEach(w => {
@@ -1674,53 +1665,255 @@ function exportClose() { if (!UI.exOpen) return; UI.exOpen = false; document.que
   if (m) m.hidden = true; if (b) b.setAttribute("aria-expanded", "false"); }); }
 function exportToggle() { UI.exOpen = !UI.exOpen; document.querySelectorAll(".exwrap").forEach(w => {
   const m = w.querySelector(".exmenu"), b = w.querySelector("[data-exopen]");
-  if (m) m.hidden = !UI.exOpen; if (b) b.setAttribute("aria-expanded", UI.exOpen ? "true" : "false"); }); }
+  if (m) { m.innerHTML = EXPORT_ITEMS.filter(x => exportAvail(x[0])).map(([id, label, cap]) =>
+    `<button role="menuitem" data-export="${id}"><b>${esc(label)}</b><em>${esc(cap())}</em></button>`).join(""); m.hidden = !UI.exOpen; }
+  if (b) b.setAttribute("aria-expanded", UI.exOpen ? "true" : "false"); }); }
 function exportRun(id) {
   exportClose();
   if (id === "view") return exportCsv();
   if (id === "areas") return exportAll();
   if (id === "projects") return exportPipelineCsv();
+  if (id === "property") return exportProperty();
   if (id === "sources") return exportSourcesCsv();
 }
-/* one row per source key the build stamped, with what it is used for */
-function exportSourcesCsv() {
-  const cl = v => String(v == null ? "" : v).replace(/;/g, ",").replace(/\r?\n/g, " ");
-  const meta = (D.meta && D.meta.sources) || [];
-  const usedFor = key => IND.concat(IND_OSA).filter(i => (i.tables || []).some(t => t === key || t.split("/")[0] === String(key).split("/")[0]))
-    .map(i => i.short || i.label).slice(0, 8).join(", ");
-  const out = ["key;label;publisher;tables;as_of;fetched;licence;url;used_for"];
-  meta.forEach(sx => out.push([sx.key, sx.label || sx.key, sx.publisher || "", (sx.tables || []).join(" "),
-    sx.asof || "", sx.fetched || (D.meta && D.meta.built) || "", sx.licence || "", sx.url || "", usedFor(sx.key)].map(cl).join(";")));
-  downloadCsv(out, `am-dashboard-fi_sources_${(D.meta && D.meta.built) || "data"}.csv`);
-}
-function downloadCsv(lines, name) {
-  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-function exportAll() {
-  /* one long-format CSV of everything the dashboard holds: every level, every indicator, every year, plus the macro series */
-  const cl = v => String(v == null ? "" : v).replace(/;/g, ",").replace(/\r?\n/g, " ");
-  const out = ["level;code;name;parent;region;population;year;indicator;label;unit;value;as_of"];
-  const emit = (level, o, code, name, parent, region, inds, asofOf) => {
-    inds.forEach(i => {
-      const yrs = new Set(Object.keys((o.hist && o.hist[i.key]) || {})); if (o[i.key] != null) yrs.add(LATEST);
-      [...yrs].sort().forEach(y => { const v = y === LATEST ? o[i.key] : o.hist[i.key][y]; if (v == null) return;
-        out.push([level, code, name, parent, region, o.pop ?? "", y, i.key, i.label, i.unit || "", v, asofOf(i, y)].map(cl).join(";")); });
-    });
+
+/* ---------- the export model (v2.0 P7) ----------
+   One schema for every area figure, one file per kind of thing, and every row carries where it came
+   from. The reader opens these in Excel and cross-checks them against the publisher's own table, so:
+   UTF-8 with a BOM and ";" as the separator (what a Finnish Excel opens without an import dialog),
+   but "." as the decimal and no thousands grouping (what a machine reads). Screen formatting —
+   fi-FI, spaces and commas — stops at this boundary. */
+const LONG_COLS = ["level", "code", "name", "parent_code", "parent_name", "maakunta", "population",
+                   "indicator", "label", "unit", "period", "period_type", "value", "value_type",
+                   "inherited_from", "direction", "source", "table_id", "source_url", "as_of",
+                   "fetched", "licence"];
+const PROJECT_COLS = ["id", "name", "type", "status", "opening", "budget_meur", "price_base",
+                      "agency", "kunnat", "geometry_kind", "length_km", "stations", "major",
+                      "curated", "notes", "source_doc", "source_url", "updated"];
+const NEARBY_COLS = ["kind", "name", "type", "status", "distance_m", "source", "source_url"];
+const SOURCE_COLS = ["key", "label", "publisher", "tables", "as_of", "fetched", "licence", "url", "used_for"];
+
+const csvCell = v => String(v == null ? "" : v).replace(/[;\r\n]/g, " ").trim();
+/* machine decimal: a point, no grouping, and never the locale's comma */
+const csvNum = v => (v == null || v === "" || isNaN(v)) ? "" : String(Number(v));
+const csvRow = (cols, o) => cols.map(c => (c === "value" || c === "population" || c === "distance_m"
+  || c === "budget_meur" || c === "length_km") ? csvNum(o[c]) : csvCell(o[c])).join(";");
+
+/* the publisher behind each source key in config/indicators.json (`tables` is "<key>/<table>") */
+const SRC_PUB = { statfin: "Tilastokeskus", paavo: "Tilastokeskus (Paavo)", aluesarjat: "Aluesarjat",
+                  kela: "Kela", vero: "Verohallinto", hri: "Helsingin kaupunki",
+                  syke: "Suomen ympäristökeskus", stuk: "STUK", ryhti: "Ryhti", osm: "OpenStreetMap" };
+const ALL_SOURCES = ((D.meta && D.meta.sources) || [])
+  .concat((D.osa && D.osa.meta && D.osa.meta.sources) || []);
+const SRC_META = {}; ALL_SOURCES.forEach(x => { SRC_META[x.key] = x; });
+/* an osa-alue indicator names its publisher in `source` but carries no table list of its own; the
+   Aluesarjat catalogue is one publisher, so a row still gets a licence and a link */
+const OSA_SRC = ALL_SOURCES.find(x => String(x.key || "").indexOf("vrm/") === 0) || null;
+function indStamp(i, level, period) {
+  const tables = i.tables || [];
+  const metas = tables.map(t => SRC_META[t]).filter(Boolean);
+  const asofSrc = (period && i.hist_asof && i.hist_asof[period]) || i.asof || {};
+  const q = pickSrc(i, level) || (i.proj || {}).src || null;
+  const fb = (!metas.length && level === "osa_alue") ? OSA_SRC : null;
+  return {
+    source: i.source || metas.map(m => m.label).join(" · ") || (fb || {}).label || "",
+    table_id: tables.join(" ") || ((i.proj || {}).table || "") || (fb || {}).tables || "",
+    source_url: srcUrl(q) || (i.src_page ? i.src_page[1] : "") || (metas[0] || {}).url || (fb || {}).url || "",
+    as_of: asofSrc[level] || asofSrc.kunta || asofSrc.postinumero || asofSrc.osa_alue || (fb || {}).asof || "",
+    fetched: metas.map(m => m.fetched).filter(Boolean).sort().pop() || (fb || {}).fetched || (D.meta && D.meta.built) || "",
+    licence: (metas.find(m => m.licence) || {}).licence || (fb || {}).licence
+      || "CC BY 4.0 — Lähde: Tilastokeskus",
   };
-  const asofNat = lvl => (i, y) => { const src = (y !== LATEST && i.hist_asof && i.hist_asof[y]) || i.asof || {}; return src[lvl] || src.kunta || ""; };
-  MUNI.forEach(m => emit("municipality", m, m.code, m.name, "Finland", m.region || "", IND, asofNat("kunta")));
-  AREAS.forEach(a => { const m = byCode[a.muni] || {}; emit("postal_code", a, a.nr, a.name, m.name || "", m.region || "", IND.filter(i => i.level === "postinumero"), asofNat("postinumero")); });
-  if (OSA) OSA.areas.forEach(q => emit("copenhagen_quarter", q, q.code, q.name, q.peruspiiri || "", "Hovedstaden", IND_OSA, (i, y) => (y !== LATEST && i.hist_asof && i.hist_asof[y]) || (i.asof && i.asof.osa_alue) || ""));
-  INFRA_ALL.forEach(f => { const p = f.properties;
-    out.push(["project", p.id, p.name, p.agency || "", (p.kunnat || []).join(" "), "", p.open_year ?? p.open_window ?? "", p.type, p.status,
-              "mio. EUR", p.budget_meur ?? "", p.price_base || "", p.source_doc || p.source_url].map(cl).join(";")); });
-  const mac = D.macro || {}; Object.entries(mac.series || {}).forEach(([k, ser]) => { const lt = (mac.latest || {})[k] || {};
-    ser.forEach(pt => { if (pt.v != null) out.push(["macro", k, lt.label || k, "Finland", "", "", pt.t, k, lt.label || k, lt.unit || "", pt.v, lt.src || ""].map(cl).join(";")); }); });
-  downloadCsv(out, `macro-dashboard-dk_all_${(D.meta && D.meta.built) || "data"}.csv`);
+}
+/* `period_type` says what `period` is, so nobody reads a projection window as a year */
+function periodTypeOf(i, period) {
+  if (i.proj) return "projection";
+  if (PC.rpParts(i.key)) return "return_period";
+  if (/^\d{4}Q\d$/.test(String(period))) return "quarter";
+  if (/^\d{4}M\d\d$/.test(String(period))) return "month";
+  if (/^\d{4}\/\d{4}$/.test(String(period))) return "school_year";
+  if (/^\d{4}$/.test(String(period))) return "year";
+  return period ? "window" : "snapshot";
+}
+/* every unit says what the number is, and the exporter refuses to disagree with itself:
+   a "k€" label on a value in the tens of thousands is the Danish edition's kDKK bug. */
+const UNIT_MAX = [[/k€|keur/i, 1e4], [/mio\.? ?€|meur/i, 1e6]];
+function assertUnit(unit, value, key) {
+  if (value == null || isNaN(value)) return value;
+  for (const [re, cap] of UNIT_MAX) {
+    if (re.test(unit || "") && Math.abs(value) >= cap) {
+      EXPORT_WARN.push(`${key}: unit "${unit}" with value ${value}`);
+      return value;
+    }
+  }
+  return value;
+}
+let EXPORT_WARN = [];
+
+/* One emitter for every area level, so the three can never drift apart.
+   `parent` is the kunta object a postinumero or osa-alue inherits from: an indicator the area does
+   not publish is emitted once, at the latest period, as `value_type=inherited` with
+   `inherited_from` set — the same figure the tiles and the tables show, and the reason the file can
+   be read without knowing which indicators exist at which level. Only the latest period, because a
+   full inherited history would be 1.8 M rows of the kunta's own series repeated 3 018 times. */
+function longRows(out, level, o, code, name, parentCode, parentName, maakunta, inds, parent) {
+  const row = (i, period, y, v, kind) => {
+    const st = indStamp(i, level, y);
+    out.push(csvRow(LONG_COLS, {
+      level, code, name, parent_code: parentCode, parent_name: parentName, maakunta,
+      population: o.pop, indicator: i.key, label: i.label, unit: i.unit || "",
+      period, period_type: periodTypeOf(i, y),
+      value: assertUnit(i.unit, v, i.key),
+      value_type: kind,
+      inherited_from: kind === "inherited" ? parentCode : "",
+      direction: i.direction || "higher_better",
+      source: st.source, table_id: st.table_id, source_url: st.source_url,
+      as_of: st.as_of, fetched: st.fetched, licence: st.licence }));
+  };
+  const periodOf = (i, y) => i.proj ? `${i.proj.from}→${i.proj.to}`
+    : PC.rpParts(i.key) ? PC.rpLabel(PC.rpParts(i.key).rp) : y;
+  inds.forEach(i => {
+    const yrs = new Set(Object.keys((o.hist && o.hist[i.key]) || {}));
+    if (o[i.key] != null) yrs.add(LATEST);
+    if (yrs.size) {
+      [...yrs].sort().forEach(y => {
+        const v = y === LATEST ? o[i.key] : o.hist[i.key][y];
+        if (v == null) return;
+        row(i, periodOf(i, y), y, v, i.proj ? "projection" : i.derived ? "derived" : "actual");
+      });
+      return;
+    }
+    if (!parent) return;
+    const pv = V(parent, i.key);
+    if (pv == null) return;
+    row(i, periodOf(i, LATEST), LATEST, pv, i.proj ? "projection" : "inherited");
+  });
 }
 
-/* ---------- Area page (municipality · postal code · Helsinki-region osa-alue) ---------- */
+/* Data › Areas, exactly as it is on screen: the wide table the reader is looking at */
+function exportCsv() {
+  const cols = tableCols(true), rows = tableRows();
+  const head = ["level", "name", "code", "parent", "maakunta", "population"].concat(cols.map(i => i.key));
+  const lines = [head.join(";")].concat(rows.map(r => {
+    const m = T.level === "postinumero" ? (byCode[r.muni] || {}) : T.level === "osa_alue" ? (osaParent(r) || {}) : r;
+    return csvCell(T.level) + ";" + [r.name, T.level === "postinumero" ? r.nr : r.code,
+      T.level === "kunta" ? "Finland" : (m.name || ""),
+      T.level === "kunta" ? (r.region || "") : (m.region || ""), r.pop].map(csvCell).join(";")
+      + ";" + cols.map(i => csvNum(V(r, i.key) ?? (T.level === "postinumero" || (T.level === "osa_alue" && !osaOwn(i.key))
+        ? V(T.level === "osa_alue" ? osaParent(r) : m, i.key) : null))).join(";");
+  }));
+  downloadCsv(lines, `am-dashboard-fi_${T.level}_${MK.year}_${(D.meta && D.meta.built) || "data"}.csv`);
+}
+
+/* every area figure the dashboard holds, one row each */
+function exportAll() {
+  EXPORT_WARN = [];
+  const out = [LONG_COLS.join(";")];
+  MUNI.forEach(m => longRows(out, "kunta", m, m.code, m.name, "FI", "Finland", m.region || "", IND, null));
+  AREAS.forEach(a => { const m = byCode[a.muni] || {};
+    longRows(out, "postinumero", a, a.nr, a.name, m.code || "", m.name || "", m.region || "", IND, m); });
+  if (OSA) OSA.areas.forEach(q => { const m = osaParent(q) || {};
+    longRows(out, "osa_alue", q, q.code, q.name, m.code || "", m.name || "", m.region || "", IND_Q_ALL, m); });
+  downloadCsv(out, `am-dashboard-fi_areas_long_${(D.meta && D.meta.built) || "data"}.csv`);
+  exportToast(`areas_long.csv · ${nf(out.length - 1, 0)} rows`);
+}
+
+/* the per-area mapping lives in the index, not on the feature: which kunnat a project serves */
+function projectKunnat(id) {
+  const out = [];
+  Object.keys(INFRA_IDX || {}).forEach(k => {
+    if (k.indexOf("kunta:") !== 0) return;
+    const e = INFRA_IDX[k];
+    if ((e.in || []).indexOf(id) >= 0 || (e.near || []).indexOf(id) >= 0)
+      out.push((byCode[k.slice(6)] || {}).name || k.slice(6));
+  });
+  return [...new Set(out)].sort();
+}
+/* the projects are their own kind of thing and get their own file — never a column in the long one */
+function exportPipelineCsv() {
+  if (!INFRA_GEO.done) { infraLoad(() => exportPipelineCsv()); exportToast("loading the project index…"); return; }
+  const out = [PROJECT_COLS.join(";")];
+  INFRA_ALL.forEach(f => { const p = f.properties, g = f.geometry;
+    const st = geomStats(f) || {};
+    out.push(csvRow(PROJECT_COLS, {
+      id: p.id, name: p.name, type: INFRA_TYPE[p.type] || p.type, status: infraSt(p).label,
+      opening: openLabel(p), budget_meur: p.budget_meur, price_base: p.price_base || "",
+      agency: p.agency || "", kunnat: projectKunnat(p.id).join(" | "),
+      geometry_kind: !g ? "none" : g.type === "Point" ? "point" : isArea(f) ? "area" : (p.schematic ? "schematic" : "line"),
+      length_km: st.km, stations: st.stations, major: p.major ? "yes" : "no",
+      curated: p.curated ? "yes" : "no", notes: p.notes || "", source_doc: p.source_doc || "",
+      source_url: p.source_url || "", updated: p.updated || "" })); });
+  downloadCsv(out, `am-dashboard-fi_projects_${(D.meta && D.meta.built) || "data"}.csv`);
+  exportToast(`projects.csv · ${nf(INFRA_ALL.length, 0)} projects`);
+}
+
+/* the pin: every figure of its finest area on the long schema, plus what is around it */
+function exportProperty() {
+  const pt = anLoc(); if (!pt) { exportToast("No test property pinned yet."); return; }
+  const r = locate(pt.lat, pt.lon); const e = tpEntity(r);
+  if (!e) { exportToast("That point is not covered by any area."); return; }
+  EXPORT_WARN = [];
+  const label = AN.label || TP_LABEL;
+  const lead = ["property_label", "lat", "lon"];
+  const out = [lead.concat(LONG_COLS).join(";")];
+  const rows = [];
+  const m = e.muni || (e.type === "kunta" ? null : null);
+  longRows(rows, e.type, e.o, e.code, e.name, (m || {}).code || "", (m || {}).name || "",
+           (m || e.o).region || "", e.inds, m);
+  rows.forEach(row => out.push([csvCell(label), csvNum(pt.lat), csvNum(pt.lon)].join(";") + ";" + row));
+  downloadCsv(out, `am-dashboard-fi_test_property_${(D.meta && D.meta.built) || "data"}.csv`);
+
+  /* the second file: what is near the pin, with its own schema */
+  const near = [NEARBY_COLS.join(";")];
+  INFRA_ALL.map(f => ({ f, p: f.properties, d: featDistM(f, pt.lat, pt.lon) }))
+    .filter(x => x.d != null && x.d <= AN_INFRA_M).sort((a, b) => a.d - b.d)
+    .forEach(x => near.push(csvRow(NEARBY_COLS, { kind: "infra", name: x.p.name,
+      type: INFRA_TYPE[x.p.type] || x.p.type, status: infraSt(x.p).label, distance_m: Math.round(x.d),
+      source: x.p.agency || "Väylävirasto", source_url: x.p.source_url || "" })));
+  anPubKoms(pt, r).forEach(pubLoad);
+  anPubKoms(pt, r).flatMap(k => ((PUB_FILES[k] || {}).buildings || []))
+    .map(b => ({ b, d: havM(pt.lat, pt.lon, b.lat, b.lon) }))
+    .filter(x => x.d <= AN_RING_M).sort((a, b) => a.d - b.d)
+    .forEach(x => near.push(csvRow(NEARBY_COLS, { kind: "public", name: pubName(x.b),
+      type: `${x.b.code} ${x.b.label}`, status: x.b.kind === "existing" ? "existing" : "open case",
+      distance_m: Math.round(x.d), source: x.b.src || PUB_SRC_SHORT, source_url: x.b.url || "" })));
+  (((SCHOOLS || {}).schools) || []).map(sc => ({ sc, d: havM(pt.lat, pt.lon, sc.lat, sc.lon) }))
+    .filter(x => x.sc.lat != null && x.d <= AN_RING_M).sort((a, b) => a.d - b.d)
+    .forEach(x => near.push(csvRow(NEARBY_COLS, { kind: "school", name: x.sc.name,
+      type: SCH_TYPE[x.sc.type] || x.sc.type, status: "", distance_m: Math.round(x.d),
+      source: "Tilastokeskus / YTL", source_url: "" })));
+  downloadCsv(near, `am-dashboard-fi_test_property_nearby_${(D.meta && D.meta.built) || "data"}.csv`);
+  exportToast(`test_property.csv · ${nf(out.length - 1, 0)} rows · nearby ${nf(near.length - 1, 0)}`);
+}
+
+/* one row per source the build stamped, and what it is used for */
+function exportSourcesCsv() {
+  const usedFor = key => IND.concat(IND_OSA).filter(i => (i.tables || []).indexOf(key) >= 0)
+    .map(i => i.short || i.label).slice(0, 10).join(", ");
+  const out = [SOURCE_COLS.join(";")];
+  ((D.meta && D.meta.sources) || []).forEach(x => out.push(csvRow(SOURCE_COLS, {
+    key: x.key, label: x.label || x.key,
+    publisher: x.publisher || SRC_PUB[String(x.key).split(/[:/]/)[0]] || "Tilastokeskus",
+    tables: x.tables || x.key, as_of: x.asof || "",
+    fetched: x.fetched || (D.meta && D.meta.built) || "", licence: x.licence || "",
+    url: x.url || "", used_for: usedFor(x.key) })));
+  downloadCsv(out, `am-dashboard-fi_sources_${(D.meta && D.meta.built) || "data"}.csv`);
+  exportToast(`sources.csv · ${nf(out.length - 1, 0)} sources`);
+}
+
+/* one line, where the button is, naming the file and its size — never a modal */
+function exportToast(msg) {
+  let el = document.getElementById("extoast");
+  if (!el) { el = document.createElement("div"); el.id = "extoast"; el.className = "extoast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg + (EXPORT_WARN.length ? ` · ⚠ ${EXPORT_WARN.length} unit warning${EXPORT_WARN.length > 1 ? "s" : ""}` : "");
+  el.classList.add("on");
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 5200);
+  if (EXPORT_WARN.length) console.warn("export unit warnings:", EXPORT_WARN.slice(0, 20));
+}
+function downloadCsv(lines, name) {
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 function areaEntity() {
   if (AR.type === "kunta") {
     const m = byCode[AR.code]; if (!m) return null;
@@ -2318,6 +2511,8 @@ const openLabel = p => p.open_window || (p.open_year ? String(p.open_year) : "�
 /* metres per degree, scaled for longitude at the geometry's latitude — enough for lengths and areas */
 function geomStats(f) {
   const g = f.geometry, K = 111320;
+  /* a project whose alignment the publisher has not drawn has no geometry at all */
+  if (!g || !g.coordinates) return {};
   const flat = c => Array.isArray(c) && typeof c[0] === "number" ? [c] : c.flatMap(flat);
   const pts = flat(g.coordinates); if (!pts.length) return {};
   const lat0 = pts.reduce((s, q) => s + q[1], 0) / pts.length, kx = Math.cos(lat0 * Math.PI / 180) * K;
@@ -4828,12 +5023,6 @@ function vPipeline() {
           <td class="dim">${esc(kom.slice(0, 3).join(", "))}${kom.length > 3 ? ` +${kom.length - 3}` : ""}</td></tr>`; }).join("")}</tbody></table></div>
     <p class="cap">Every project in the layer, including the ones kept off the map (a nationwide programme has no alignment). Click a row to see it on the map, or to open its sheet when it has no alignment. Budgets are in the price level each source states — open a project for the caveat. Sources and method: <code>docs/INFRA.md</code>.</p>
   </div>`;
-}
-function exportPipelineCsv() {
-  const cl = v => String(v == null ? "" : v).replace(/;/g, ",").replace(/\r?\n/g, " ");
-  const head = ["id", "name", "type", "status", "open_year", "open_window", "budget_meur", "price_base", "agency", "major", "curated", "geometry_source", "source_url", "source_doc", "updated", "notes"];
-  const lines = [head.join(";")].concat(pipeRows().map(f => head.map(k => cl(k === "kunnat" ? (f.properties.kunnat || []).join(" ") : f.properties[k])).join(";")));
-  downloadCsv(lines, `infra_pipeline_${(D.meta && D.meta.built) || "data"}.csv`);
 }
 
 
