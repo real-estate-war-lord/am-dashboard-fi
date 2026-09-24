@@ -1770,3 +1770,91 @@ th .thn{display:inline}
   main{padding-top:52px;overflow:visible}
   .topbar{padding:12px 16px 10px}
 }
+
+/* ===================================================================================
+   v2.0 P2 — one toolbar on the map: unified search, Layers ▾, indicator, period
+   =================================================================================== */
+#mapcard .card-head.tools-only{padding:var(--s3) var(--s4) var(--s2)}
+#mapcard .tools{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;row-gap:var(--s2)}
+#mapcard .tools>*{flex:0 0 auto}
+.tbtn{height:var(--ctrl-h);display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-size:13px;
+  padding:0 11px;cursor:pointer;white-space:nowrap}
+.tbtn:hover{border-color:var(--ink)}
+.tbtn.on{border-color:var(--good);box-shadow:inset 0 0 0 1px var(--good)}
+.tbn{font-family:var(--mono);font-size:10.5px;background:var(--good);color:#fff;border-radius:8px;
+  padding:0 5px;line-height:15px}
+#hdact{display:flex;align-items:flex-start;gap:var(--s2)}
+
+/* --- unified search --- */
+.msearch{position:relative;flex:1 1 300px;min-width:200px;max-width:460px;display:flex;align-items:center}
+.mqi{width:100%;height:var(--ctrl-h);border:1px solid var(--line);border-radius:8px;background:var(--panel);
+  font:inherit;font-size:13px;padding:0 30px 0 11px;color:var(--ink)}
+.mqi:focus{border-color:var(--good)}
+.mqtip{position:absolute;right:8px;width:17px;height:17px;line-height:16px;text-align:center;cursor:help;
+  font-family:var(--mono);font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:50%;background:var(--panel)}
+.mqtip:hover{color:var(--ink);border-color:var(--ink)}
+.mqpop{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:80;max-height:52vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(20,28,24,.18)}
+.mqpop[hidden]{display:none}
+.mqrow{padding:7px 11px;cursor:pointer;border-bottom:1px solid var(--line2)}
+.mqrow:last-child{border-bottom:0}
+.mqrow.on,.mqrow:hover{background:var(--panel2)}
+.mqrow b{display:block;font-family:var(--body);font-weight:600;font-size:13px}
+.mqrow em{display:block;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:1px}
+.mqrow.mq-jump b:before{content:"⤿ ";color:var(--muted)}
+.mqrow.mq-coord b:before,.mqrow.mq-addr b:before{content:"◎ ";color:var(--pin)}
+.mqrow.mq-none{cursor:default;color:var(--muted)}
+.mqrow.mq-none:hover{background:none}
+
+/* --- Layers ▾ --- */
+.lywrap{position:relative}
+.lypop{position:absolute;top:calc(100% + 6px);left:0;z-index:80;width:330px;max-width:92vw;max-height:66vh;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 14px 40px rgba(20,28,24,.18);padding:var(--s2) 0}
+.lypop[hidden]{display:none}
+.lyhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);padding:8px 13px 4px}
+.lyrow.dis{opacity:.45}
+.lychk{display:block;width:100%;text-align:left;background:none;border:0;padding:6px 13px 6px 34px;
+  position:relative;cursor:pointer;font:inherit;color:var(--ink)}
+.lychk:disabled{cursor:not-allowed}
+.lychk:hover:not(:disabled){background:var(--panel2)}
+.lychk i{position:absolute;left:13px;top:8px;width:14px;height:14px;border:1.5px solid var(--dim);border-radius:4px}
+.lychk.on i{background:var(--good);border-color:var(--good)}
+.lychk.on i:after{content:"";position:absolute;left:3.5px;top:.5px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.lychk b{display:block;font-family:var(--body);font-weight:500;font-size:13px}
+.lychk em{display:block;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:1px}
+.lychips{display:flex;flex-wrap:wrap;gap:5px;padding:2px 13px 8px 34px}
+.lychip{display:inline-flex;align-items:center;gap:5px;height:var(--chip-h);border:1px solid var(--line);
+  border-radius:12px;background:var(--panel);font:inherit;font-size:11.5px;padding:0 9px;cursor:pointer;color:var(--ink2)}
+.lychip i{width:8px;height:8px;border-radius:50%;opacity:.35}
+.lychip.on{border-color:var(--ink);color:var(--ink)}
+.lychip.on i{opacity:1}
+.lychip.alt{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.lynote{margin:6px 13px 2px;font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.45}
+
+/* legends are keys now: nothing inside them is clickable */
+.maplegend .lgrow{cursor:default}
+.maplegend .allhidden{color:var(--muted)}
+
+/* --- the height budget above the map -------------------------------------------------
+   Spec §4.1/AC-S3: at 1366×768 the map must start within 200 px of the top and still be at
+   least 480 px tall. The chrome above it is the top bar, the card head (toolbar + chips) and
+   the indicator strip; v1.1 spent 246 px on them. Nothing is removed here — the paddings are
+   just put on the spacing scale, and the indicator strip becomes one line. */
+.topbar{padding:10px var(--gutter) 9px;display:flex;align-items:center;gap:var(--s4)}
+#hd{flex:1 1 auto;min-width:0}
+#body{padding:12px var(--gutter) 60px;gap:var(--s3)}
+#mapcard{padding-top:var(--s2)}
+#mapcard .card-head.tools-only{padding:0 0 var(--s2);margin-bottom:var(--s2);border-bottom:0}
+#mkquick{margin-top:var(--s2)}
+#mkexplain{margin:0}
+#mkexplain .indx>summary{padding:4px 0}
+#mkstrip:empty{display:none}
+.crumbs{align-items:baseline}
+@media (max-height:820px){
+  #lfmap{height:min(520px,calc(100vh - 230px))}
+  #mkexplain .indx-body{max-height:40vh;overflow-y:auto}
+}

@@ -299,6 +299,143 @@ def _zero_js_errors(page, base):
 
 
 # ===========================================================================
+# P2 — one toolbar on the map
+# ===========================================================================
+
+
+REMOVED_CONTROLS = ["Climate risk", "1/100a", "1/1000a", "Infra projects", "Public buildings",
+                    "Services", "Zoning", "1 km population grid", "Full screen"]
+
+
+@check("P2-one-row", phase="P2")
+def _one_row(page, base):
+    """map row 1 is search · Layers ▾ · Indicator ▾ · Period, and nothing else is a toolbar button"""
+    goto(page, base, "#map")
+    bar = page.query_selector("[data-testid=map-toolbar][data-row='1']")
+    assert bar, "no map toolbar"
+    assert page.query_selector("[data-testid=search]"), "no unified search"
+    assert page.query_selector("[data-testid=layers-btn]"), "no Layers button"
+    assert page.query_selector("#indsel, [data-testid=ind-picker]"), "no indicator control"
+    # none of v1.1's toolbar buttons survives outside the Layers popover
+    tool = page.eval_on_selector_all(
+        "[data-testid=map-toolbar] button",
+        "els => els.filter(e => !e.closest('.lypop')).map(e => e.textContent.trim())")
+    for word in REMOVED_CONTROLS:
+        assert not [t for t in tool if word in t], f"'{word}' still on the toolbar: {tool}"
+    # row 2 is the chips
+    assert page.query_selector("[data-testid=ind-chips][data-row='2']"), "no chips row"
+
+
+@check("P2-layers-menu", phase="P2")
+def _layers_menu(page, base):
+    """Layers ▾ holds every feature layer and every context layer, and toggling one writes the hash"""
+    goto(page, base, "#map")
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(150)
+    keys = page.eval_on_selector_all("[data-testid=layers-pop] [data-layer]",
+                                     "els => els.map(e => e.dataset.layer)")
+    for want in ["infra", "public", "services", "buildings", "wms:zoning", "wms:grid"]:
+        assert want in keys, f"{want} missing from Layers ▾: {keys}"
+    assert any(k.startswith("clim:") for k in keys), keys
+    page.click("[data-testid=layers-pop] [data-layer=infra]")
+    page.wait_for_timeout(400)
+    assert "infra=1" in hash_of(page), hash_of(page)
+    assert page.eval_on_selector("[data-testid=legend-infra]", "e => e.offsetHeight > 0")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(120)
+    assert page.eval_on_selector("[data-testid=layers-pop]", "e => e.hidden") is True
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("P2-legends-are-keys", phase="P2")
+def _legends_are_keys(page, base):
+    """a floating legend has no filter button left in it, and legends never overlap"""
+    goto(page, base, "#map/091?ind=growth&infra=1&public=1&services=1&clim=sea_100")
+    page.wait_for_timeout(2500)
+    inner = texts(page, ".maplegend button, .maplegend .only, .maplegend [data-pubcat], "
+                        ".maplegend [data-srvcat], .maplegend [data-pubkind], .maplegend [data-srvmode]")
+    assert not inner, f"clickable filters left in a legend: {inner[:4]}"
+    vis = [b for b in boxes(page, ".maplegend") if b["w"] > 4 and b["h"] > 4]
+    for a in range(len(vis)):
+        for b in range(a + 1, len(vis)):
+            assert not overlap(vis[a], vis[b]), f"legends overlap: {vis[a]} {vis[b]}"
+
+
+@check("P2-search-jumps", phase="P2")
+def _search_jumps(page, base):
+    """the quick jumps live at the top of the search dropdown and move the camera only"""
+    goto(page, base, "#map")
+    page.click("#mq")
+    page.wait_for_timeout(200)
+    rows = texts(page, "[data-testid=search] .mqrow b")
+    assert rows[:5] == ["Helsinki", "Tampere", "Turku", "Oulu", "Finland"], rows[:6]
+    before = hash_of(page)
+    page.click("[data-testid=search] .mqrow[data-msi='0']")
+    page.wait_for_timeout(700)
+    assert hash_of(page) == before, f"a jump changed the hash: {before} → {hash_of(page)}"
+
+
+@check("P2-search-area", phase="P2")
+def _search_area(page, base):
+    """a kunta name, a postal code and a coordinate each resolve to the right destination"""
+    goto(page, base, "#map")
+    page.fill("#mq", "Tampere")
+    page.wait_for_timeout(250)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(700)
+    assert hash_of(page).startswith("#map/837"), hash_of(page)
+
+    goto(page, base, "#map")
+    page.fill("#mq", "00100")
+    page.wait_for_timeout(250)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(700)
+    assert hash_of(page).startswith("#area/postinumero/00100"), hash_of(page)
+
+    goto(page, base, "#map")
+    page.fill("#mq", "60.2448, 24.8665")
+    page.wait_for_timeout(250)
+    rows = texts(page, "[data-testid=search] .mqrow")
+    assert any("60.24480" in r for r in rows), rows[:3]
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(2500)
+    assert hash_of(page).startswith("#property?p=60.2448,24.8665"), hash_of(page)
+
+
+@check("P2-privacy-off-map", phase="P2")
+def _privacy_off_map(page, base):
+    """the privacy sentence is a tooltip on the search, not a paragraph under the map"""
+    goto(page, base, "#map")
+    assert "Processed in your browser" not in body_text(page)
+    tip = page.eval_on_selector("[data-testid=search] .mqtip", "e => e.title")
+    assert "Processed in your browser" in tip, tip
+    # …and it is still spelled out on the Test property page
+    goto(page, base, "#property")
+    assert "Processed in your browser" in body_text(page)
+
+
+@check("P2-map-top-1366", phase="P2", viewport="1366x768")
+def _map_top(page, base):
+    """at 1366x768 the map starts within 200 px of the top of the viewport"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(700)
+    box = boxes(page, "[data-testid=map]")[0]
+    assert box["y"] <= 200, f"map top at {box['y']} px"
+    assert box["h"] >= 380, f"map only {box['h']} px tall"
+
+
+@check("P2-fullscreen-topbar", phase="P2")
+def _fullscreen_topbar(page, base):
+    """Full screen is a page-level action in the top bar, and only on the map"""
+    goto(page, base, "#map")
+    btn = page.query_selector("[data-testid=map-full]")
+    assert btn, "no full-screen button"
+    assert page.eval_on_selector("[data-testid=map-full]", "e => !!e.closest('.topbar')")
+    goto(page, base, "#data/areas/kunta")
+    assert not page.query_selector("[data-testid=map-full]")
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

@@ -112,7 +112,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
 - ☑ **P1 Navigation and routes** — 4 nav items, Export ▾ footer, Data 3 tabs, Compare deleted,
   redirects (`#table/*`, `#pipeline`, `#sources`, `#analysis`, `#compare`), Leaflet teardown registry,
   `window.__maps`.
-- ☐ **P2 One toolbar on the Map** — row 1 `[search ▾][Layers ▾][Indicator ▾][Period]` + level segment;
+- ☑ **P2 One toolbar on the Map** — row 1 `[search ▾][Layers ▾][Indicator ▾][Period]` + level segment;
   unified search (names, codes, addresses, Google Maps links, `lat, lon`, quick jumps); row 2 chips;
   Climate button and return-period pills removed; Infra/Public/Services/Zoning/grid → Layers ▾;
   legends become keys only; Full screen → top bar; map top ≤ 200 px at 1366×768.
@@ -214,6 +214,48 @@ Gate: green — `make validate` ✓, `make test` 38 python + 38 node ✓, `make 
   and the file is named `macro-dashboard-dk_all_…`. **P7 rewrites both.**
 - Horizontal overflow at 390 px is not yet asserted. **P9.**
 
+### P2 — one toolbar on the map ☑
+Commit: `feat: v2.0 P2 — one map toolbar: unified search, Layers ▾, and legends that are only legends`
+Gate: green — validate ✓, test 38+38 ✓, build clean, `make ui` 18/18.
+
+**Built**
+1. **One unified search** (`mapSearch()`, `data-testid=search`) replacing v1.1's two boxes and five jump
+   buttons. It answers four kinds of thing: a quick camera jump (Helsinki · Tampere · Turku · Oulu ·
+   Finland, at the top of the dropdown, `H/T/U/O/F` unchanged and still camera-only), an area by name or
+   code (kunta / postinumero / osa-alue), a coordinate or Google Maps link, and a street address through
+   the DVV register. The last two open `#property?p=…` (`TP.toProp`). Real combobox: `role=combobox` +
+   `role=listbox`, ↑/↓/Enter/Esc, paste acts immediately.
+2. **`Layers ▾`** (`data-testid=layers-btn` / `layers-pop`) with a count badge, replacing five toolbar
+   buttons and the Climate-risk segment with its four return-period pills. **Feature layers**: Infra
+   projects · Public buildings (+ the four category chips and the existing/open-case switch) · Services
+   (+ categories and rail/bus) · Buildings. **Context**: Zoning · 1 km population grid · the four SYKE
+   flood layers (P3 binds these to the Climate indicator and drops them from the menu's Context list).
+   Toggling a layer redraws the map and the menu, never the page.
+3. **The floating legends are keys.** Every `only` / `All` / category toggle moved into Layers ▾; a
+   hidden category is simply not listed. Legends are asserted pairwise non-overlapping.
+4. **One level switch on row 1** — `[Postal codes | Osa-alueet (148) | Buildings (23 935)]`, merging
+   v1.1's two separate segments (`data-osaview`, `data-micro`).
+5. **Full screen** left the toolbar for the top bar right (`#hdact`, `data-testid=map-full`), and the
+   privacy sentence left the map for the search box's tooltip — it is still spelled out on the Test
+   property page.
+6. **The height budget.** At 1366×768 the map started 246 px down; the top bar was stacking `#hd` above
+   `#hdact` because it was not a flex row, and the paddings were off the spacing scale. Now **≤ 200 px**
+   with the map ≥ 480 px tall.
+7. **Two more live bugs fixed.**
+   - The **Infra layer threw** (`Cannot read properties of null (reading 'type')` in `isPt`) as soon as
+     it was switched on: `INFRA` is filtered on `map !== false` while the alignments are still out of
+     the page, and `infra.json` then sets `geometry: null` on every project whose alignment the
+     publisher has not drawn. Those belong in the table and the sheet, not on the map.
+   - **Two 404s on every map with a marker** (`images/marker-icon.png`, `images/marker-shadow.png`):
+     every marker here carries its own `divIcon`, but Leaflet's `Icon.Default._detectIconPath()` still
+     probes for the images the build does not ship. The default now points at a transparent pixel.
+
+**Known issues / open**
+- The indicator control is still `indSelect()` + `yearSelect()` in the toolbar's third and fourth slots
+  — **P3** replaces them with the shared picker and period control, which is also what will stop the
+  toolbar wrapping to a second row at 1366.
+- The map area card is still v1.1's tall block (Outlook, the UPCOMING chip row, the figures). **P4.**
+
 ## 6. Next
 
-Start P2 — one toolbar on the Map.
+Start P3 — the shared IndicatorPicker and PeriodControl.

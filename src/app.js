@@ -289,7 +289,7 @@ const microAvail = code => !!(code && MICRO_IDX[kcode(code)]);
 const microMode = () => !!(MK.micro && MK.muni && microAvail(MK.muni));
 const curMind = () => MICRO_INDS.find(i => i.key === MK.mind) || MICRO_INDS[0];
 const AR = { type: null, code: null, group: "", ind: null, sub: "osa_alue", tab: "ind", show: [] };   /* area page; `show` = which <details> are open (URL key show=) */
-const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false };   /* fold states that survive a re-render */
+const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false };   /* fold states that survive a re-render */
 const CH = { ind: (IND[0] || {}).key, areas: [], y0: "", y1: "", median: true, title: "", mode: "auto", dist: "size", fq: "year", ov: [], nat: true };   /* chart generator; fq = year | q, ov = overlay indicators, nat = Finland line */
 const PR = { id: null };                                                          /* project datasheet */
 const PB = { kom: null, id: null };                                               /* public-building sheet */
@@ -318,7 +318,7 @@ function anParseLayers(q) {
    It lives in the map hash (pin=, pl=), so it survives a reload and every level change. */
 const TP_LABEL = "Test property";
 const TP_RINGS = [500, 1000, 1200];                                               /* metres — the dashed walk/bike rings */
-const TP = { lat: null, lon: null, label: TP_LABEL, res: null, msg: "", fit: false, rad: 0 };
+const TP = { lat: null, lon: null, label: TP_LABEL, res: null, msg: "", fit: false, rad: 0, toProp: false };
 /* Radius filter for a selected test property: the overlay layers (infra, public buildings,
    services) are cut to what lies within `rad` metres of the pin. It is plain great-circle
    arithmetic on published coordinates, and it lives in the hash (rad=), so it survives a
@@ -403,6 +403,16 @@ const amOf = map => (map && map._am) || (map ? mapPanes(map) : { base: undefined
     };
   });
   L.Map.prototype.__amGuarded = true;
+  /* Every marker in this dashboard carries its own divIcon, so Leaflet's default marker images are
+     never drawn — but `Icon.Default._detectIconPath()` still inserts a probe element whose CSS
+     background-image asks for `images/marker-icon.png`, and the build ships no images directory.
+     Two 404s on every map that has a marker on it. Pointing the default at a transparent pixel
+     stops the detection running at all. */
+  if (L.Icon && L.Icon.Default) {
+    const blank = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+    L.Icon.Default.imagePath = "";
+    L.Icon.Default.mergeOptions({ iconUrl: blank, iconRetinaUrl: blank, shadowUrl: blank });
+  }
 })();
 const MICRO_ZOOM = 10;
 /* quarter indicators whose definition matches the national one closely enough to put Helsinki next to a quarter */
@@ -621,6 +631,10 @@ function crumbs() {
 function renderTop() {
   const { c, tail, kind } = crumbs();
   document.getElementById("hd").innerHTML = `<nav class="crumbs">${c.map(([l, h]) => `<button data-go="${esc(h)}">${esc(l)}</button><i>›</i>`).join("")}<b>${esc(tail)}</b>${kind ? `<span class="dim">${esc(kind)}</span>` : ""}</nav>`;
+  /* page-level actions live on the right of the top bar, not in the map toolbar */
+  const act = document.getElementById("hdact");
+  if (act) act.innerHTML = S.view === "makro"
+    ? `<button class="tbtn" data-testid="map-full" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>` : "";
 }
 const RENDER = { makro: vMakro, table: vTable, area: vArea, charts: vCharts, sources: vSources, pipeline: vPipeline, project: vProject,
                  public: vPublic, publist: vPubList, school: vSchool, schoollist: vSchoolList, property: vAnalysis };
@@ -652,6 +666,8 @@ document.addEventListener("click", e => {
   let el;
   /* every popover closes on a click that is not inside it — one rule, listed before the rest */
   if (!g("[data-exopen]") && !g(".exmenu")) exportClose();
+  if (!g("[data-lyopen]") && !g(".lypop")) layersClose();
+  if (!g(".msearch")) msClose();
   if ((el = g("[data-navtoggle]"))) { navToggle(); return; }
   if (g("[data-navclose]")) { navToggle(false); return; }
   if ((el = g("[data-go]"))) { navToggle(false); go(el.dataset.go); return; }
@@ -666,7 +682,11 @@ document.addEventListener("click", e => {
   if (g("[data-exopen]")) { exportToggle(); return; }
   if ((el = g("[data-export]"))) { exportRun(el.dataset.export); return; }
   if (g("[data-mkown]")) { MK.own = !MK.own; renderKeep(); return; }
-  if ((el = g("[data-osaview]"))) { MK.osaView = el.dataset.osaview; go(hashFor()); return; }
+  if ((el = g("[data-level]"))) { const k = el.dataset.level;
+    MK.micro = k === "buildings"; MK.osaView = k === "osa_alue" ? "osa_alue" : "postinumero";
+    go(hashFor()); return; }
+  if (g("[data-lyopen]")) { layersToggle(); return; }
+  if ((el = g("[data-layer]"))) { if (el.disabled) return; layerToggle(el.dataset.layer); return; }
   if (g("[data-fs]")) { toggleFullscreen(); return; }
   if ((el = g("[data-chmode]"))) { CH.mode = el.dataset.chmode; syncHash(); renderKeep(); return; }
   if ((el = g("[data-chfq]"))) { CH.fq = el.dataset.chfq; syncHash(); renderKeep(); return; }
@@ -676,39 +696,30 @@ document.addEventListener("click", e => {
   if (g("[data-chpng]")) { chartPng(); return; }
   if (g("[data-chcsv]")) { chartCsv(); return; }
   if (g("[data-chclear]")) { CH.areas = []; syncHash(); renderKeep(); return; }
-  if ((el = g("[data-mapjump]"))) { mapJump(el.dataset.mapjump); return; }
+  if ((el = g("[data-msi]"))) { msPick(Number(el.dataset.msi)); return; }
   if ((el = g("[data-tprad]"))) { TP.rad = TP_RADII.includes(Number(el.dataset.tprad)) ? Number(el.dataset.tprad) : 0;
     syncHash(); mkRefreshTools();
     if (LF.map) { lfInfraLayers(); if (MK.pub) { lfPublicLayers(true); lfPublicLabels(); } if (MK.srv) lfServicesLayers(true); climLayers(); tpLayers(); }
     return; }
-  if ((el = g("[data-micro]"))) { MK.micro = el.dataset.micro === "1"; syncHash(); renderKeep(); return; }
-  if (g("[data-infra]")) { MK.infra = !MK.infra; syncHash(); renderKeep(); return; }
   if ((el = g("[data-anlay]"))) { if (el.disabled) return; const k = el.dataset.anlay;
     if (k === "infra") ANL.infra = !ANL.infra; else if (k === "public") ANL.pub = !ANL.pub; else ANL.micro = !ANL.micro;
     syncHash(); renderKeep(); return; }
-  if (g("[data-public]")) { MK.pub = !MK.pub; LF.pubDrawn = null; syncHash(); renderKeep(); return; }
-  if ((el = g("[data-clim]"))) { MK.clim = el.dataset.clim || ""; syncHash(); renderKeep(); return; }
-  if ((el = g("[data-wms]"))) { MK.wms = el.dataset.wms || ""; syncHash(); renderKeep(); return; }
-  if (g("[data-services]")) { MK.srv = !MK.srv; LF.srvDrawn = null; if (MK.srv) srvLoadVisible(); syncHash(); renderKeep(); return; }
   if ((el = g("[data-srvcat]"))) { const k = el.dataset.srvcat;
-    if (e.shiftKey) { srvSetFilter(new Set([k])); return; }
     const cur = new Set(SF.cats); cur.has(k) ? cur.delete(k) : cur.add(k);
-    srvSetFilter(cur); return; }
+    srvSetFilter(cur); layersRefresh(); return; }
   if ((el = g("[data-srvmode]"))) { const k = el.dataset.srvmode;
     const cur = new Set(SF.tmodes); cur.has(k) ? cur.delete(k) : cur.add(k);
     /* the Transport chip follows its two sub-toggles: both off means the category is off */
     const cats = new Set(SF.cats); cur.size ? cats.add("transport") : cats.delete("transport");
-    srvSetFilter(cats, cur); return; }
-  if (g("[data-srvall]")) { srvSetFilter(new Set(Object.keys(SRV_CAT)), new Set(["rail", "bus"])); return; }
-  if ((el = g("[data-pubonly]"))) { pubSetFilter({ cats: new Set([el.dataset.pubonly]) }); return; }
-  if (g("[data-puball]")) { pubSetFilter({ cats: null, kind: "both" }); return; }
+    srvSetFilter(cats, cur); layersRefresh(); return; }
+  if (g("[data-srvall]")) { srvSetFilter(new Set(Object.keys(SRV_CAT)), new Set(["rail", "bus"])); layersRefresh(); return; }
+  if (g("[data-puball]")) { pubSetFilter({ cats: null, kind: "both" }); layersRefresh(); return; }
   if ((el = g("[data-pubcat]"))) { const k = el.dataset.pubcat;
-    if (e.shiftKey) { pubSetFilter({ cats: new Set([k]) }); return; }
     const cur = PF.cats ? new Set(PF.cats) : new Set(Object.keys(PUB_CAT));
     cur.has(k) ? cur.delete(k) : cur.add(k);
-    pubSetFilter({ cats: cur.size === Object.keys(PUB_CAT).length ? null : cur }); return; }
+    pubSetFilter({ cats: cur.size === Object.keys(PUB_CAT).length ? null : cur }); layersRefresh(); return; }
   if ((el = g("[data-pubkind]"))) { const k = el.dataset.pubkind;
-    pubSetFilter({ kind: PF.kind === k ? "both" : k }); return; }
+    pubSetFilter({ kind: PF.kind === k ? "both" : k }); layersRefresh(); return; }
   if ((el = g("[data-publist]"))) {
     const f = el.dataset.pubfilter;      /* the card segments set the same filter the legend uses */
     if (f) { const [c, k] = f.split(":"); PF.cats = c ? new Set([c]) : null; PF.kind = k === "case" ? "open" : k === "existing" ? "existing" : "both"; }
@@ -730,7 +741,6 @@ document.addEventListener("change", e => {
   const el = e.target;
   if (el.id === "indsel") { MK.ind = el.value; if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST; syncHash(); renderKeep(); }
   if (el.id === "yearsel") { MK.year = el.value; syncHash(); renderKeep(); }
-  if (el.id === "areaq") areaSearchGo(el.value);
   if (el.id === "mindsel") { MK.mind = el.value; syncHash(); renderKeep(); }
   if (el.id === "chind") { CH.ind = el.value; CH.ov = []; syncHash(); renderKeep(); }
   if (el.id === "chnat") { CH.nat = el.checked; syncHash(); renderKeep(); }
@@ -747,23 +757,32 @@ document.addEventListener("change", e => {
   if (el.id === "tregion") { T.region = el.value; renderTableBody(); }
   if (el.id === "tminpop") { T.minPop = Number(el.value) || 0; renderTableBody(); }
 });
+document.addEventListener("focusin", e => { if (e.target && e.target.id === "mq") msOpen(e.target.value); });
 /* pasting is the normal way in: act on the pasted text straight away, no Enter needed */
 document.addEventListener("paste", e => {
-  if (!e.target || e.target.id !== "tpq") return;
+  if (!e.target || (e.target.id !== "tpq" && e.target.id !== "mq")) return;
   const t = ((e.clipboardData || window.clipboardData) || { getData: () => "" }).getData("text");
   if (!t) return;
   e.preventDefault(); e.target.value = t.trim();
+  if (e.target.id === "mq") { msOpen(t.trim()); return; }
   tpGo(t);
 });
 document.addEventListener("input", e => {
+  if (e.target.id === "mq") { msOpen(e.target.value); return; }
   if (e.target.id === "tq") { T.q = e.target.value.trim().toLowerCase(); renderTableBody(); }
   if (e.target.id === "anlab") { AN.label = e.target.value.trim(); TP.label = AN.label || TP_LABEL; syncHash(); }
 });
 document.addEventListener("toggle", e => { if (e.target.classList && e.target.classList.contains("indx")) UI.indxOpen = e.target.open; }, true);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && UI.exOpen) { exportClose(); return; }
+  if (e.key === "Escape" && UI.lyOpen) { layersClose(); return; }
+  if (e.target.id === "mq") {
+    if (e.key === "ArrowDown") { e.preventDefault(); MS.open ? msMove(1) : msOpen(e.target.value); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); msMove(-1); return; }
+    if (e.key === "Enter") { e.preventDefault(); if (!MS.open) msOpen(e.target.value); msPick(); return; }
+    if (e.key === "Escape") { msClose(); return; }
+  }
   if (e.key === "Escape" && UI.navOpen) { navToggle(false); return; }
-  if (e.key === "Enter" && e.target.id === "areaq") { areaSearchGo(e.target.value); return; }
   if (e.key === "Enter" && e.target.id === "chq") { chartAdd(null, e.target.value); return; }
   if (e.key === "Enter" && e.target.id === "mf-addr") { microFind(e.target.value); return; }
   if (e.key === "Enter" && e.target.id === "tpq") { tpGo(e.target.value); return; }
@@ -906,21 +925,90 @@ function indQuick() {
   const L = curInds(); const ks = QUICK_KEYS.map(k => L.find(i => i.key === k)).filter(Boolean);
   return ks.length > 1 ? `<div class="iq">${ks.map(i => `<button class="iqb ${MK.ind === i.key ? "on" : ""}" data-indq="${i.key}" title="${esc(i.label)}">${esc(i.short || i.label)}</button>`).join("")}</div>` : "";
 }
-/* searchable area box: municipalities open on the map, postal codes and quarters open their page */
-const AREA_OPTS = [{ t: "Finland — whole country", h: "map", k: ["finland", "suomi", "fi"] }];
-MUNI.slice().sort((a, b) => a.name.localeCompare(b.name, LOCALE)).forEach(m => AREA_OPTS.push({ t: `${m.name} — municipality, ${m.region || ""}`, h: `map/${m.code}`, k: [m.name.toLowerCase(), m.code] }));
-AREAS.slice().sort((a, b) => a.nr.localeCompare(b.nr)).forEach(a => AREA_OPTS.push({ t: `${a.nr} ${a.name} — postal code, ${(byCode[a.muni] || {}).name || ""}`, h: `area/postinumero/${a.nr}`, k: [a.nr, (a.name || "").toLowerCase()] }));
-if (OSA) OSA.areas.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", LOCALE)).forEach(q => AREA_OPTS.push({ t: `${q.name} — Helsinki-region osa-alue, ${q.peruspiiri || ""}`, h: `area/osa_alue/${q.code}`, k: [(q.name || "").toLowerCase(), q.code] }));
-function areaSearch() {
-  const m = MK.muni ? byCode[MK.muni] : null;
-  return `<span class="asrch"><input id="areaq" list="arealist" class="indsel" placeholder="${m ? esc(m.name) + " — search another area…" : "Search kunta, postinumero or osa-alue…"}" autocomplete="off" aria-label="Area">
-    <datalist id="arealist">${AREA_OPTS.map(o => `<option value="${esc(o.t)}"></option>`).join("")}</datalist></span>`;
+/* ---------- the unified map search (v2.0 P2) ----------
+   One box, four kinds of answer: a quick camera jump, an area (kunta / postinumero / osa-alue, by
+   name or by code), a coordinate (plain "lat, lon" or a Google Maps link), and a street address
+   through the DVV register. The first two navigate inside the dashboard; the last two open
+   `#property?p=…`. v1.1 had two boxes side by side on the toolbar and five jump buttons next to
+   them — this is all of it, in one control, on one row. */
+const AREA_OPTS = [];
+MUNI.slice().sort((a, b) => a.name.localeCompare(b.name, LOCALE)).forEach(m => AREA_OPTS.push(
+  { kind: "kunta", name: m.name, sub: `Kunta · ${m.region || ""}`, h: `map/${m.code}`,
+    keys: [m.name.toLowerCase(), String(m.code)] }));
+AREAS.slice().sort((a, b) => a.nr.localeCompare(b.nr)).forEach(a => AREA_OPTS.push(
+  { kind: "postinumero", name: `${a.nr} ${a.name}`, sub: `Postinumero · ${(byCode[a.muni] || {}).name || ""}`,
+    h: `area/postinumero/${a.nr}`, keys: [a.nr, (a.name || "").toLowerCase()] }));
+if (OSA) OSA.areas.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", LOCALE)).forEach(q => AREA_OPTS.push(
+  { kind: "osa_alue", name: q.name, sub: `Osa-alue · ${q.peruspiiri || (osaParent(q) || {}).name || ""}`,
+    h: `area/osa_alue/${q.code}`, keys: [(q.name || "").toLowerCase(), String(q.code)] }));
+
+const MS = { open: false, i: -1, rows: [], q: "" };
+const MS_MAX = 10;
+/* the jump rows sit at the top of the dropdown, where the five toolbar buttons used to be;
+   the keyboard shortcuts (H / T / U / O / F) are unchanged and still move the camera only */
+function msJumpRows() {
+  return Object.keys(MAP_JUMPS).map(id => ({ type: "jump", id,
+    name: MAP_JUMPS[id].label, sub: `Jump to · ${MAP_JUMPS[id].key}`, }));
 }
-function areaSearchGo(txt) {
-  const q = (txt || "").trim(); if (!q) return;
-  let o = AREA_OPTS.find(x => x.t === q);
-  if (!o) { const ql = q.toLowerCase().replace(/\s+—.*$/, ""); o = AREA_OPTS.find(x => x.k.some(k => k === ql)) || AREA_OPTS.find(x => x.k.some(k => k.startsWith(ql))); }
-  if (o) go(o.h + `?ind=${encodeURIComponent(MK.ind)}` + (MK.year !== LATEST ? `&y=${MK.year}` : ""));
+function msRows(q) {
+  const t = (q || "").trim();
+  if (!t) return msJumpRows();
+  const out = [];
+  /* a coordinate or a Google Maps link is answered before any name match: it is unambiguous */
+  const loc = typeof parseLocation === "function" ? parseLocation(t) : { error: true };
+  if (!loc.error && !loc.address) out.push({ type: "coord", lat: loc.lat, lon: loc.lon,
+    name: `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`, sub: "Open as a test property" });
+  const tl = t.toLowerCase();
+  const starts = [], has = [];
+  for (const o of AREA_OPTS) {
+    if (o.keys.some(k => k === tl || k.startsWith(tl))) starts.push(o);
+    else if (o.keys.some(k => k.indexOf(tl) >= 0)) has.push(o);
+    if (starts.length >= MS_MAX) break;
+  }
+  starts.concat(has).slice(0, MS_MAX).forEach(o => out.push({ type: "area", ...o }));
+  /* a street address is the last resort: it costs a register lookup, so it is never the default */
+  if (!loc.error && loc.address) out.push({ type: "addr", text: t,
+    name: `${loc.address.street}${loc.address.house ? " " + loc.address.house + (loc.address.letter || "") : ""}`,
+    sub: `Address${loc.address.place ? " · " + loc.address.place : ""} — open as a test property` });
+  if (!out.length) out.push({ type: "none", name: `No area matches "${t}"`,
+    sub: "try a kunta, a postinumero, an address or a Google Maps link" });
+  out.push(...msJumpRows().filter(() => t.length < 3));
+  return out;
+}
+/* a function, not a const: TP_NOTE is declared further down the file, and a const evaluated here
+   would read it inside its temporal dead zone */
+const msTip = () => `${TP_NOTE}\n\nAccepted:\n` + TP_FORMATS.map(([, ex, what]) => `  ${ex}  — ${what}`).join("\n");
+function mapSearch() {
+  const m = MK.muni ? byCode[MK.muni] : null;
+  return `<div class="msearch" data-testid="search">
+    <input id="mq" class="mqi" type="search" role="combobox" aria-expanded="false" aria-controls="mqpop"
+      aria-autocomplete="list" autocomplete="off" aria-label="Search area, address, link or coordinates"
+      placeholder="${m ? esc(m.name) + " — search…" : "Search kunta, postinumero, osa-alue, address or lat, lon"}">
+    <span class="mqtip" tabindex="0" role="note" title="${esc(msTip())}" aria-label="What this box accepts, and what happens to a location">?</span>
+    <div class="mqpop" id="mqpop" role="listbox" hidden></div></div>`;
+}
+function msHtml() {
+  return MS.rows.map((r, n) => `<div class="mqrow ${n === MS.i ? "on" : ""} mq-${r.type}" role="option"
+      aria-selected="${n === MS.i}" data-msi="${n}"><b>${esc(r.name)}</b><em>${esc(r.sub || "")}</em></div>`).join("");
+}
+function msRender() {
+  const pop = document.getElementById("mqpop"), inp = document.getElementById("mq");
+  if (!pop) return;
+  pop.innerHTML = msHtml();
+  pop.hidden = !MS.open || !MS.rows.length;
+  if (inp) inp.setAttribute("aria-expanded", pop.hidden ? "false" : "true");
+}
+function msOpen(q) { MS.q = q == null ? MS.q : q; MS.rows = msRows(MS.q); MS.i = MS.rows.length ? 0 : -1; MS.open = true; msRender(); }
+function msClose() { MS.open = false; MS.i = -1; msRender(); }
+function msMove(d) { if (!MS.open || !MS.rows.length) return; MS.i = (MS.i + d + MS.rows.length) % MS.rows.length; msRender(); }
+function msPick(n) {
+  const r = MS.rows[n == null ? MS.i : n]; if (!r) return;
+  msClose();
+  const inp = document.getElementById("mq"); if (inp) inp.blur();
+  if (r.type === "jump") { mapJump(r.id); return; }
+  if (r.type === "area") { go(withQ(r.h)); return; }
+  if (r.type === "coord") { TP.toProp = true; TP.label = ""; komLoad().then(() => tpDrop(r.lat, r.lon)); return; }
+  if (r.type === "addr") { TP.toProp = true; tpGo(r.text); return; }
 }
 function asofText(i) {
   const asofSrc = (MK.year !== LATEST && i.hist_asof && i.hist_asof[MK.year]) ? i.hist_asof[MK.year] : i.asof;
@@ -1117,11 +1205,106 @@ function upcomingLine(level, code) {
   const show = up.slice(0, 3).map(p => `<button class="lk mini" data-project="${esc(p.id)}" title="${esc(p.name)}">${esc(p.label_short || p.name)}${p.open_year || p.open_window ? ` (${esc(openLabel(p))})` : ""}</button>`).join("");
   return `<span class="upcoming"><em>Upcoming</em>${show}${up.length > 3 ? `<button class="lk mini" data-go="pipeline">+${up.length - 3} more</button>` : ""}</span>`;
 }
-/* The map toolbar, so the zoom ladder can refresh it in place. Re-rendering the whole view
-   would re-run lfInit and tear the live map down in the middle of a zoom gesture. */
-function mkTools() {
+/* ---------- Layers ▾ (v2.0 P2) ----------
+   One menu in place of v1.1's five toolbar buttons (Infra projects · Public buildings · Services ·
+   Zoning · 1 km grid) and the Climate-risk segment with its four return-period pills. The
+   sub-filters that used to live *inside* the floating legend cards move here too, so a legend is a
+   legend: colour keys and a source line, nothing to click. */
+const layerCount = () => (MK.infra ? 1 : 0) + (MK.pub ? 1 : 0) + (MK.srv ? 1 : 0) + (MK.micro ? 1 : 0)
+  + (MK.wms ? 1 : 0) + (MK.clim ? 1 : 0);
+function layersBtn() {
+  const n = layerCount();
+  return `<div class="lywrap">
+    <button class="tbtn ${n ? "on" : ""}" data-testid="layers-btn" data-lyopen aria-haspopup="dialog"
+      aria-expanded="${UI.lyOpen ? "true" : "false"}">Layers ▾${n ? `<span class="tbn">${n}</span>` : ""}</button>
+    <div class="lypop" data-testid="layers-pop" role="dialog" aria-label="Map layers" ${UI.lyOpen ? "" : "hidden"}>${layersMenu()}</div></div>`;
+}
+const lyRow = (key, on, label, sub, dis, tip) => `<div class="lyrow ${dis ? "dis" : ""}">
+  <button class="lychk ${on ? "on" : ""}" role="switch" aria-checked="${on}" data-layer="${key}" ${dis ? "disabled" : ""}
+    title="${esc(tip || "")}"><i></i><b>${esc(label)}</b><em>${esc(sub || "")}</em></button></div>`;
+const lyChips = rows => `<div class="lychips">${rows}</div>`;
+function layersMenu() {
   const muni = MK.muni ? byCode[MK.muni] : null;
-  return `${areaSearch()}${tpBox()}${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}${`<div class="seg jumps">${Object.keys(MAP_JUMPS).map(id => { const j = MAP_JUMPS[id]; return `<button class="sg" data-mapjump="${id}" title="Zoom to ${esc(j.label)} (${j.key})">${esc(j.label)}</button>`; }).join("")}</div>`}${muni && microAvail(muni.code) ? `<div class="seg"><button class="sg ${!MK.micro ? "on" : ""}" data-micro="0">Areas</button><button class="sg ${MK.micro ? "on" : ""}" data-micro="1">Buildings (${nf(MICRO_IDX[kcode(muni.code)].n, 0)})</button></div>` : ""}${muni && isOsaMuni(muni.code) && OSA && !microMode() ? `<div class="seg"><button class="sg ${MK.osaView !== "postinumero" ? "on" : ""}" data-osaview="osa_alue">Osa-alueet (${OSA.areas.filter(x => String(x.muni) === String(muni.code)).length})</button><button class="sg ${MK.osaView === "postinumero" ? "on" : ""}" data-osaview="postinumero">Postal codes</button></div>` : ""}${INFRA.length ? `<div class="seg"><button class="sg ${MK.infra ? "on" : ""}" data-infra title="Show planned and ongoing infrastructure projects on top of the map">Infra projects</button></div>` : ""}${PUB ? `<div class="seg"><button class="sg ${MK.pub ? "on" : ""}" data-public title="Public buildings: schools, daycare, health and culture${MK.muni && !pubAvail(MK.muni) ? " — not built for this kunta yet" : ""}">Public buildings</button></div>` : ""}${climBar()}${wmsBar()}${SRV ? `<div class="seg"><button class="sg ${MK.srv ? "on" : ""}" data-services title="Shops, places to eat, pharmacies and public-transport stops — OpenStreetMap and the national GTFS feeds">Services</button></div>` : ""}${microMode() ? mindSelect() : indSelect() + yearSelect()}${D.portfolio ? `<button class="lk mini ${MK.own ? "primary" : ""}" data-mkown>● Own properties</button>` : ""}<button class="lk" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>`;
+  const hasMicro = !!(muni && microAvail(muni.code));
+  const pubOk = !MK.muni || pubAvail(MK.muni);
+  let h = `<div class="lyhead">Feature layers</div>`;
+  if (INFRA.length) h += lyRow("infra", MK.infra, "Infra projects", `${INFRA.length} projects · Väylävirasto + curated majors`, false,
+    "Planned, decided, under construction and opened projects drawn in their status tones");
+  if (PUB) {
+    h += lyRow("public", MK.pub, "Public buildings", `${PUB_SRC_SHORT} · ${PUB.kunnat.length} kunnat`, !pubOk,
+      pubOk ? "Schools, daycare, health and culture" : "Not covered yet for this kunta");
+    if (MK.pub && pubOk) h += lyChips(Object.entries(PUB_CAT).map(([k, c]) =>
+      `<button class="lychip ${pubCatOn(k) ? "on" : ""}" data-pubcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
+      + (PUB_HAS_CASES() ? ["existing", "open"].map(k =>
+        `<button class="lychip ${pubKindOn(k === "open" ? "case" : "existing") ? "on" : ""}" data-pubkind="${k}">${k === "open" ? "open case" : "existing"}</button>`).join("") : "")
+      + `<button class="lychip alt" data-puball>All</button>`);
+  }
+  if (SRV) {
+    h += lyRow("services", MK.srv, "Services", `${SRV_SRC_SHORT}${SRV.asof ? " · " + SRV.asof : ""}`, false,
+      "Shops, places to eat, pharmacies and public-transport stops");
+    if (MK.srv) h += lyChips(Object.entries(SRV_CAT).map(([k, c]) =>
+      `<button class="lychip ${srvCatOn(k) ? "on" : ""}" data-srvcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
+      + Object.entries(SRV_TGROUP).map(([g, t]) =>
+        `<button class="lychip ${SF.cats.has("transport") && SF.tmodes.has(g) ? "on" : ""}" data-srvmode="${g}">${esc(t.label)}</button>`).join("")
+      + `<button class="lychip alt" data-srvall>All</button>`);
+  }
+  h += lyRow("buildings", MK.micro, "Buildings", hasMicro ? `${nf(MICRO_IDX[kcode(muni.code)].n, 0)} in ${muni.name} · Ryhti register` : "drill into a kunta that has a building file", !hasMicro,
+    hasMicro ? "Every register building with at least two dwellings" : "No building file for this area");
+  h += `<div class="lyhead">Context</div>`;
+  Object.entries(MAP_WMS).forEach(([k, c]) => {
+    h += lyRow("wms:" + k, MK.wms === k, c.label, (c.attribution || "").replace(/^.*?© /, ""), false, c.label);
+  });
+  if (climAvail()) h += CLIM_LAYERS.map(c => lyRow("clim:" + c.key, MK.clim === c.key, c.label,
+    "Suomen ympäristökeskus, live WMS", false, "A return period is a probability, not a date")).join("");
+  h += `<p class="lynote">A context layer is the publisher's own map, drawn live from its WMS — never redrawn here.</p>`;
+  return h;
+}
+function layersToggle() { UI.lyOpen = !UI.lyOpen;
+  document.querySelectorAll(".lypop").forEach(m => { m.innerHTML = layersMenu(); m.hidden = !UI.lyOpen; });
+  document.querySelectorAll("[data-lyopen]").forEach(b => b.setAttribute("aria-expanded", UI.lyOpen ? "true" : "false")); }
+function layersClose() { if (!UI.lyOpen) return; UI.lyOpen = false;
+  document.querySelectorAll(".lypop").forEach(m => { m.hidden = true; });
+  document.querySelectorAll("[data-lyopen]").forEach(b => b.setAttribute("aria-expanded", "false")); }
+function layersRefresh() { const el = document.querySelector(".lypop"); if (el) el.innerHTML = layersMenu();
+  const b = document.querySelector("[data-lyopen]"); if (b) { const n = layerCount();
+    b.classList.toggle("on", !!n); b.innerHTML = `Layers ▾${n ? `<span class="tbn">${n}</span>` : ""}`; } }
+/* one switch does one thing, and the menu redraws itself rather than the page */
+function layerToggle(key) {
+  if (key === "infra") MK.infra = !MK.infra;
+  else if (key === "public") MK.pub = !MK.pub;
+  else if (key === "services") MK.srv = !MK.srv;
+  else if (key === "buildings") { MK.micro = !MK.micro; syncHash(); renderKeep(); return; }
+  else if (key.startsWith("wms:")) { const k = key.slice(4); MK.wms = MK.wms === k ? "" : k; }
+  else if (key.startsWith("clim:")) { const k = key.slice(5); MK.clim = MK.clim === k ? "" : k; }
+  syncHash();
+  if (LF.map) { lfInfraLayers();
+                if (MK.pub) { LF.pubDrawn = null; lfPublicLayers(true); lfPublicLabels(); } else lfDrop("pubG", "pubLabG");
+                if (MK.srv) { LF.srvDrawn = null; srvLoadVisible(); lfServicesLayers(true); } else lfDrop("srvG", "srvStG");
+                climLayers(); setInfraLegend(); setPublicLegend(); setServicesLegend(); }
+  layersRefresh();
+  const cl = document.getElementById("climlegend"); if (cl) cl.innerHTML = climLegendHtml() + wmsLegendHtml();
+}
+
+/* the one segmented level switch, on row 1, when a kunta is drilled into */
+function levelSeg() {
+  const muni = MK.muni ? byCode[MK.muni] : null; if (!muni) return "";
+  const osa = OSA && isOsaMuni(muni.code) ? OSA.areas.filter(x => String(x.muni) === String(muni.code)).length : 0;
+  const mic = microAvail(muni.code) ? MICRO_IDX[kcode(muni.code)].n : 0;
+  const opts = [["postinumero", "Postal codes", 0]]
+    .concat(osa ? [["osa_alue", "Osa-alueet", osa]] : [])
+    .concat(mic ? [["buildings", "Buildings", mic]] : []);
+  if (opts.length < 2) return "";
+  const cur = microMode() ? "buildings" : osaMode() ? "osa_alue" : "postinumero";
+  return `<div class="seg" data-testid="level-seg" role="group" aria-label="Level">${opts.map(([k, l, n]) =>
+    `<button class="sg ${cur === k ? "on" : ""}" data-level="${k}">${esc(l)}${n ? ` (${nf(n, 0)})` : ""}</button>`).join("")}</div>`;
+}
+
+/* The map toolbar, so the zoom ladder can refresh it in place. Re-rendering the whole view
+   would re-run lfInit and tear the live map down in the middle of a zoom gesture.
+   Row 1 is the whole toolbar: search · Layers ▾ · Indicator ▾ · Period (+ the level switch). */
+function mkTools() {
+  return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indSelect() + yearSelect()}`
+    + `${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}`;
 }
 function mkRefreshTools() {
   const el = document.querySelector("#mapcard .tools"); if (el) el.innerHTML = mkTools();
@@ -1140,11 +1323,11 @@ function vMakro() {
   return `
   <div class="card accent" id="mapcard">
     <div class="card-head tools-only">
-      <div class="tools">${mkTools()}</div>
-      <div id="mkquick">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div>${tpNote()}</div>
+      <div class="tools" data-testid="map-toolbar" data-row="1">${mkTools()}</div>
+      <div id="mkquick" data-testid="ind-chips" data-row="2">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
     <div id="mkexplain">${microMode() ? microExplain() : indExplain(ind)}</div>
     <div id="mkstrip">${muni && !microMode() ? muniStrip(muni) : ""}</div>
-    <div class="mapwrap"><div id="lfmap"></div><div class="maplegs"><div class="maplegend climlegend" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" id="publiclegend"></div><div class="maplegend serviceslegend" id="serviceslegend"></div><div class="maplegend infralegend" id="infralegend"></div></div><div class="maplegend" id="maplegend"></div></div>
+    <div class="mapwrap" data-testid="map"><div id="lfmap"></div><div class="maplegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div>
     ${srcNote(`<p class="cap">${muni ? "Click a polygon for its figures and a link to its page." : "Click a polygon for its figures; open a municipality with the search box above or from the popup. Table view lists everything side by side."} Colour classes: quintiles of the visible areas. Boundaries: Tilastokeskus (simplified, CC BY 4.0); basemap OpenStreetMap.${MK.srv ? ` <b>Services:</b> ${esc(srvAttribLine())}.` : ""}</p>`)}
   </div>`;
 }
@@ -1706,12 +1889,6 @@ function wmsLegendHtml() {
       `<span class="olrow"><i style="background:${col}"></i>${esc(lab)}</span>`).join("")}
       <p class="cap">${c.note}</p></div></details>`;
 }
-function wmsBar() {
-  return `<div class="seg" role="group" aria-label="Publisher map overlays">
-    <button class="sg ${!MK.wms ? "on" : ""}" data-wms="">Layers</button>
-    ${Object.entries(MAP_WMS).map(([k, c]) => `<button class="sg ${MK.wms === k ? "on" : ""}" data-wms="${k}" title="${esc(c.label)} — drawn live from the publisher's own WMS">${esc(c.label)}</button>`).join("")}
-  </div>`;
-}
 function climLayers() {
   wmsLayers();
   if (!LF.map) return;
@@ -1741,13 +1918,6 @@ function climLegendHtml() {
       <p class="cap">${esc(CLIM_DISCLAIMER)}</p></div></details>`;
 }
 const CLIM_DISCLAIMER = "Screening indicators for comparing areas, not a property-level risk assessment.";
-function climBar() {
-  if (!climAvail()) return "";
-  return `<div class="seg climseg" role="group" aria-label="Climate risk overlay">
-    <button class="sg ${!MK.clim ? "on" : ""}" data-clim="" title="No climate overlay">Climate risk</button>
-    ${CLIM_LAYERS.map(c => `<button class="sg ${MK.clim === c.key ? "on" : ""}" data-clim="${c.key}" title="${esc(c.label)} — Suomen ympäristökeskus, drawn live from its WMS">${esc(c.label.replace(/^(Sea|Watercourse) flood · /, ""))}${c.key.startsWith("sea") ? " sea" : " river"}</button>`).join("")}
-  </div>`;
-}
 /* ---------- Infrastructure projects overlay (data/geo/infra_projects.geojson, see docs/INFRA.md) ---------- */
 /* Every project, whether or not an alignment exists for it. The Danish build filtered this
    list on `f.geometry`, which was harmless there — every Danish project had one. Here it would
@@ -1874,6 +2044,10 @@ function lfInfraLayers() {
   const lines = [], hits = [], stations = [];
   INFRA.forEach(f => {
     const p = f.properties;
+    /* `INFRA` is filtered on `map !== false` at load time, when the alignments are not in the page
+       yet; infra.json then fills them in — and leaves `geometry: null` on a project whose alignment
+       the publisher has not drawn. Those belong in the table and the sheet, not on the map. */
+    if (!infraDrawable(f)) return;
     /* a line or an area counts as within range when any part of it is */
     if (tpRadOn() && !((featDistM(f, TP.lat, TP.lon) ?? Infinity) <= TP.rad)) return;
     if (isPt(f)) { stations.push(f); return; }
@@ -2263,8 +2437,9 @@ function tpDrop(lat, lon) {
   const res = locate(lat, lon);
   if (res.error) { tpErr(`${lat.toFixed(5)}, ${lon.toFixed(5)} is ${res.error} — no municipality or postal code covers it.`); return; }
   if (!TP.label) TP.label = TP_LABEL;
-  /* dropped on the Analysis view: straight to the sheet, with the pin kept so the map picks it up later */
-  if (S.view === "property") { TP.lat = lat; TP.lon = lon; TP.res = null; go(propLink(lat, lon, TP.label)); return; }
+  /* already on the Test property page, or sent here by the unified search: straight to the sheet,
+     with the pin kept so the map picks it up later */
+  if (S.view === "property" || TP.toProp) { TP.toProp = false; TP.lat = lat; TP.lon = lon; TP.res = null; go(propLink(lat, lon, TP.label)); return; }
   TP.fit = true;   /* the layer builder fits the map to the outer ring instead of the municipality */
   /* drill to the pin's municipality at postal-code level with the ordinary navigation */
   go(`map/${res.kunta.code}${isOsaMuni(res.kunta.code) ? "/postinumero" : ""}?ind=${encodeURIComponent(MK.ind)}`
@@ -3612,18 +3787,14 @@ function lfPublicLabels() {
    so the counts line always describes the markers in front of the reader. */
 function pubLegendHtml(rows, note, zoomNote, gm) {
   const n = rows.length, cases = rows.filter(b => b.kind === "case").length;
-  const filtered = !!PF.cats || PF.kind !== "both";
   const allOff = pubAllOff();
-  /* the rows are toggles: click hides or shows a category, shift-click (or "only") isolates it */
-  const catRow = (k, c) => { const on = pubCatOn(k);
-    return `<div class="lgrow pubtog ${on ? "" : "off"}" data-pubcat="${k}" title="click to ${on ? "hide" : "show"} · shift-click for only this one">
-      <i style="${on ? `background:${c.color}` : `background:transparent;box-shadow:inset 0 0 0 2px ${c.color}`};border-radius:50%"></i>${esc(c.label)}<b class="only" data-pubonly="${k}">only</b></div>`; };
-  /* The existing/open-case toggle only means something where the register publishes permit
-     cases. Finland's sources publish buildings that exist and nothing else, so the row is not
-     drawn rather than offered as a filter that can only ever hide everything. */
-  const kindRow = !PUB_HAS_CASES() ? "" : `<div class="lgrow gk">
-      <span class="pubtog ${pubKindOn("existing") ? "" : "off"}" data-pubkind="existing"><i class="pk-exist"></i>existing</span>
-      <span class="pubtog ${pubKindOn("case") ? "" : "off"}" data-pubkind="open"><i class="pk-case"></i>open case</span></div>`;
+  /* v2.0: a legend is a key. The category toggles, the "only" buttons and the existing/open-case
+     switch moved into Layers ▾, so a hidden category is simply not listed here. */
+  const catRow = (k, c) => !pubCatOn(k) ? "" :
+    `<div class="lgrow"><i style="background:${c.color};border-radius:50%"></i>${esc(c.label)}</div>`;
+  /* The existing/open-case key only means something where the register publishes permit cases.
+     Finland's sources publish buildings that exist and nothing else, so the row is not drawn. */
+  const kindRow = !PUB_HAS_CASES() ? "" : `<div class="lgrow gk"><i class="pk-exist"></i>existing<i class="pk-case"></i>open case</div>`;
   let grade = "";
   if (gm === undefined ? gradeMode() : gm) {
     const sc = gradeScale(), gn = sc.classes || 0, b = sc.breaks || [];
@@ -3635,11 +3806,11 @@ function pubLegendHtml(rows, note, zoomNote, gm) {
       <div class="lgnote">${sc.n || 0} schools classed over the loaded municipalities. A school with no grade teaches no 9th grade, or the source suppressed it — never read it as a low grade. Kilde: Opetushallitus</div>`;
   }
   const loading = Object.keys(PUB_FILES).filter(k => k.startsWith("_loading_")).length;
-  return `<div class="lgtitle">Public buildings<span>${esc(PUB_SRC_SHORT)} ${esc((PUB || {}).built || "")} · ${note || `${(PUB || {}).kunnat ? PUB.kunnat.length : 0} municipalities`}${filtered ? ` · <b class="only" data-puball>All</b>` : ""}</span></div>
+  return `<div class="lgtitle">Public buildings<span>${esc(PUB_SRC_SHORT)} ${esc((PUB || {}).built || "")} · ${note || `${(PUB || {}).kunnat ? PUB.kunnat.length : 0} municipalities`}</span></div>
     ${loading ? `<div class="lgrow pubload"><i class="skel"></i>loading ${loading} municipalit${loading === 1 ? "y" : "ies"}…</div>` : ""}
     ${Object.entries(PUB_CAT).map(([k, c]) => catRow(k, c)).join("")}
     ${kindRow}
-    ${allOff ? `<div class="lgrow gk allhidden">All categories hidden · <b class="only" data-puball>Show all</b></div>` : ""}
+    ${allOff ? `<div class="lgrow gk allhidden">All categories hidden — switch one back on in Layers ▾</div>` : ""}
     ${grade}
     <div class="lgnote">${allOff ? "nothing drawn"
       : PUB_HAS_CASES()
@@ -3908,17 +4079,16 @@ function lfServicesLayers(force) {
 /* ---- legend, which is also the filter ---- */
 function srvLegendHtml() {
   const z = srvZoom(), n = LF.srvN || 0;
+  /* keys only — the category and transport-mode switches live in Layers ▾ */
   const catRow = (k, c) => {
-    const on = srvCatOn(k), below = on && z < srvCatZoom(k);
-    return `<div class="lgrow srvcat ${on ? "" : "off"}" data-srvcat="${k}" role="button" tabindex="0"
-        title="${esc(c.label)} — click to show or hide, shift-click to isolate">
-      <i style="${on ? `background:${c.color}` : `background:transparent;box-shadow:inset 0 0 0 2px ${c.color}`};border-radius:50%"></i>${esc(c.label)}
+    if (!srvCatOn(k)) return "";
+    const below = z < srvCatZoom(k);
+    return `<div class="lgrow"><i style="background:${c.color};border-radius:50%"></i>${esc(c.label)}
       ${below ? `<em class="srvzoom">zoom in</em>` : ""}</div>`;
   };
-  const modeRow = `<div class="lgrow gk srvmodes">${Object.entries(SRV_TGROUP).map(([g, t]) => {
-    const on = SF.cats.has("transport") && SF.tmodes.has(g);
-    return `<span class="pubtog ${on ? "" : "off"}" data-srvmode="${g}" title="${esc(t.label)} stops">${esc(t.label)}</span>`;
-  }).join("")}</div>`;
+  const modeRow = `<div class="lgrow gk srvmodes">${Object.entries(SRV_TGROUP)
+    .filter(([g]) => SF.cats.has("transport") && SF.tmodes.has(g))
+    .map(([, t]) => `<span>${esc(t.label)}</span>`).join("")}</div>`;
   /* Bus is a sub-toggle rather than a category, so it needs its own line: without it a
      reader who switched Bus on at zoom 13 sees nothing and is told nothing. */
   const hints = Object.entries(SRV_CAT).filter(([k]) => srvCatOn(k) && z < srvCatZoom(k))
@@ -3929,10 +4099,10 @@ function srvLegendHtml() {
       .filter(([g, t]) => SF.cats.has("transport") && SF.tmodes.has(g) && z < t.zoom)
       .map(([, t]) => t.label + " stops"));
   return `<div class="lgtitle">Services<span>${esc(SRV_SRC_SHORT)} ${esc((SRV && SRV.asof) || "")}
-      ${SF.cats.size < Object.keys(SRV_CAT).length || SF.tmodes.size < 2 ? ` · <b class="only" data-srvall>All</b>` : ""}</span></div>
+</span></div>
     ${Object.entries(SRV_CAT).map(([k, c]) => catRow(k, c)).join("")}
     ${modeRow}
-    ${!SF.cats.size ? `<div class="lgrow gk allhidden">All categories hidden · <b class="only" data-srvall>Show all</b></div>` : ""}
+    ${!SF.cats.size ? `<div class="lgrow gk allhidden">All categories hidden — switch one back on in Layers ▾</div>` : ""}
     ${hints.length ? `<div class="lgnote srvhint">Zoom in to see ${esc(hints.join(", ").toLowerCase())}</div>` : ""}
     <div class="lgnote">${!SF.cats.size ? "nothing drawn"
       : `${nf(LF.srvN || 0, 0)} drawn in view${n >= SRV_MAX_MARKERS ? " · at the drawing ceiling — zoom in" : ""}`}</div>`;
