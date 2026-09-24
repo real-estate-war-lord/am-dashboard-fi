@@ -456,8 +456,11 @@ def main():
     pmeta = {f["properties"]["nr"]: f["properties"] for f in postal_detail["features"]}
     prings = {f["properties"]["nr"]: G.rings_of(f["geometry"]) for f in postal_detail["features"]}
 
+    # name_sv rides along because Finland is bilingual and the address search must accept
+    # "Helsingfors" as readily as "Helsinki"; it is dropped again when it equals the Finnish name
     KUNTA = {c: {"code": c, "name": p["name"], "region": p.get("region", ""),
                  "maakunta": p.get("maakunta", ""), "rings": krings.get(c, []),
+                 **({"name_sv": p["name_sv"]} if p.get("name_sv") and p["name_sv"] != p["name"] else {}),
                  "hist": {}, "histq": {}, "inh": []}
              for c, p in kmeta.items()}
     AREA = {n: {"nr": n, "name": p["name"], "muni": p["kunta"], "bb": p["bb"], "c": p.get("c"),

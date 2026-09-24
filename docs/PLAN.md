@@ -217,7 +217,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 | # | Phase | State | Commit |
 |---|---|---|---|
 | 8b | Licence corrections | ✅ | `fix: licence corrections from the v1.0 review` |
-| 9 | Probe for layers | ☐ | |
+| 9 | Probe for layers | ✅ | `chore: FI layer probe` |
 | 10 | Test property + Analysis + Compare | ☐ | |
 | 11 | Climate risk | ☐ | |
 | 12 | Services + Public buildings | ☐ | |
@@ -247,6 +247,28 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 - Checks: validate ✓ 50 indicators · links ✓ 4/4 · test ✓ 24+15 · build ✓ 2.4 MB · screenshot
   `docs/screenshots/v1_1_p8b-1.png`; `grep` confirms 0 occurrences of the old claim in `dist/`.
 
+### Phase 9 — Probe for layers ✅
+- `scripts/probe_fi.py` grew four groups — `climate`, `ryhti`, `services`, `infra` — and now
+  probes **165 routes, 150 answering**. Every non-200 is a recorded finding, not a failure.
+- New helpers: `head()` (a HEAD, so a probe never pulls 700 MB to learn a size), `wfs_hits()`,
+  `ogc_collections()`, `ogc_item()` and `caps_grep()` — the last exists to **establish an
+  absence**: "no layer in HSY's 397 contains 'tulva'" is a result, and the row proves the
+  question was put to the server.
+- Nine spec assumptions died. The big ones: the SYKE host is **`paikkatiedot`, plural** (the
+  singular answers 200 with an IIS default page); flood return periods are **separate layers**;
+  the flood zones **cannot be fetched as vectors** (3.4 M + 4.0 M features, 15–20 GB, and
+  SYKE's own bulk zips are 5.6 GB each); Ryhti's OGC API **silently ignores** both
+  `?kuntanumero=` and `properties=`; the **DVV bulk address file was discontinued 14.3.2025**.
+- Four things Finland does not publish, each asked and written down: a national sea-level
+  scenario dataset, a stormwater flood map (asked of HSY's 397 layers and Helsinki's 304),
+  keyless national GTFS (Digitransit answers 401), and open energy certificates (paid X-Road).
+- Better than the spec hoped: Väylävirasto publishes `hanketiedot:tiehankkeet` (311) and
+  `:ratahankkeet` (166) with schedules and cost estimates; Tilastokeskus publishes 2 501
+  schools **with coordinates**; STUK publishes radon by kunta *and* by postal area.
+- `docs/PROBE_FI.md` gained a hand-written batch-2 section: what answered on which exact
+  route, the nine dead assumptions, and a one-line-per-phase table of what will and will not
+  be built from what.
+
 ## 10. Resume point, batch 2
 
-Phase 8b committed. Phase 9 (probe for layers) in progress — four research subagents out.
+Phases 8b and 9 committed. Phase 10 (Test property + Analysis + Compare) under way: `scripts/fetch_addresses.py` is pulling all 3.9 M Ryhti addresses in the background and `scripts/build_addr.py` + the `ADR` module in `src/app.js` are written.

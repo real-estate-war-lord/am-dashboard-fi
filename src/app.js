@@ -1653,6 +1653,130 @@ function komAt(lat, lon) {
   const hit = KOM.list.find(k => inBox(lat, lon, k.bb) && (k.polys || []).some(poly => inPoly(pt, poly)));
   return hit ? byCode[String(Number(hit.code))] || null : null;
 }
+/* ---------- address lookup (phase 10) ----------
+   The Test-property box takes a street address as well as a link or a coordinate pair.
+   Resolving one means looking in 3.9 million published addresses, so the index is split the
+   same way the area data is: `addr/<kunta>.json` holds one kunta's streets, `addr/ix/<c>.json`
+   says which kunnat have a street starting with <c>. Nothing is fetched until somebody types
+   a word, and a search that names a kunta or a postal code never touches a shard at all.
+
+   Built by scripts/build_addr.py from Ryhti's `open_address` — the live successor to the DVV
+   bulk file, whose distribution ended 14.3.2025 (docs/PROBE_FI.md, batch-2 finding 6). */
+const ADR = { k: {}, kp: {}, sh: {}, shp: {}, err: {} };
+const ADR_SRC = "Ryhti-rakennustietojärjestelmä (Syke) — open_address";
+
+/* "10,6016986,2493825;12,18,16" -> [{h, lat, lon}, …]. The first house is absolute and every
+   later one a delta from the house before it — see scripts/build_addr.py for why. */
+function adrHouses(packed) {
+  const out = []; let lat = 0, lon = 0, first = true;
+  (packed || "").split(";").forEach(part => {
+    if (!part) return;
+    const i = part.lastIndexOf(","); if (i < 1) return;
+    const j = part.lastIndexOf(",", i - 1); if (j < 0) return;
+    const dlat = Number(part.slice(j + 1, i)), dlon = Number(part.slice(i + 1));
+    if (!isFinite(dlat) || !isFinite(dlon)) return;
+    if (first) { lat = dlat; lon = dlon; first = false; } else { lat += dlat; lon += dlon; }
+    out.push({ h: part.slice(0, j), lat: lat / 1e5, lon: lon / 1e5 });
+  });
+  return out;
+}
+
+/* one kunta's streets, with the normalised name index built here rather than shipped */
+function adrLoad(code) {
+  const k = String(code || ""); if (!k) return Promise.resolve(null);
+  if (ADR.k[k]) return Promise.resolve(ADR.k[k]);
+  if (ADR.kp[k]) return ADR.kp[k];
+  ADR.kp[k] = fetch(`addr/${encodeURIComponent(k)}.json`)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      const ix = {};
+      (d.s || []).forEach((row, i) => {
+        [row[0], row[1]].forEach(n => { const q = normAddr(n); if (q && ix[q] === undefined) ix[q] = i; });
+      });
+      d.ix = ix; ADR.k[k] = d; delete ADR.kp[k];
+      return d;
+    })
+    .catch(() => { ADR.err[k] = true; delete ADR.kp[k]; return null; });
+  return ADR.kp[k];
+}
+
+/* which kunnat have a street whose normalised name starts with this character */
+function adrShard(ch) {
+  const c = ch && /^[a-z0-9]$/.test(ch) ? ch : `_${(ch || " ").charCodeAt(0).toString(16)}`;
+  if (ADR.sh[c]) return Promise.resolve(ADR.sh[c]);
+  if (ADR.shp[c]) return ADR.shp[c];
+  ADR.shp[c] = fetch(`addr/ix/${c}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { ADR.sh[c] = d; delete ADR.shp[c]; return d; })
+    .catch(() => { delete ADR.shp[c]; return {}; });
+  return ADR.shp[c];
+}
+
+/* a "place" out of the typed text -> the kunta codes worth looking in, best first.
+   A postal code is exact, so it wins; a kunta name is matched on either language. */
+function adrPlace(place) {
+  const raw = String(place || "").trim(); if (!raw) return [];
+  const pc = raw.match(/\b(\d{5})\b/);
+  const out = [];
+  if (pc) { const a = byNr[pc[1]]; if (a && a.muni) out.push(String(a.muni)); }
+  const words = normAddr(raw.replace(/\b\d{5}\b/, ""));
+  if (words) {
+    MUNI.forEach(m => {
+      if (out.includes(String(m.code))) return;
+      if (normAddr(m.name) === words || normAddr(m.name_sv || "") === words) out.push(String(m.code));
+    });
+  }
+  return out;
+}
+
+/* Find a parsed address. -> {hits:[…], searched:[codes], street} — a hit carries the kunta it
+   was found in, because the same street name exists in dozens of kunnat and the answer has to
+   say which one it picked. */
+function adrFind(a) {
+  const want = normAddr(a.street);
+  if (!want) return Promise.resolve({ hits: [], searched: [], street: a.street });
+  const named = adrPlace(a.place);
+  /* with no town given, the open kunta is tried first — the usual case is "this street, here" */
+  const seed = named.length ? named : (MK.muni ? [String(MK.muni)] : []);
+  const pick = list => {
+    const hits = [];
+    list.forEach(code => {
+      const d = ADR.k[code]; if (!d) return;
+      const i = d.ix[want]; if (i === undefined) return;
+      const row = d.s[i], houses = adrHouses(row[2]);
+      const label = row[0] || row[1];
+      const wanted = a.house ? String(a.house) + (a.letter || "").toLowerCase() : null;
+      let hs = [];
+      if (!wanted) hs = houses.slice(0, 1);                       /* no number: the street's first point */
+      else {
+        hs = houses.filter(h => h.h === wanted);
+        if (!hs.length && a.letter) hs = houses.filter(h => h.h === String(a.house));   /* entrance not registered */
+        if (!hs.length) hs = houses.filter(h => h.h.replace(/[^0-9]/g, "") === String(a.house));
+      }
+      hs.slice(0, 3).forEach(h => hits.push({
+        kunta: code, kuntaName: (byCode[code] || {}).name || code,
+        street: label, street_sv: row[1] && row[1] !== row[0] ? row[1] : "",
+        house: h.h, lat: h.lat, lon: h.lon,
+        exact: !a.house || h.h === wanted,
+      }));
+    });
+    return hits;
+  };
+  return Promise.all(seed.map(adrLoad)).then(() => {
+    const first = pick(seed);
+    if (first.length) return { hits: first, searched: seed, street: a.street };
+    /* nothing where we looked: ask the shard which kunnat carry this street at all */
+    return adrShard(want[0]).then(sh => {
+      const codes = String(sh[want] || "").split(",").filter(Boolean);
+      const rest = codes.filter(c => !seed.includes(c)).slice(0, ADR_MAX);
+      if (!rest.length) return { hits: [], searched: seed, street: a.street, none: !codes.length };
+      return Promise.all(rest.map(adrLoad))
+        .then(() => ({ hits: pick(rest), searched: seed.concat(rest), street: a.street,
+                       more: Math.max(0, codes.length - seed.length - rest.length) }));
+    });
+  });
+}
+const ADR_MAX = 8;    /* how many kunnat a nameless search will open before it asks for a town */
+
 /* where a point is, at every level the dashboard knows: kunta · postal code · Helsinki-region osa-alue.
    `approx` means the kunta came from the postal code (the ring file had not loaded or failed) — a
    postal code can cross a kunta border, so that answer is a best guess, not the register's. */
