@@ -1948,3 +1948,56 @@ th .thn{display:inline}
   .mstrip{grid-template-columns:1fr}
   .mstrip-k{flex-wrap:wrap;gap:var(--s4) var(--s5)}
 }
+
+/* ===================================================================================
+   v2.0 P5 — the area page: header → tiles → picker → study row → toggles
+   =================================================================================== */
+.studyrow{display:grid;grid-template-columns:minmax(0,59fr) minmax(0,41fr);gap:var(--s3);align-items:stretch}
+.studyrow>.panel{margin:0;display:flex;flex-direction:column;min-width:0}
+.studyrow .panel .chart{width:100%;height:auto}
+.studyrow .minimap .mapwrap{flex:1;display:flex;min-height:300px}
+.studyrow .minimap #armap,.studyrow .minimap #anmap{flex:1;height:auto;min-height:300px;
+  border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.panel .card-head{align-items:baseline}
+.mmfull{width:28px;height:28px;padding:0;justify-content:center;font-size:13px;margin-left:auto}
+[data-testid=minimap].is-full{position:fixed;inset:12px;z-index:120;margin:0;
+  box-shadow:0 20px 70px rgba(10,14,9,.35)}
+body.has-full{overflow:hidden}
+
+/* --- the panel head: value, change, rank, distance from the median --- */
+.pnhead{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px var(--s4);margin:0 0 var(--s3)}
+.pnv{font-family:var(--mono);font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pnv.inh{color:var(--inh)}
+.pnv.proj{color:var(--proj)}
+.pnhead span{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.pnhead .pnd.up{color:var(--good)}.pnhead .pnd.dn{color:var(--bad)}
+.pnhead em{font-style:normal;color:var(--dim)}
+.tag.tag-muni{color:var(--inh);background:var(--inh-bg);border-color:var(--inh-bg)}
+
+/* --- the distribution strip and the return-period bars --- */
+.dist .dtick{stroke:#B9BDB2;stroke-width:1}
+.dist .dmed{stroke:#5C5F52;stroke-width:1.5;stroke-dasharray:3 3}
+.dist .ddot{fill:var(--k1);stroke:#fff;stroke-width:1.5}
+.dist .dlab{font-weight:600;fill:var(--ink)}
+.cbar{fill:var(--clim)}
+.cmed{stroke:#5C5F52;stroke-width:1.6;stroke-dasharray:4 3}
+
+/* --- the toggles under the study row --- */
+.seclist{display:flex;flex-direction:column;gap:var(--s2);background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);padding:var(--s3) var(--s4)}
+.seclist .sec+.sec{border-top:1px solid var(--line2);padding-top:var(--s2)}
+.seclist .secbody{padding-left:0;max-width:none}
+.seclist .secbody .card{border:0;padding:0;background:none}
+.subh{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink);margin:var(--s5) 0 var(--s2)}
+.arhead .hl{margin-top:var(--s3)}
+.hlc.inh b{color:var(--inh)}
+.hlc .tag-muni{font-family:var(--mono);font-size:9.5px}
+@media (max-width:1024px){
+  .studyrow{grid-template-columns:1fr}
+  .studyrow .minimap #armap,.studyrow .minimap #anmap{min-height:320px}
+}
+
+/* a card inside a toggle already has the toggle's own heading */
+.seclist .secbody .card>.card-head h3{display:none}
+.seclist .secbody .card>.card-head{margin-bottom:var(--s2);border-bottom:0;padding-bottom:0}

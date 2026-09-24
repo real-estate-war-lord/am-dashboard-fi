@@ -121,7 +121,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   projection purple dashed, climate blue, observed green.
 - ☑ **P4 Map area card** — identity + 5 headline figures + two actions; `Outlook 2040 ▸` and
   `Upcoming projects (n) ▸` as toggles with URL state; whole card collapsible.
-- ☐ **P5 Area page** — header → tiles → picker/period/chips → study row (chart | draggable mini-map,
+- ☑ **P5 Area page** — header → tiles → picker/period/chips → study row (chart | draggable mini-map,
   equal height) → `<details>` toggles in `show=`; KEY FIGURES block removed; inherited values labelled.
 - ☐ **P6 Test property** — `#property?p=lat,lon[:label]`, the shared study row on the pin's finest
   area, always 5 tiles, no filler; draggable mini-map with ⤢; `<details>` sections; per-map panes.
@@ -332,6 +332,40 @@ Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 30/30.
 7. **The chips row is never empty.** `QUICK_KEYS` is written for the kunta level and an osa-alue page
    had exactly one of them; the row now pads from the level's own list, in `GROUP_ORDER`, to six.
 
+### P5 — the area page ☑
+Commit: `feat: v2.0 P5 — the area page is one study row, and an inherited figure says so`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 37/37.
+
+**Built**
+1. **The KEY FIGURES block is gone** — 10 group tabs over a grid of ~60 cards, above a separate Trend
+   card and a separate Neighbours map, with the same figure in three of them. `tileHtml`, `AR.group`,
+   `AR.tab` and their `g=` / `t=` URL keys go with it.
+2. **`studyRow(e, ind, mapId, hint)`** — chart panel (59 %) beside a draggable mini map (41 %), equal
+   height, `data-testid=study-row`. The map has scroll zoom, its legend inside, and `⤢` full screen as
+   a fixed overlay that Esc closes (`miniFull`, shared with P6 — the Fullscreen API on a card inside a
+   scrolling column loses the legend's positioning context).
+3. **`chartPanel(e, ind)` in four shapes** (`data-mode`): **history** (the multi-line chart: area,
+   parent, peer median, Finland), **outlook** (observed solid green → projected dashed purple),
+   **climate** (`clim-bars`: one bar per return period with the peers' median as a dash), and
+   **snapshot** (`state-nohistory` + `dist-strip`, the peers as ticks with this area a labelled dot).
+   Every shape carries the same head: value, Δ y/y, `#n of N`, distance from the median, and the
+   inherited / projection tags.
+4. **The toggles** (`<details>`, state in `show=`): Population outlook (open by default on kunta
+   pages), Safety survey (osa-alue), All figures (n) — the full table plus the housing stock — and
+   Sub-areas. `AR.showSet` separates "the link says nothing" from "the link says none are open", so a
+   closed default can be shared closed.
+5. **An inherited value says what it is.** The five headline tiles are always the same five in the same
+   order; one the area does not publish shows the kunta's, dimmed, with the words `municipality figure`
+   underneath. v1.1 marked it with a lone `°` that nothing on the page explained.
+6. **P8b lands early, because the panel head needed it.** `vsMedianText()` — "vs median" is a
+   *difference*: percentage points for a share or a rate, the indicator's own unit otherwise, never a
+   percent of a median. v1.1 divided by the median, so net migration on `#area/kunta/091` read
+   `+53 220,0 % VS MEDIAN` and intermunicipal net migration `-367,9 %`.
+
+**Known issues / open**
+- `price_m2` still reads `5 225 EUR` and `rent` `21,3 EUR`; the unit belongs on the number. **P8a.**
+- The Test property sheet is still the v1.1 analysis sheet with the picker bolted on. **P6.**
+
 ## 6. Next
 
-Start P5 — the area page.
+Start P6 — the Test property page.

@@ -671,6 +671,142 @@ def _card_tiles_select(page, base):
 
 
 # ===========================================================================
+# P5 — the area page
+# ===========================================================================
+
+
+@check("P5-no-key-figures", phase="P5")
+def _no_key_figures(page, base):
+    """the KEY FIGURES block and its group tabs are gone"""
+    for h in ["#area/kunta/091", "#area/postinumero/00100", "#area/osa_alue/091010"]:
+        goto(page, base, h)
+        assert "KEY FIGURES" not in body_text(page).upper(), h
+        assert not page.query_selector("[data-argroup]"), h
+        assert not page.query_selector("[data-artab]"), h
+
+
+@check("P5-study-row", phase="P5")
+def _study_row(page, base):
+    """chart panel and mini map are siblings, 60/40, equal height, panel on the left"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2200)
+    row = page.query_selector("[data-testid=study-row]")
+    assert row, "no study row"
+    panel = boxes(page, "[data-testid=study-row] [data-testid=chart-panel]")[0]
+    mini = boxes(page, "[data-testid=study-row] [data-testid=minimap]")[0]
+    assert panel["x"] < mini["x"], "the map is not on the right"
+    assert abs(panel["h"] - mini["h"]) <= 2, (panel["h"], mini["h"])
+    share = panel["w"] / (panel["w"] + mini["w"])
+    assert 0.54 <= share <= 0.66, share
+    assert panel["y"] < 768, f"the study row starts at {panel['y']} px"
+
+
+@check("P5-minimap-drag", phase="P5")
+def _minimap_drag(page, base):
+    """the mini map drags, and ⤢ takes it full screen until Esc"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(2500)
+    before = page.evaluate("window.__maps.map(m => [m.getCenter().lat, m.getCenter().lng])")
+    assert before, "no live map"
+    box = boxes(page, "[data-testid=minimap] .leaflet-container")[0]
+    page.mouse.move(box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["w"] / 2 - 120, box["y"] + box["h"] / 2, steps=10)
+    page.mouse.up()
+    page.wait_for_timeout(700)
+    after = page.evaluate("window.__maps.map(m => [m.getCenter().lat, m.getCenter().lng])")
+    assert after != before, f"a 120 px drag did not move the map: {before} {after}"
+
+    page.click("[data-testid=minimap-full]")
+    page.wait_for_timeout(500)
+    full = boxes(page, "[data-testid=minimap]")[0]
+    vw = page.evaluate("window.innerWidth"), page.evaluate("window.innerHeight")
+    assert full["w"] >= vw[0] * .9 and full["h"] >= vw[1] * .9, (full, vw)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(500)
+    small = boxes(page, "[data-testid=minimap]")[0]
+    assert small["w"] < vw[0] * .6, small
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("P5-panel-modes", phase="P5")
+def _panel_modes(page, base):
+    """the panel has four shapes and picks the one the indicator needs"""
+    want = {"#area/kunta/091?ind=growth": ("history", None),
+            "#area/kunta/091?ind=fc_growth": ("outlook", None),
+            "#area/kunta/091?ind=flood_sea_100": ("climate", "clim-bars"),
+            "#area/kunta/091?ind=completions_1000": ("snapshot", "state-nohistory")}
+    for h, (mode, testid) in want.items():
+        goto(page, base, h)
+        page.wait_for_timeout(1600)
+        got = page.eval_on_selector("[data-testid=chart-panel]", "e => e.dataset.mode")
+        assert got == mode, f"{h}: {got}"
+        if testid:
+            assert page.query_selector(f"[data-testid={testid}]"), f"{h}: no {testid}"
+    # the climate panel draws one bar per return period
+    goto(page, base, "#area/kunta/091?ind=flood_sea_100")
+    page.wait_for_timeout(1400)
+    bars = page.query_selector_all("[data-testid=clim-bars] .cbar")
+    assert len(bars) == 2, len(bars)
+
+
+@check("P5-toggles", phase="P5")
+def _toggles(page, base):
+    """Population outlook opens on a kunta page and not on a postal-code one; show= carries it"""
+    goto(page, base, "#area/kunta/091")
+    page.wait_for_timeout(1800)
+    assert page.eval_on_selector(".seclist details[data-show=outlook]", "e => e.open")
+    assert not page.eval_on_selector(".seclist details[data-show=figures]", "e => e.open")
+    goto(page, base, "#area/postinumero/00100")
+    page.wait_for_timeout(1800)
+    assert not page.eval_on_selector(".seclist details[data-show=figures]", "e => e.open")
+    page.click(".seclist details[data-show=figures] summary")
+    page.wait_for_timeout(500)
+    assert "show=figures" in hash_of(page), hash_of(page)
+    goto(page, base, "#area/postinumero/00100?show=figures")
+    page.wait_for_timeout(1800)
+    assert page.eval_on_selector(".seclist details[data-show=figures]", "e => e.open")
+
+
+@check("P5-inherited-labelled", phase="P5")
+def _inherited_labelled(page, base):
+    """an inherited tile says "municipality figure"; nothing on the page is a lone °"""
+    goto(page, base, "#area/postinumero/00100")
+    page.wait_for_timeout(1800)
+    tiles = page.eval_on_selector_all(
+        "[data-testid=tiles] .hlc",
+        "els => els.map(e => [e.dataset.testid, e.className.includes('inh'), e.textContent])")
+    assert len(tiles) == 5, len(tiles)
+    inh = [t for t in tiles if t[1]]
+    assert inh, "no inherited tile on a postal-code page"
+    assert all("municipality figure" in t[2] for t in inh), inh
+    own = [t for t in tiles if not t[1]]
+    assert own and all("municipality figure" not in t[2] for t in own), own
+    # the tiles no longer carry a bare degree sign
+    txt = " ".join(t[2] for t in tiles)
+    assert "°" not in txt, txt
+
+
+@check("P5-vs-median", phase="P5")
+def _vs_median(page, base):
+    """"vs median" is a difference — pp for a share, the unit otherwise, never a % of the median"""
+    for h in ["#area/kunta/091?ind=net_migr", "#area/kunta/091?ind=crime_1000",
+              "#area/kunta/091?ind=growth", "#area/kunta/091?ind=price_m2"]:
+        goto(page, base, h)
+        page.wait_for_timeout(1400)
+        head = page.eval_on_selector("[data-testid=chart-panel] .pnhead", "e => e.textContent")
+        if "vs median" not in head:
+            continue
+        seg = head.split("vs median")[0].split()[-2:]
+        txt = " ".join(seg)
+        assert "%" not in txt or "pp" in txt, f"{h}: 'vs median' reads {txt!r}"
+        # and it is never an absurd ratio
+        assert not any(abs(float(t.replace(",", ".").replace("\u2212", "-").replace("+", ""))) > 1e4
+                       for t in seg if t.replace(",", ".").replace("+", "").replace("\u2212", "-")
+                       .replace("-", "").replace(".", "").isdigit()), f"{h}: {txt!r}"
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
