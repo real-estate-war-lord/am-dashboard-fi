@@ -1,5 +1,72 @@
 # Changelog
 
+## v1.1 — map layers and Test property (draft, not released)
+
+Branch `v1.1-layers`. Nothing merged, tagged or pushed.
+
+### Corrections to v1.0
+
+- **Aluesarjat is not non-commercial-only.** Helsinki's own terms permit commercial use:
+  *"Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin"*. v1.0
+  quoted half that sentence and read the missing half as a prohibition. **No source in this
+  dashboard restricts commercial use.** What the terms require is a two-part attribution —
+  *"Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus"* — worded so as not to imply
+  endorsement, and that is now what the footer and Sources carry. Closes open ⚠1.
+- **Verohallinto**: its CC BY 4.0 statement is scoped to the corporate-tax datasets on its
+  open-data page and names neither tax-rate series, so they are labelled
+  **"Licence not stated by publisher — public official figures"** rather than claimed as
+  CC BY 4.0.
+- **Frozen series** carry one standard sentence — *"Last published &lt;period&gt; — series
+  discontinued by publisher"* — in the tooltip, on the summary line and in a new Status
+  column in Sources.
+
+### Three bugs inherited from the Danish skeleton
+
+None of them raised an error; all three were found by driving the page in a browser.
+
+- `String(Number("091"))` is `"91"`. Harmless in Denmark, where no kommune code starts with a
+  zero; here it made **every 0xx kunta a lookup miss**, so a pin in the middle of Helsinki
+  reported *"in water or outside Finland"* while Tampere worked perfectly. 27 call sites.
+- `bboxOf()` **cached the empty bounding box** it computed before an area's lazy rings landed,
+  so that area could never be found again for the rest of the session.
+- Six `L.polygon(a.rings, …)` calls **threw** when the lazy rings had not arrived, taking the
+  whole render down with them.
+
+And two more found the same way: a filter on `f.geometry` would have **silently dropped the
+five biggest infrastructure projects in the country**, and `loadMicro` rendered inside its own
+promise chain, so a drawing exception was reported to the reader as a failed download.
+
+### New
+
+- **Test property, Analysis and Compare.** An address, a Google Maps link or a coordinate pair
+  resolves to kunta → postinumero → osa-alue on our own rings. **3 719 340 addresses searchable
+  with no server**, 33 MB across per-kunta files and 36 first-letter shards. Compare puts two
+  properties on aligned rows, read in each indicator's own direction, with **no overall winner**.
+- **Climate** — 8 indicators and a Climate risk overlay drawing SYKE's own WMS live.
+- **Services and public buildings** — 113 372 points and 8 601 buildings, each naming its
+  publisher.
+- **Infrastructure** — 169 projects; where a publisher gives two or three cost estimates, all
+  of them are carried.
+- **Schools** — 2 501 points, matriculation results for 338 lukios.
+- **Buildings, zoning and the 1 km grid** — 250 785 buildings drawn, plus two overlays.
+
+### What Finland does not publish, asked and answered
+
+Comprehensive-school results · energy certificates · planned floor area · sea-level scenarios ·
+stormwater flood maps · a keyless national GTFS · tenure or per-dwelling area in the building
+register. Each is documented beside the layer that wanted it.
+
+### Verification
+
+`scripts/verify.py` — **88 checks, 0 disagreements**, including a recount of the flood shares
+from the publisher's own raster tiles and of the matriculation means from YTL's own candidate
+rows. Full export `docs/verification/v1_1.csv`, 16 788 rows.
+
+### Known ⚠
+
+The page ceiling was raised from 3.0 MB to 3.2 MB deliberately; the page is 3 013 kB and
+**732 kB gzipped**. See `scripts/build_dashboard.py` and `docs/BUILD_LOG.md`.
+
 All notable changes to the Finland edition. Dates are the build date, not the data's.
 
 ## [v1.0] — 2026-09-24 (draft, unreleased)
@@ -71,6 +138,11 @@ postal-code classification vintages; Paavo two years behind its release.
 not CC BY 4.0 like the rest of the dashboard. The restriction is labelled in the data, in
 each osa-alue indicator's note and in the Sources view, and is an open item for the release
 decision.
+
+> **Corrected in v1.1 — this note was wrong.** Aluesarjat's own terms permit commercial use:
+> "Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin"
+> (https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat). The v1.0 text
+> above is left standing because it is what v1.0 shipped; see the v1.1 entry.
 
 ### Not in this release
 

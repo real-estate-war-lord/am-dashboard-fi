@@ -12,15 +12,28 @@ jobs:
         with: { python-version: "3.12" }
       # Only the cheap, keyless sources are refreshed monthly. Geometry (Paavo, kuntajako) is
       # a pinned vintage and is refreshed by hand when a new one is published — see docs/GEO.md.
+      # The heavy layer pulls are listed below with the reason each is left out.
       - name: Check the config against live StatFin metadata
         run: python scripts/validate_config.py
       - name: Pull StatFin tables
         run: python scripts/fetch_statfin.py
+      # The cheap, keyless layer sources only. Deliberately NOT refreshed here:
+      #   · the SYKE flood rasters   1 680 WMS tiles; the hazard maps change once a year or less
+      #   · the Ryhti building pull  3.8 M buildings, 653 MB
+      #   · the address index        3.9 M addresses, 597 MB
+      #   · the OSM extract          767 MB
+      # Those are run by hand — `make climate`, `make buildings`, `make addr`, `make services` —
+      # when their publisher issues a new edition. docs/RUNBOOK.md says when.
+      - name: Refresh the light layer sources
+        run: |
+          python scripts/build_infra.py --force || echo "infra refresh failed — keeping the committed file"
+          python scripts/build_schools.py --force || echo "schools refresh failed — keeping the committed file"
+        continue-on-error: true
       - name: Rebuild the processed data
-        run: python scripts/build_makro.py
+        run: python scripts/build_makro.py && python scripts/build_osa.py
       - name: Commit processed data
         run: |
           git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add data/processed data/raw
+          git add data/processed data/raw data/geo/infra_projects.geojson
           git commit -m "data: monthly refresh $(date +%F)" || echo "nothing to commit"
           git push

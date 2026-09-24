@@ -1,9 +1,9 @@
-/* parseLocation — the test-property input on the macro map (src/testprop.js).
-   Run with `make test-js` or `node --test tests/`. */
+/* parseLocation / parseAddress / normAddr — the test-property input on the macro map
+   (src/testprop.js). Run with `make test-js` or `node --test tests/`. */
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert");
-const { parseLocation } = require("../src/testprop.js");
+const { parseLocation, parseAddress, normAddr, TP_BOUNDS } = require("../src/testprop.js");
 
 const near = (a, b) => Math.abs(a - b) < 1e-6;
 function ok(t, text, lat, lon, source) {
@@ -20,45 +20,47 @@ function err(text, code) {
   return r;
 }
 
+/* ---------------------------------------------------------------- coordinates */
+
 test("place URL: !3d/!4d wins over the @ viewport centre", () => {
-  /* the @ pair is the map centre (12.5655), the !3d/!4d pair the pin itself (12.56830) */
-  const url = "https://www.google.com/maps/place/R%C3%A5dhuspladsen,+1550+K%C3%B8benhavn/@55.6750,12.5655,17z/data=!3m1!4b1!4m6!3m5!1s0x4652531f1a0b6e3d:0x1!8m2!3d55.67610!4d12.56830!16s%2Fg%2F11abc";
-  ok(0, url, 55.67610, 12.56830, "place");
+  /* the @ pair is the map centre (24.9384), the !3d/!4d pair the pin itself (24.93825) */
+  const url = "https://www.google.com/maps/place/Mannerheimintie+10,+00100+Helsinki/@60.1700,24.9384,17z/data=!3m1!4b1!4m6!3m5!1s0x468df7a0b3f0a0a1:0x1!8m2!3d60.16986!4d24.93825!16s%2Fg%2F11abc";
+  ok(0, url, 60.16986, 24.93825, "place");
 });
 
 test("place URL without !3d falls back to @", () => {
-  ok(0, "https://www.google.com/maps/place/Aarhus+C/@56.15280,10.20390,15z/data=!3m1!4b1", 56.15280, 10.20390, "at");
+  ok(0, "https://www.google.com/maps/place/Tampere/@61.49780,23.76090,15z/data=!3m1!4b1", 61.49780, 23.76090, "at");
 });
 
 test("bare @ view URL", () => {
-  ok(0, "https://www.google.com/maps/@55.68000,12.57000,14z", 55.68000, 12.57000, "at");
+  ok(0, "https://www.google.com/maps/@65.01210,25.46510,14z", 65.01210, 25.46510, "at");   // Oulu
 });
 
 test("q= parameter with a URL-encoded comma", () => {
-  ok(0, "https://maps.google.com/?q=55.67610%2C12.56830", 55.67610, 12.56830, "param");
+  ok(0, "https://maps.google.com/?q=60.16986%2C24.93825", 60.16986, 24.93825, "param");
 });
 
 test("q= parameter with a + for the space", () => {
-  ok(0, "https://www.google.com/maps?q=56.15280,+10.20390&z=16", 56.15280, 10.20390, "param");
+  ok(0, "https://www.google.com/maps?q=60.45180,+22.26660&z=16", 60.45180, 22.26660, "param");   // Turku
 });
 
 test("ll= parameter", () => {
-  ok(0, "https://www.google.com/maps?ll=57.04880,9.92170&z=15", 57.04880, 9.92170, "param");
+  ok(0, "https://www.google.com/maps?ll=62.24150,25.72090&z=15", 62.24150, 25.72090, "param");   // Jyväskylä
 });
 
 test("query= parameter", () => {
-  ok(0, "https://www.google.com/maps/search/?api=1&query=55.40380%2C10.40240", 55.40380, 10.40240, "param");
+  ok(0, "https://www.google.com/maps/search/?api=1&query=66.50390%2C25.72940", 66.50390, 25.72940, "param");   // Rovaniemi
 });
 
 test("/search/<lat>,<lon> path", () => {
-  ok(0, "https://www.google.com/maps/search/55.40380,10.40240", 55.40380, 10.40240, "search");
+  ok(0, "https://www.google.com/maps/search/60.98270,25.66150", 60.98270, 25.66150, "search");   // Lahti
 });
 
 test("plain coordinates — comma, space and semicolon", () => {
-  ok(0, "55.67610, 12.56830", 55.67610, 12.56830, "plain");
-  ok(0, "55.67610 12.56830", 55.67610, 12.56830, "plain");
-  ok(0, "55.67610;12.56830", 55.67610, 12.56830, "plain");
-  ok(0, "  56.15280,10.20390  ", 56.15280, 10.20390, "plain");
+  ok(0, "60.16986, 24.93825", 60.16986, 24.93825, "plain");
+  ok(0, "60.16986 24.93825", 60.16986, 24.93825, "plain");
+  ok(0, "60.16986;24.93825", 60.16986, 24.93825, "plain");
+  ok(0, "  61.49780,23.76090  ", 61.49780, 23.76090, "plain");
 });
 
 test("short share links cannot be read in the browser", () => {
@@ -67,30 +69,119 @@ test("short share links cannot be read in the browser", () => {
   err("https://goo.gl/maps/abc123", "short_link");
 });
 
-test("garbage text has no coordinates", () => {
-  err("hello world", "no_match");
-  err("Rådhuspladsen 1, 1550 København", "no_match");
-  err("", "empty");
+test("the far north and Åland are inside the box", () => {
+  ok(0, "69.90600, 27.02320", 69.90600, 27.02320, "plain");   // Utsjoki, the northernmost kunta
+  ok(0, "60.09730, 19.93560", 60.09730, 19.93560, "plain");   // Mariehamn — locate() is what says Åland
 });
 
-test("swapped lon/lat is rejected by the Denmark box", () => {
-  /* Copenhagen written lon-first: 12.6 is not a Danish latitude */
-  err("12.56830, 55.67610", "outside_dk");
+test("swapped lon/lat is rejected by the Finland box", () => {
+  /* Helsinki written lon-first: 24.9 is not a Finnish latitude */
+  err("24.93825, 60.16986", "outside_fi");
 });
 
 test("clearly foreign coordinates are rejected", () => {
-  err("https://www.google.com/maps/@48.85840,2.29450,17z", "outside_dk");   // Paris
-  err("60.16980, 24.93840", "outside_dk");                                  // Helsinki
+  err("https://www.google.com/maps/@48.85840,2.29450,17z", "outside_fi");   // Paris
+  err("55.67610, 12.56830", "outside_fi");                                  // Copenhagen
+  err("59.32930, 18.06860", "outside_fi");                                  // Stockholm — below 59.7 N
 });
 
-test("Malmö passes the coarse box — locate() is what rejects it", () => {
-  /* the box is deliberately generous (54–58 N, 7–16 E); Skåne sits inside it,
-     so the point-in-polygon lookup in app.js is what reports "outside Denmark" */
-  const r = ok(0, "55.60500, 13.00380", 55.60500, 13.00380, "plain");
+test("Tallinn is below the box; St Petersburg is inside it and locate() is what rejects it", () => {
+  err("59.43700, 24.75360", "outside_fi");   // Tallinn — 59.44 N is below the 59.7 N floor
+  /* St Petersburg is at 59.93 N, 30.34 E — inside a box drawn around Finland, because Finland
+     reaches to 31.6 E. The coarse box cannot reject it; the point-in-polygon lookup does. */
+  ok(0, "59.93430, 30.33510", 59.93430, 30.33510, "plain");
+});
+
+test("Haparanda passes the coarse box — locate() is what rejects it", () => {
+  /* the box is deliberately generous; the Swedish side of the Tornio valley sits inside it,
+     so the point-in-polygon lookup in app.js is what reports "outside Finland" */
+  const r = ok(0, "65.83560, 24.13030", 65.83560, 24.13030, "plain");
   assert.strictEqual(r.source, "plain");
+  assert.ok(TP_BOUNDS.lat[0] < 65.8356 && 24.1303 > TP_BOUNDS.lon[0]);
 });
 
 test("a negative or out-of-range number never becomes a silent hit", () => {
-  err("-55.67610, 12.56830", "outside_dk");
-  err("55.67610, -12.56830", "outside_dk");
+  err("-60.16986, 24.93825", "outside_fi");
+  err("60.16986, -24.93825", "outside_fi");
+});
+
+test("empty input asks for something to work with", () => {
+  err("", "empty");
+  err("   ", "empty");
+});
+
+/* ---------------------------------------------------------------- addresses */
+
+const addr = (text, street, house, place) => {
+  const r = parseLocation(text);
+  assert.strictEqual(r.source, "address", `expected an address, got ${r.error || r.source}`);
+  assert.strictEqual(r.address.street, street);
+  assert.strictEqual(r.address.house, house);
+  if (place !== undefined) assert.strictEqual(r.address.place, place);
+  return r.address;
+};
+
+test("street, number and kunta", () => {
+  addr("Mannerheimintie 10, Helsinki", "Mannerheimintie", "10", "Helsinki");
+  addr("Hämeenkatu 14, Tampere", "Hämeenkatu", "14", "Tampere");
+});
+
+test("a postal code counts as the place, with or without the comma", () => {
+  addr("Mannerheimintie 10, 00100 Helsinki", "Mannerheimintie", "10", "00100 Helsinki");
+  addr("Mannerheimintie 10 00100 Helsinki", "Mannerheimintie", "10", "00100 Helsinki");
+  addr("Aleksanterinkatu 52, 00100", "Aleksanterinkatu", "52", "00100");
+});
+
+test("the entrance letter is kept and the flat number dropped", () => {
+  const a = addr("Kalevankatu 12 A 3, Helsinki", "Kalevankatu", "12", "Helsinki");
+  assert.strictEqual(a.letter, "A");
+  assert.strictEqual(a.flat, "3");
+  const b = addr("Kalevankatu 12a, Helsinki", "Kalevankatu", "12", "Helsinki");
+  assert.strictEqual(b.letter, "A");
+});
+
+test("a street name that ends in a number keeps it", () => {
+  /* the scan starts at the second token, so "Kehä III 5" is house 5 on Kehä III */
+  addr("Kehä III 5, Vantaa", "Kehä III", "5", "Vantaa");
+  addr("Vanha Hämeenkatu 3, Turku", "Vanha Hämeenkatu", "3", "Turku");
+});
+
+test("a street with no number is still an address", () => {
+  const a = addr("Mannerheimintie, Helsinki", "Mannerheimintie", null, "Helsinki");
+  assert.strictEqual(a.letter, "");
+});
+
+test("a Swedish street name survives unchanged", () => {
+  addr("Ålandsvägen 24, Mariehamn", "Ålandsvägen", "24", "Mariehamn");
+  addr("Skillnaden 3, Helsingfors", "Skillnaden", "3", "Helsingfors");
+});
+
+test("a link with no coordinates is reported as a link, not searched as an address", () => {
+  const r = err("https://www.google.com/maps/place/Mannerheimintie+10", "no_match");
+  assert.match(r.message, /no coordinates/i);
+});
+
+test("a bare word is not an address — a street needs a number or a place", () => {
+  /* without a house number AND without a kunta or postal code there is nothing to look up,
+     so the text is refused rather than guessed at */
+  err("hello", "no_match");
+  err("Mannerheimintie", "no_match");
+  err("Kamppi", "no_match");
+  err("?? !!", "no_match");
+});
+
+test("normAddr folds the Finnish way and collapses punctuation", () => {
+  assert.strictEqual(normAddr("Mannerheimintie"), "mannerheimintie");
+  assert.strictEqual(normAddr("Töölönkatu"), "toolonkatu");
+  assert.strictEqual(normAddr("Ålandsvägen"), "alandsvagen");
+  assert.strictEqual(normAddr("  Vanha   Hämeenkatu, "), "vanha hameenkatu");
+  assert.strictEqual(normAddr("Kehä III"), "keha iii");
+  /* the same street written either way must normalise to one key, or the lookup misses it */
+  assert.strictEqual(normAddr("Itäväylä"), normAddr("ITÄVÄYLÄ"));
+});
+
+test("parseAddress on its own refuses a URL and empty text", () => {
+  assert.strictEqual(parseAddress("https://example.com/a 12"), null);
+  assert.strictEqual(parseAddress(""), null);
+  assert.strictEqual(parseAddress(null), null);
 });

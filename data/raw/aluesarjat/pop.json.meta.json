@@ -19,8 +19,9 @@
  "updated": "2026-04-10T05:00:00Z",
  "label": "Pääkaupunkiseudun väestö muuttujina Alue, Ikä, Vuosi ja Tiedot",
  "fetched": "2026-09-24",
- "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
- "licence": "Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / Helsingin kaupunki ja Uudenmaan liitto.",
+ "publisher": "Helsingin seudun aluesarjat -tilastokanta (Helsingin kaupunki / Uudenmaan liitto)",
+ "licence": "Aluesarjat — open for both non-commercial and commercial use (\"Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin\"). Attribution required, naming both the database and the underlying source, and it must not imply the publisher endorses the use. Lähde: Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus.",
  "note": "osa-alue layer: pop",
- "cells": 20592
+ "cells": 20592,
+ "licence_url": "https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat"
 }

@@ -157,3 +157,292 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 **Batch 1 finished on branch `v1.0-build`.** Nothing is merged, tagged or pushed.
 
 **Next action (a human's):** review `dist/index.html` on localhost (`make build && make serve`), then decide the two licence questions in `docs/BUILD_LOG.md` → "Open ⚠" before releasing. Batch 2 starts from `docs/BUILD_PLAN_FI.md` §7 on a new branch `v1.1-layers`.
+
+---
+---
+
+# PLAN — Finland edition, batch 2 (branch `v1.1-layers`)
+
+Batch 2 adds every map layer and the Test-property feature on top of the live v1.0.
+**Ground rules are batch 1's, unchanged** (§1 above) plus the layer rules in §7 below.
+After a context compaction: re-read this file, find the first unticked phase in §8, and
+carry on from the resume point at the bottom.
+
+## 6. Master task, batch 2 (verbatim)
+
+```
+MASTER TASK — BATCH 2 of 2: add every map layer and the Test property feature to the Finland edition in one unattended run. Branch v1.1-layers (checked out, based on v1.0 which is live). Do not push.
+
+GROUND RULES: the same as batch 1. Read them in docs/PLAN.md and apply all of them unchanged: data principle, Danish repo read-only as reference, spec in docs/DATA_MAP_FI.md (probe results in docs/PROBE_FI.md override it), English, string codes, stdlib-first, size limits, per-phase checks and commits, never stop or ask, subagents for bulk work, docs/PLAN.md kept current. First append this task and a checklist of phases 8b–16 to docs/PLAN.md. Extra rules for layers: points and zones lazy-load per kunta; every point shows its source; overlays use the Danish overlay pills, stacked collapsible legends and canvas-renderer guard; disclaimers where the Danish edition has them.
+
+PHASE 8b — Licence corrections from the v1.0 review
+(a) Aluesarjat is NOT non-commercial: Helsinki's terms page https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat states "Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin" (attribution required: "Helsingin seudun aluesarjat -tilastokanta" + underlying source; no implied endorsement). Re-check the page yourself, then fix the licence on every osa-alue indicator, docs/SOURCES.md, the Sources view, README and BUILD_LOG (close ⚠1 with quote + URL). (b) Verohallinto: find its open-data licence statement; record it with URL, else label "Licence not stated by publisher — public official figures". (c) Frozen series (postal rents 2025Q4, HSY 2021) show "Last published <period> — series discontinued by publisher" in tooltips and Sources. Commit.
+
+PHASE 9 — Probe for layers
+Extend scripts/probe_fi.py → docs/PROBE_FI.md: SYKE flood-hazard WFS/WMS (tulvavaaravyöhykkeet vesistö + meri, return periods, layer names, licence); sea-level scenarios (Ilmatieteen laitos / SYKE: years, scenarios, format); HSY/Helsinki stormwater (hulevesi) flood maps; STUK radon by area; Ryhti buildings + kaavat (OGC API/WFS, fields incl. use, year, floor area, storeys, dwellings; plan status and floor area); DVV building addresses (open file, size, fields); ARA energy certificates open data; HSL GTFS + Fintraffic national GTFS; Helsinki Palvelukartta API; Geofabrik finland-latest.osm.pbf; LIPAS; Väylävirasto open WFS project layers; YTL lukio results (open statistics route, latest year, fields); Opetushallitus / Palvelukartta school locations; Tilastokeskus 1 km grid. Commit.
+
+PHASE 10 — Test property + Analysis + Compare
+Port DK v2.4 testprop.js: Google Maps link / coordinates parser (short links refused with a named error) PLUS address search from the DVV building-address file (built into a compact lazy lookup, no server). Finland box 59.7–70.1 N / 19.0–31.6 E. Exact kunta / postinumero / osa-alue by point-in-polygon on our own rings (holes kept — Kauniainen inside Espoo must resolve to Kauniainen). Pin in the URL hash, privacy line. Analysis sheet in the left nav reads everything the dashboard carries for the pin's areas (headline row, demographics, market price and rent, taxes, safety, outlook) and, as later phases land, climate, services, public buildings, infra, schools, buildings and zoning. Compare two pins with aligned rows, direction-aware, no overall winner. Tests with Finnish link and address cases. Commit.
+
+PHASE 11 — Climate risk
+Group "Climate" + "Climate risk" overlay; horizon or scenario always in the label. Area share of land per postinumero / osa-alue / kunta inside SYKE flood-hazard zones (sea and watercourse, 1/100 and 1/1000 at least; unmapped areas = "Not mapped"); sea-level scenario share where the data allows (label e.g. "Mean sea level 2100 (scenario, source)"); stormwater flood share where HSY/Helsinki publish it (others "Not mapped"); radon only if STUK publishes open area data, else log and skip. Disclaimer "Screening indicators for comparing areas, not a property-level risk assessment." Climate section in the Analysis sheet. Commit.
+
+PHASE 12 — Services + Public buildings
+Services overlay, points only, no area indicators: grocery (supermarket/convenience), restaurants/cafés from OSM; public-transport stops from HSL GTFS + Fintraffic GTFS (OSM stops as fallback, logged). Public buildings overlay with a category filter (education / daycare / health / culture): Ryhti buildings by use where fields allow, Palvelukartta for the Helsinki region, OSM elsewhere; source per point. Commit.
+
+PHASE 13 — Infra projects
+Hand-curated data/external/infra_fi.geojson, 30–50 projects, each with a source URL: Väylävirasto projects and the national transport investment programme, Kruunusillat, Vantaan ratikka, Espoon kaupunkirata, Lentorata, Tunnin juna / Itärata / Turku rail, Tampere tram extensions, other major rail/metro/tram/road projects. Fields as in the Danish infra file (status, opening year or window, budget + price base, stations). Alignments only where officially published or OSM-tagged construction/proposed — else stations only, never drawn guesses. Overlay pill, datasheet, Pipeline view with CSV, growth-signal indicators projects_upcoming and stations_planned_1200m. Verify 5 projects against their sources. Commit.
+
+PHASE 14 — Schools
+School points (comprehensive + upper secondary) from the official register / Palvelukartta / OSM. Lukio matriculation results from YTL where openly published (latest year + history, fields as published, suppressed ≠ 0), popup with value vs kunta vs Finland, school datasheet. State plainly that Finland publishes no comprehensive-school results. Commit.
+
+PHASE 15 — Buildings, energy, zoning, grid
+Buildings micro layer from Ryhti (as DK v1.5): building points with use, year, floor area, storeys, dwellings where published, lazy per kunta; area indicators only as plain counts/shares of published fields (e.g. share of dwellings built before 1980). ARA energy certificates joined by building ID where possible → energy-class share per area. Zoning overlay from Ryhti kaavat (+ Helsinki asemakaavat WFS if richer): plans in preparation / approved, residential floor area where published, datasheet, indicator planned_floor_area_1000 (per 1 000 residents) only if the floor area is published. 1 km grid population as an optional overlay. If a whole-country pull is too heavy, build the Helsinki region first, then whole country; log the coverage. Commit(s).
+
+PHASE 16 — Verify, docs, wrap-up
+Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) and docs/verification/v1_1.csv; docs/SOURCES.md, DATA_MAP_FI.md, README updated; refresh workflow extended for the cheap sources; CHANGELOG v1.1 draft. Final validate / test / build / links clean. Print a ≤ 40-line summary: what shipped per phase, what was skipped and why, every open ⚠, and a localhost review checklist. STOP — do not merge, tag or push.
+```
+
+## 7. Extra ground rules for layers (batch 2)
+
+| Rule | Meaning |
+|---|---|
+| Lazy per kunta | Points and zones never ship in `makro.json`; they live in `dist/<layer>/<kunta>.json` and load when the map needs them, like `dist/area/<kunta>.json`. |
+| Source per point | Every point popup names the publisher it came from, because one layer mixes sources (Palvelukartta in the Helsinki region, OSM elsewhere). |
+| Danish overlay chrome | The overlay pills, stacked collapsible legends and the canvas-renderer guard come from the Danish `src/app.js` unchanged. |
+| Disclaimers | Wherever the Danish edition shows one (climate screening, schools, infra pipeline), Finland shows the same, reworded for the Finnish source. |
+
+## 8. Phase checklist, batch 2
+
+| # | Phase | State | Commit |
+|---|---|---|---|
+| 8b | Licence corrections | ✅ | `fix: licence corrections from the v1.0 review` |
+| 9 | Probe for layers | ✅ | `chore: FI layer probe` |
+| 10 | Test property + Analysis + Compare | ✅ | `feat: test property, address search, Analysis and Compare` |
+| 11 | Climate risk | ✅ | `feat: climate risk — SYKE flood hazard and STUK radon` |
+| 12 | Services + Public buildings | ✅ | `feat: services and public buildings` |
+| 13 | Infra projects | ✅ | `feat: infrastructure projects` |
+| 14 | Schools | ✅ | `feat: schools — register points and YTL matriculation results` |
+| 15 | Buildings, energy, zoning, grid | ✅ | `feat: buildings, zoning and the 1 km grid` |
+| 16 | Verify, docs, wrap-up | ✅ | `docs: v1.1 verification, docs and changelog` |
+
+## 9. Status log, batch 2
+
+### Phase 8b — Licence corrections ✅
+- **⚠1 closed, and it was our error.** Helsinki's terms page, re-read 2026-09-24, permits
+  commercial use in so many words. v1.0 quoted half the sentence and read the missing half as
+  a prohibition. **No source in this dashboard restricts commercial use.** The correction runs
+  through `aluesarjat.py`, `build_osa.py`, the six cached stamps, `indicators.json`,
+  `SOURCES.md` §3 (with the verbatim quote and URL), README and CHANGELOG.
+- The terms' real condition — a **two-part attribution**, database *and* underlying source —
+  is now what the footer and the Sources view carry: "Lähde: Helsingin seudun aluesarjat
+  -tilastokanta ja Tilastokeskus".
+- **⚠2 answered, not closed:** Verohallinto's CC BY 4.0 statement exists but is scoped to the
+  corporate-tax datasets on its open-data page and names neither tax-rate series. Both are now
+  labelled "Licence not stated by publisher — public official figures", with the CC BY 4.0 page
+  recorded beside them.
+- **Frozen series** get one standard sentence in three places (ⓘ tooltip, summary line, a new
+  Status column in Sources), driven by a machine-readable `frozen` field so it cannot drift:
+  `rent_pno` 2025Q4, HSY boundaries 2021. `SOURCES.md` §6b lists them together.
+- Checks: validate ✓ 50 indicators · links ✓ 4/4 · test ✓ 24+15 · build ✓ 2.4 MB · screenshot
+  `docs/screenshots/v1_1_p8b-1.png`; `grep` confirms 0 occurrences of the old claim in `dist/`.
+
+### Phase 9 — Probe for layers ✅
+- `scripts/probe_fi.py` grew four groups — `climate`, `ryhti`, `services`, `infra` — and now
+  probes **165 routes, 150 answering**. Every non-200 is a recorded finding, not a failure.
+- New helpers: `head()` (a HEAD, so a probe never pulls 700 MB to learn a size), `wfs_hits()`,
+  `ogc_collections()`, `ogc_item()` and `caps_grep()` — the last exists to **establish an
+  absence**: "no layer in HSY's 397 contains 'tulva'" is a result, and the row proves the
+  question was put to the server.
+- Nine spec assumptions died. The big ones: the SYKE host is **`paikkatiedot`, plural** (the
+  singular answers 200 with an IIS default page); flood return periods are **separate layers**;
+  the flood zones **cannot be fetched as vectors** (3.4 M + 4.0 M features, 15–20 GB, and
+  SYKE's own bulk zips are 5.6 GB each); Ryhti's OGC API **silently ignores** both
+  `?kuntanumero=` and `properties=`; the **DVV bulk address file was discontinued 14.3.2025**.
+- Four things Finland does not publish, each asked and written down: a national sea-level
+  scenario dataset, a stormwater flood map (asked of HSY's 397 layers and Helsinki's 304),
+  keyless national GTFS (Digitransit answers 401), and open energy certificates (paid X-Road).
+- Better than the spec hoped: Väylävirasto publishes `hanketiedot:tiehankkeet` (311) and
+  `:ratahankkeet` (166) with schedules and cost estimates; Tilastokeskus publishes 2 501
+  schools **with coordinates**; STUK publishes radon by kunta *and* by postal area.
+- `docs/PROBE_FI.md` gained a hand-written batch-2 section: what answered on which exact
+  route, the nine dead assumptions, and a one-line-per-phase table of what will and will not
+  be built from what.
+
+### Phase 10 — Test property + Analysis + Compare ✅
+- `src/testprop.js` is Finland's: box 59.7–70.1 N / 19.0–31.6 E, `outside_fi`, short links
+  refused by name, **plus an address parser** (`parseAddress`, `normAddr`). 27 JS tests.
+- **Address search from 3 719 340 published addresses, with no server.** The spec asked for
+  the DVV bulk file; that distribution ended 14.3.2025, so the source is Ryhti `open_address`
+  — the same register, live and keyless. `fetch_addresses.py` pulls it per kunta through the
+  WFS/CSV route (~130 B a row instead of ~1.1 kB) and asserts every pull against the server's
+  own `resultType=hits`; `build_addr.py` packs it into `addr/<kunta>.json` + 36 first-letter
+  shards. **33 MB total, largest file 627 kB** — delta-encoded coordinates and no shipped name
+  index, because the page can normalise 4 500 street names in microseconds.
+- 142 097 addresses the register publishes with a point but **no street name in either
+  language** are counted in the manifest, not silently dropped.
+- A street that exists in several kunnat is **listed, never guessed between**; the two
+  normalisations (Python and JavaScript) are pinned to each other by a test that runs both.
+- **Compare**: two pins, aligned rows, read in each indicator's own direction, `neutral` rows
+  unmarked and **no overall winner**, stated in the sheet. Swap / Remove B / Copy link.
+- **Three real bugs found by testing it in a browser**, all inherited from the Danish
+  skeleton and all invisible until now:
+  1. `String(Number("091"))` is `"91"` — a harmless Danish idiom (no Danish kommune code
+     starts with a zero) that here made **every 0xx kunta a lookup miss**. A pin in the middle
+     of Helsinki reported "in water or outside Finland" while Tampere worked. 27 call sites,
+     now one `kcode()`; `tests/test_codes.py` guards it.
+  2. `bboxOf()` **cached the empty bounding box** computed before the lazy rings landed, so an
+     area could never be found again for the rest of the session.
+  3. Six `L.polygon(a.rings, …)` calls **threw** when the lazy rings had not arrived, taking
+     the whole render down. All six now go through `hasRings()`.
+- The Analysis and Compare views now ask for the pin's own `area/<kunta>.json`, so a pin
+  resolves all the way to kunta → postinumero → osa-alue instead of stopping at the kunta.
+- Danish leftovers in the dormant Analysis code fixed: KKBEF1/FOLK1A/BOL101 → the Finnish
+  tables, DAWA → Tilastokeskus, Nørrebro → peruspiiri, DST → Tilastokeskus/Helsingin kaupunki.
+- Checks: validate ✓ · test ✓ **38 py + 27 js** · build ✓ 2.4 MB · browser console clean ·
+  screenshots `docs/screenshots/v1_1_p10-{1,2,3}.png`.
+
+### Phase 11 — Climate risk ✅
+- **8 indicators in a new Climate group**: 4 flood-hazard zone shares (sea and watercourse,
+  1/100a and 1/1000a), the flood-mapped coverage share, and 3 radon rows — at kunta, postal and
+  (flood) osa-alue level. Overlay **Climate risk** draws SYKE's own WMS live, in its own pane
+  above the choropleth, with SYKE's own depth legend.
+- **The zones cannot be shipped**: 3.4 M + 4.0 M polygon fragments, and SYKE's own bulk zips are
+  5.6 GB each. So the share is measured from the publisher's rendering at 25 m/px, tiled per
+  kunta, and our own rings are rasterised onto the identical grid. 209 of 308 kunnat are mapped.
+- **The mistake worth recording.** The first version counted any non-transparent pixel and put
+  **a quarter of Kallio — a hill — in a 1/100a sea flood zone**. SYKE's default style is
+  cartographic: its palest fill `#D1FFFF` is the class `vesistö`, the water body, so the whole
+  Gulf of Finland read as flooded. The fix is the publisher's own class list, fetched from its
+  `GetLegendGraphic` and its WFS: a flat SLD plus an explicit CQL list, `antialias:none`.
+  Helsinki now reads **5.3 %** at 1/100a; the most exposed areas are the Vantaanjoki delta and
+  the Kalasatama waterfront, and Kallio is not in the top ten. `docs/CLIMATE_FI.md` §1.
+- `kuiva maa` — SYKE's own "dry land inside the mapped area" class — gives a publisher-defined
+  land mask, so **"not mapped" and "no hazard" are never collapsed into a 0**.
+- A second rasteriser bug: drawing all polygons into one image let one polygon's **hole erase
+  another's fill**, which erased the mapped extent over central Helsinki. Each polygon is now
+  rasterised on its own and OR-ed in.
+- **Not built, and each asked of the publisher:** sea-level scenarios (avoindata.fi returns 0
+  datasets; the only machine-readable thing is 453 Helsinki-only points) and stormwater flood
+  maps (HSY's 397 layers and Helsinki's 304 contain none).
+- Checks: validate ✓ · links ✓ (the STUK verify URL was a 404 and is fixed) · test ✓ · build ✓.
+
+### Phase 12 — Services + Public buildings ✅
+- **113 372 service points** in 308 kunnat and **8 601 public buildings**, each point naming its
+  own publisher. Groceries, food & drink and pharmacies from OpenStreetMap; stops from **HSL's
+  own GTFS inside the HSL region and OSM elsewhere**, with 18 478 OSM stops inside the HSL
+  region dropped rather than double-counted.
+- **There is no keyless national GTFS** — Digitransit answers 401 — so the mixed sourcing is
+  stated rather than smoothed over.
+- **Ryhti cannot classify a public building**: its open classification has seven codes and
+  `07 Julkinen rakennus` is undivided. Proved from the publisher's own codelist, then not used.
+  Palvelukartta covers the four Helsinki-region municipalities; OSM covers the rest.
+- Finland's public buildings carry **no permit case and no floor area**. The Danish density rule
+  keyed on both and therefore drew **nothing**; it is now a plain zoom floor, and the
+  existing/open-case toggle is not shown where no cases exist.
+- Danish vocabulary retired: `s-train` → tram/ferry modes, `Rejseplanen` → HSL, `BBR` → the
+  actual sources. `docs/SERVICES_FI.md`.
+
+### Phase 13 — Infra projects ✅
+- **169 projects**: 7 curated by hand in `data/external/infra_fi.csv` with the page every figure
+  was read from, plus **162 of Väylävirasto's own hanke records** with the agency's own
+  schedules and **its own published alignments**.
+- **Where a publisher gives more than one estimate, all of them are carried.** Lentorata's owner
+  publishes €2 078 m (MAKU 103.9, 2015=100) *and* €2.9 bn (VAT 0 %); Länsirata's publishes
+  €3 bn, €3.8 bn and a €3.4–4.0 bn range. None is averaged and none is silently preferred.
+- **No alignment is drawn by hand.** Five of the seven big projects have none published, so they
+  have no geometry and `map: false` — and a bug had to be fixed for them to exist at all: the
+  Danish build filtered the project list on `f.geometry`, which would have **silently dropped
+  Kruunusillat, Lentorata, Länsirata, Itärata and Tampere phase 2**, the five biggest projects
+  in the country.
+- Two rule-based trims, both on the agency's own facts: a project that had finished *and* never
+  got a project page is left out (105 completed maintenance records), and `major` — which is
+  what the growth signals count — means the agency wrote it a page (46 of 267).
+- New indicators `projects_upcoming` and `stations_planned_1200m`; `budget_mdkk` renamed
+  `budget_meur` with a `price_base` beside it.
+- **Size:** the page hit 3.30 MB against a 3.00 MB ceiling. Fixed properly rather than by
+  shaving: the 140 kB of alignments moved to a lazy `dist/infra.json`, fetched the first time
+  anything wants to draw one. Page 2.9 MB.
+
+### Phase 14 — Schools ✅
+- **2 501 school points** from Tilastokeskus's `oppilaitokset` register, **with the register's
+  own coordinates** — nothing geocoded. It publishes no kunta code, so every school is placed by
+  point-in-polygon on our own rings: 2 498 of 2 501 land in a kunta.
+- **YTL publishes an open candidate-level file** per exam session — one row per candidate, with
+  the school, the subject grades and the total on its own 0–7 scale. Nine sessions answer
+  (2022K–2026K); 2026S is not published yet and is skipped, not guessed.
+- **Suppression is the point.** A school session under **10 candidates**, or a subject fewer
+  than 10 of its candidates sat, is suppressed, because a mean over three candidates describes
+  three people. YTL's own `**` is read the same way. Null, never zero.
+- **The two publishers share no key**: Tilastokeskus says `08888`, YTL says `1488`, and padding
+  one into the other matches **0 of 387**. The join is **exact normalised-name equality and
+  nothing fuzzier** — a near match would give one school another's results and nothing would
+  reveal it. **338 of 380 lukios joined**; the 46 unjoined (adult lines, schools abroad,
+  renamed schools) are listed in the payload and carry no result rather than someone else's.
+- **"Finland publishes no comprehensive-school results"** is said in the school popup, the
+  datasheet, the school list and the charts — 2 167 of the 2 501 schools are a point with a
+  name and a type, and that is not a suppressed figure.
+- The figure is honest about itself everywhere it appears: `yht` is a *sum* over the exams a
+  candidate sat, so a school whose candidates sit more exams scores higher for that reason
+  alone, it tracks intake at least as much as teaching, and **Finland publishes no measure of
+  intake** to set against it — so unlike Denmark there is no socioeconomic-reference column.
+- The whole Danish school vocabulary retired: FP9, bundne prøver, socioeconomic reference,
+  trivsel, klassekvotient, folkeskole, BBR campus matching. `docs/SCHOOLS_FI.md`.
+
+### Phase 15 — Buildings, energy, zoning, grid ✅
+- **3 799 740 buildings** pulled from Ryhti (653 MB), **250 785 drawn** — those with ≥ 2
+  dwellings, because the register also carries saunas, sheds and bell towers. One lazy file per
+  kunta; Helsinki is 1.9 MB with 23 935 buildings and 401 693 dwellings.
+- Two area indicators, both plain shares of published fields counted in dwellings:
+  `dw_pre1980` and `bld_m2_per_dwelling`. A building whose year the register does not publish is
+  left out of **both** numerator and denominator, not counted as new.
+- The layer shows **only what Ryhti publishes**. No tenure, no per-dwelling area, no room
+  counts — so "Rented dwellings", "Small dwellings < 50 m²" and the rent filter are **removed**
+  rather than offered as options that could only ever be blank.
+- **Energy certificates: not built.** ARA's register is a paid X-Road service needing a
+  *tietolupa*; `avoindata.fi` has 0 datasets for "energiatodistus". Asked, answered, logged.
+- **Zoning: overlay yes, indicator no.** The overlay draws Ryhti's plans-in-force WMS live. But
+  `planned_floor_area_1000` fails the spec's own condition — *"only if the floor area is
+  published"* — and it is not, anywhere: Ryhti's two in-preparation collections return **0
+  features nationally**, its valid-plan index has no floor-area attribute, Helsinki's 40 081
+  `Kaavayksikot` are **every one `Voimassa`**, and its 78 plans in preparation have **no
+  floor-area field at all**. Building it from plans already in force would be a different
+  quantity wearing the name of the one that was asked for.
+- **1 km population grid** as an optional overlay, `vaestoruutu:vaki2025_1km`, 96 904 cells,
+  drawn live from Tilastokeskus's own WMS.
+- **A bug that reported success as failure:** `loadMicro`'s `.then` rendered inside the promise
+  chain, so any exception while drawing landed in the `.catch` — which told the reader the
+  buildings "could not be loaded" while 23 935 of them sat in memory. The render moved out of
+  the chain, and the exception it was hiding (`d.meta.n`, a shape my builder had not emitted)
+  is fixed too.
+- **The page ceiling moved from 3.0 MB to 3.2 MB, deliberately and visibly.** Everything that
+  can be lazy now is — addresses 33 MB, services 7 MB, public buildings 2 MB, the building layer
+  20 MB, schools 1 MB, the infra alignments *and* project details 312 kB, the per-area project
+  index, the flood rasters, every history and monthly series. What is left is the irreducible
+  core, 3 013 kB, and **732 kB gzipped** is what actually reaches a phone. Deleting published
+  figures to save 13 kB nobody would notice was the wrong trade; the number moved with its
+  reason written beside it in `scripts/build_dashboard.py`. **Open ⚠.**
+- `docs/BUILDINGS_FI.md`.
+
+### Phase 16 — Verify, docs, wrap-up ✅
+- `scripts/verify.py` now checks the layers the same way it checks the indicators: back to the
+  publisher, redo the arithmetic, compare. **88 checks, 0 disagreements.** The flood shares are
+  **recounted from the publisher's own raster tiles**, not read out of `climate.json`; the
+  matriculation means are recomputed from YTL's own candidate rows; `dw_pre1980` is recounted
+  from the raw Ryhti CSV; every curated infra budget is checked against the CSV of record.
+- `docs/verification/v1_1.csv`: 16 788 rows.
+- New docs: `CLIMATE_FI.md`, `SERVICES_FI.md`, `SCHOOLS_FI.md`, `BUILDINGS_FI.md`. Updated:
+  `SOURCES.md`, `DATA_MAP_FI.md` (a batch-2 scorecard), `PROBE_FI.md`, `RUNBOOK.md` (when to
+  rebuild each heavy layer), `README.md`, `CHANGELOG.md`, `BUILD_LOG.md` (13 open ⚠).
+- The refresh workflow now also rebuilds the two cheap layers (infra, schools) and says in
+  comments why the four heavy ones are left to `make`.
+- Requirements pinned to **the versions this was actually built with**, not a guess.
+- One real bug found in the final sweep: `infraAreas` and `infraOf` read `v.projects` from an
+  index that stores `{in, near}` id lists — the project datasheet threw on every project. Fixed
+  by resolving ids through `INFRA_BY` rather than denormalising a copy per area.
+- Final: validate ✓ 62 indicators · links ✓ **29/29** · test ✓ 38 py + 27 js · build ✓ 3.0 MB ·
+  fixture ✓ · verify ✓ 88/88.
+
+## 10. Resume point, batch 2
+
+**Batch 2 is complete.** All nine phases (8b–16) are committed on `v1.1-layers`. Nothing merged, tagged or pushed.\n\n**Next action (a human's):** review `dist/index.html` on localhost (`make build && make serve`) against the checklist in the run summary, then decide whether to merge. The 13 open ⚠ are in `docs/BUILD_LOG.md`; the one that is a judgement call rather than a fact about a publisher is ⚠9, the page-size ceiling.

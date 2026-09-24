@@ -1,0 +1,24 @@
+{
+ "source": "Ryhti-rakennustietojärjestelmä — avoimet_rakennukset",
+ "publisher": "Suomen ympäristökeskus (Syke) / Ryhti",
+ "layer": "ryhti_building:avoimet_rakennukset",
+ "wfs": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/wfs",
+ "verify_at_source": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1/collections/avoimet_rakennukset/items?limit=10&f=application/json",
+ "licence": "CC BY 4.0 — Lähde: Ryhti-rakennustietojärjestelmä (Suomen ympäristökeskus)",
+ "kunta": "035",
+ "rows": 1026,
+ "columns": [
+  "pysyva_rakennustunnus",
+  "paaasiallinen_kayttotarkoitus",
+  "valmistumispaivamaara",
+  "kerrosluku",
+  "kerrosala",
+  "huoneistojen_lukumaara",
+  "kaytossaolo",
+  "kuntanumero",
+  "sijaintikeskipisteen_geometria"
+ ],
+ "crs": "EPSG:4326",
+ "fetched": "2026-09-24",
+ "classification": "paaasiallinen_kayttotarkoitus is the open classification avoin_rakennusluokitus: seven codes, 'Julkinen rakennus' undivided."
+}

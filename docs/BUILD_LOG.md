@@ -289,11 +289,124 @@ Phases and their status live in `docs/PLAN.md`; this file is the evidence behind
 
 | # | Item | Where |
 |---|---|---|
-| 1 | **Aluesarjat is non-commercial-use-only.** Every osa-alue figure carries it. Not CC BY 4.0 like everything else. A release decision, not a technical one. | `docs/SOURCES.md` §3 |
-| 2 | **Verohallinto publishes no licence statement** on the tax-rate pages. Used with attribution, not republished as an open dataset. | `docs/SOURCES.md` §6 |
+| 1 | ~~**Aluesarjat is non-commercial-use-only.**~~ **CLOSED in v1.1 phase 8b — the claim was wrong.** See below. | `docs/SOURCES.md` §3 |
+| 2 | **Verohallinto publishes no licence statement** on the tax-rate pages — **re-checked and confirmed in v1.1 phase 8b**, now labelled "Licence not stated by publisher — public official figures". | `docs/SOURCES.md` §6 |
 | 3 | **Postal-code rents are frozen at 2025Q4** and nothing replaces them below kunta level. | `rent_pno` caveat |
 | 4 | **No municipal construction data exists in Finland.** Three indicators are maakunta figures shown on kunnat, marked ^. | `docs/PROBE_FI.md` gap 1 |
 | 5 | **Three postal-code classification vintages** (1 724 / 580 / 3 018) are never reconciled; 701 of 3 018 areas carry a price. | `docs/GEO.md` §2 |
 | 6 | **Unoccupied dwellings has one year** (2025) and no history. | `vacant` caveat |
 | 7 | The municipal income-tax rate is read from a **decision page's embedded JSON**, the only scraped route in the repo. It fails loudly if the page's shape changes. | `scripts/import_verohallinto.py` |
 | 8 | HSY's sub-area division is **frozen at 2021**; Espoo, Vantaa and Kauniainen have no current boundary vintage, and Kauniainen's nine areas have no published names. | `docs/GEO.md` §3 |
+
+
+---
+
+## Phase 8b — Licence corrections from the v1.0 review (branch `v1.1-layers`)
+
+### ⚠1 CLOSED — Aluesarjat is **not** non-commercial-only
+
+v1.0 recorded the osa-alue layer as restricted to non-commercial use. The terms page was
+re-read on **2026-09-24** at
+`https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat`. It says, verbatim:
+
+> "Tietoaineistoa saa vapaasti kopioida, levittää, näyttää ja esittää sekä käyttää aineistoa
+> osana muuta teosta."
+>
+> "**Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin.**"
+>
+> "Ehtona käytölle on, että tietoaineiston tekijä on ilmoitettava."
+>
+> "Tilastokanta ja tietoaineiston tekijä ilmoitetaan viittaamalla Helsingin seudun aluesarjat
+> -tilastokantaan ja tietoaineistokohtaisiin lähteisiin." — example: "Helsingin seudun
+> aluesarjat -tilastokanta ja Tilastokeskus"
+>
+> "Tietoaineiston tekijää ei saa ilmoittaa siten, että ilmoitus viittaisi tietoaineiston
+> tekijän tukevan tietoaineiston käyttäjää tai tietoaineiston käyttötapaa."
+
+The v1.0 sentence quoted only the first half of the commercial clause and read the missing
+half as a prohibition. It was a misreading, not a change at the publisher's end.
+
+**What the terms actually require** is a *two-part attribution* — the database **and** the
+underlying source — and that the wording must not suggest the publisher endorses the user or
+the use. Both are now carried.
+
+| Fixed in | How |
+|---|---|
+| `scripts/aluesarjat.py` | `LICENCE` rewritten, `LICENCE_URL` added, module docstring corrected |
+| `scripts/build_osa.py` | `NC` note rewritten, layer `meta.note` rewritten, `meta.licence_url` added |
+| `data/raw/aluesarjat/*.meta.json` | the licence stamped into the 6 cached pulls rewritten in place (it is metadata *about* the licence, not fetched data) |
+| `config/indicators.json` | the `osa` registry `_doc` |
+| `docs/SOURCES.md` §3 | the quote, the URL, the read date and the correction stated plainly |
+| `README.md`, `CHANGELOG.md` | the licence list; the v1.0 changelog note left standing with a correction beside it |
+| the Sources view | picks the corrected licence up from `osa_alue.json` `meta` on rebuild |
+
+**Consequence: no source in this dashboard restricts commercial use.**
+
+### ⚠2 — Verohallinto: the licence statement exists but does not cover what we use
+
+Checked 2026-09-24:
+
+| Page | What it says |
+|---|---|
+| `https://vero.fi/tietoa-verohallinnosta/tilastot/avoin_dat/` | "Aineistoon sovelletaan Creative Commons 4.0 Nimeä -lisenssin käyttöehtoja." — **but scoped to the datasets that page lists**: yhteisöjen tuloverotuksen julkiset tiedot 2020–2024 and the amendment data |
+| `https://www.vero.fi/tietoa-verohallinnosta/tilastot/` | no licence, terms or reuse statement at all |
+| `https://vero2.stat.fi/PXWeb/api/v1/fi/Vero/Kiinteistoverot/kive_202.px` | PxWeb metadata carries no licence field |
+
+Neither the property-tax rates nor the municipal income-tax rates are named by the CC BY 4.0
+statement. **Decision: do not claim CC BY 4.0 for them.** They are labelled
+**"Licence not stated by publisher — public official figures"** in `config/sources.json`,
+`docs/SOURCES.md` §6 and the README, with the CC BY 4.0 page recorded beside them so the
+next reader can see exactly what was and was not covered. ⚠2 stays open as a *fact about the
+publisher*, no longer as an unanswered question.
+
+### ⚠3 / ⚠8 — frozen series now say so in one standard sentence
+
+Any series the publisher has stopped updating now carries, in its ⓘ tooltip, on its summary
+line and in a new **Status** column in the Sources view:
+
+> **Last published *&lt;period&gt;* — series discontinued by publisher**
+
+| Series | Last published |
+|---|---|
+| `rent_pno` — free-market rent by postal code | 2025Q4 |
+| HSY `seutukartta_pien` sub-area boundaries | 2021 |
+
+A machine-readable `frozen` field on the indicator drives the UI, so the phrase cannot drift
+between the three places it appears. `docs/SOURCES.md` §6b lists them together.
+
+
+---
+
+## Open ⚠ at the end of batch 2 (v1.1)
+
+| # | Item | Where |
+|---|---|---|
+| 1 | ~~Aluesarjat non-commercial~~ **CLOSED** — the claim was wrong; no source here restricts commercial use | `docs/SOURCES.md` §3 |
+| 2 | **Verohallinto publishes no licence** for the two tax-rate series. Its CC BY 4.0 statement is scoped to the corporate-tax datasets. Labelled "Licence not stated by publisher — public official figures" | `docs/SOURCES.md` §6 |
+| 3 | **Postal-code rents frozen at 2025Q4** (unchanged from v1.0) | `rent_pno` caveat |
+| 4 | **No municipal construction data** (unchanged) | `docs/PROBE_FI.md` gap 1 |
+| 5 | **Three postal-code vintages** never reconciled (unchanged) | `docs/GEO.md` §2 |
+| 6 | **Unoccupied dwellings has one year** (unchanged) | `vacant` caveat |
+| 7 | The income-tax rate is **scraped from a decision page** (unchanged) | `scripts/import_verohallinto.py` |
+| 8 | **HSY sub-area division frozen at 2021** (unchanged) | `docs/GEO.md` §3 |
+| 9 | **The page ceiling was raised from 3.0 MB to 3.2 MB.** The page is 3 013 kB, 732 kB gzipped. Everything that can be lazy is; what remains is 3 018 postal areas × 62 values, 308 kunta outlines and the indicator registry. The reason is written beside the number | `scripts/build_dashboard.py` |
+| 10 | **42 of 380 lukios carry no matriculation result** — adult lines, schools abroad and renamed schools whose YTL name does not exactly match the register. Listed in `schools.json` under `join.unjoined_ytl_schools` | `docs/SCHOOLS_FI.md` §2 |
+| 11 | **99 of 308 kunnat have no flood figure at all** — SYKE has not mapped them. This is "not mapped", and the UI says so, but a reader skimming the map could still take a blank for a zero | `docs/CLIMATE_FI.md` §1 |
+| 12 | **Zoning ships as an overlay with no indicator.** No publisher publishes floor area for a plan in preparation anywhere in Finland | `docs/BUILDINGS_FI.md` §3 |
+| 13 | **LIPAS was probed and not built.** The sports-facility register is open and keyless, but no phase asked for it | `docs/PROBE_FI.md` |
+
+### Phase 16 — verification
+
+`scripts/verify.py` now checks the layers too, and checks them the same way: back to the
+publisher, redo the arithmetic, compare. **88 checks, 0 disagreements.**
+
+| Layer | How it is checked |
+|---|---|
+| Climate — flood | the share is **recounted from the publisher's own WMS tiles on disk**, not read from `climate.json` |
+| Climate — radon | read back out of STUK's own spreadsheet, row by row |
+| Buildings | `dw_pre1980` recounted from the raw Ryhti CSV, 5 kunnat |
+| Services | each kunta's point count recounted from its own file against the index's claim |
+| Schools | 5 lukios' matriculation means recomputed from YTL's own candidate rows |
+| Infra | the curated budgets checked against `data/external/infra_fi.csv`, the list of record |
+
+Full export `docs/verification/v1_1.csv`: 16 788 rows.

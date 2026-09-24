@@ -3,11 +3,15 @@
 
     https://stat.hel.fi/api/v1/fi/Aluesarjat/<folder>/<table>.px
 
-Same PxWeb v1 shape as StatFin, different host, and **a different licence**: Aluesarjat's
-terms say the data may be used for **non-commercial purposes** ("Tietoaineistoa voi käyttää
-ei-kaupallisiin tarkoituksiin"). That is not CC BY 4.0, and it is the reason the osa-alue
-layer carries its own licence line in the UI and in docs/SOURCES.md. Commercial use needs
-permission from the publisher.
+Same PxWeb v1 shape as StatFin, different host. The **licence is open and permits commercial
+use**: Helsinki's own terms page states "Tietoaineistoa voi käyttää sekä ei-kaupallisiin että
+kaupallisiin tarkoituksiin" and "Tietoaineistoa saa vapaasti kopioida, levittää, näyttää ja
+esittää sekä käyttää aineistoa osana muuta teosta"
+(https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat, read 2026-09-24).
+The condition is attribution — the database *and* the underlying source must both be named
+("Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus") — and the attribution must not
+be worded so as to suggest the publisher endorses the user or the use. v1.0 recorded this
+layer as non-commercial-only; that was wrong and is corrected here.
 
 Walk the **Finnish** tree: `/api/v1/fi/Aluesarjat/` has seven folders, the English one two.
 
@@ -37,9 +41,12 @@ UA = "am-dashboard-fi/1.0 (open-data dashboard; contact via repository)"
 THROTTLE = 1.0
 RETRIES = 4
 TIMEOUT = 180
-LICENCE = ("Aluesarjat — non-commercial use only (\"Tietoaineistoa voi käyttää "
-           "ei-kaupallisiin tarkoituksiin\"). Not CC BY 4.0. Lähde: Aluesarjat / "
-           "Helsingin kaupunki ja Uudenmaan liitto.")
+LICENCE = ("Aluesarjat — open for both non-commercial and commercial use "
+           "(\"Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin "
+           "tarkoituksiin\"). Attribution required, naming both the database and the "
+           "underlying source, and it must not imply the publisher endorses the use. "
+           "Lähde: Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus.")
+LICENCE_URL = "https://kaupunkitieto.hel.fi/fi/helsingin-tilastotietokannat/aluesarjat"
 _last = [0.0]
 
 

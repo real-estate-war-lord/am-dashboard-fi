@@ -1,4 +1,5 @@
-# Services layer only — scripts/fetch_services.py and scripts/build_services.py.
+# Services and public-buildings layers only — scripts/fetch_services.py and
+# scripts/build_services.py (phase 12).
 #
 # Nothing else in this repository needs these, and the dashboard build does not:
 # data/processed/services/*.json is committed, so `make build` and the GitHub
@@ -7,4 +8,4 @@
 #   python3 -m pip install -r requirements-services.txt
 #
 osmium==4.3.1        # reads the Geofabrik .osm.pbf extract (pyosmium)
-shapely==2.1.2       # point-in-polygon of every point into its kommune (STRtree)
+shapely==2.1.2       # point-in-polygon of every point into its kunta (STRtree)

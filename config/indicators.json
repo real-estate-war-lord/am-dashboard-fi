@@ -1431,7 +1431,8 @@
         "StatFin_Passiivi:asvu/13eb_2025q4"
       ],
       "note": "Room-count classes are combined as a mean weighted by each class's own number of observations — the same arithmetic as the price above. The table covers 580 postal areas, a third of the price table's and a fifth of Paavo's.",
-      "warn": "Discontinued. The last published quarter is 2025Q4 and this series is frozen; it is never extended and never blended with the live kunta-level rent."
+      "warn": "Last published 2025Q4 — series discontinued by publisher. Statistics Finland stopped publishing rents by postal code; nothing replaces them below kunta level, so the frozen series is kept and labelled. It is never extended and never blended with the live kunta-level rent.",
+      "frozen": "2025Q4"
     },
     {
       "key": "vacant",
@@ -4068,10 +4069,554 @@
       ],
       "note": "Offences known to the police, counted **where the offence happened** and divided by the population **registered there** — the publisher's own words. A city centre with a large daytime and visitor population therefore carries offences committed against people who do not live there. Read it as where crime is recorded, not as how dangerous residents' own lives are. Published per kunta only: postal areas and osa-alueet show the kunta figure, marked °. One year against one year: in a small municipality a handful of offences moves this a long way, so read it beside the level, not on its own.",
       "warn": "Published per kunta only. Finland publishes no open crime data below municipality level."
+    },
+    {
+      "key": "flood_sea_100",
+      "label": "Sea flood hazard zone — 1/100a",
+      "short": "Sea flood 1/100a",
+      "unit": "% of land",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        200,
+        70,
+        120
+      ],
+      "desc": "Share of the area's land inside Suomen ympäristökeskus's sea flood hazard zone for a flood with a 1-in-100-year return period (meritulva 1/100a). The return period is the publisher's, not a horizon we chose: it is a recurrence probability, not a forecast for a particular year.",
+      "calc": "passthrough",
+      "num": [
+        "flood_sea_100"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "kunta",
+          "as": "flood_sea_100"
+        },
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "postinumero",
+          "as": "flood_sea_100"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios"
+        }
+      ],
+      "source": "Suomen ympäristökeskus (Syke) — tulvavaaravyöhykkeet, perusskenaariot (CC BY 4.0)",
+      "tables": [
+        "climate/flood"
+      ],
+      "note": "Measured from Suomen ympäristökeskus's own flood-hazard polygons at 25 m per pixel: the publisher's classes are rendered flat and counted inside this area's land, and the share is that count divided by the area's land. The zones are published as millions of raster-derived fragments (3.4 M and 4.0 M features for the two 1/100a layers) and cannot be fetched as vectors at a usable size — the method and why are in docs/CLIMATE_FI.md.",
+      "warn": "SYKE flood-maps designated areas, not the whole country. An area with no figure is NOT MAPPED, which is not the same as no flood hazard. The Flood-mapped row says how much of the area has been assessed. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "flood_sea_1000",
+      "label": "Sea flood hazard zone — 1/1000a",
+      "short": "Sea flood 1/1000a",
+      "unit": "% of land",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        200,
+        70,
+        120
+      ],
+      "desc": "Share of the area's land inside the sea flood hazard zone for a 1-in-1000-year flood (meritulva 1/1000a) — the rarer, larger extreme, which always contains the 1/100a zone.",
+      "calc": "passthrough",
+      "num": [
+        "flood_sea_1000"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "kunta",
+          "as": "flood_sea_1000"
+        },
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "postinumero",
+          "as": "flood_sea_1000"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios"
+        }
+      ],
+      "source": "Suomen ympäristökeskus (Syke) — tulvavaaravyöhykkeet, perusskenaariot (CC BY 4.0)",
+      "tables": [
+        "climate/flood"
+      ],
+      "note": "Measured from Suomen ympäristökeskus's own flood-hazard polygons at 25 m per pixel: the publisher's classes are rendered flat and counted inside this area's land, and the share is that count divided by the area's land. The zones are published as millions of raster-derived fragments (3.4 M and 4.0 M features for the two 1/100a layers) and cannot be fetched as vectors at a usable size — the method and why are in docs/CLIMATE_FI.md.",
+      "warn": "SYKE flood-maps designated areas, not the whole country. An area with no figure is NOT MAPPED, which is not the same as no flood hazard. The Flood-mapped row says how much of the area has been assessed. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "flood_river_100",
+      "label": "Watercourse flood hazard zone — 1/100a",
+      "short": "River flood 1/100a",
+      "unit": "% of land",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        200,
+        70,
+        120
+      ],
+      "desc": "Share of the area's land inside the watercourse flood hazard zone for a 1-in-100-year flood (vesistötulva 1/100a): rivers and lakes, not the sea.",
+      "calc": "passthrough",
+      "num": [
+        "flood_river_100"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "kunta",
+          "as": "flood_river_100"
+        },
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "postinumero",
+          "as": "flood_river_100"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios"
+        }
+      ],
+      "source": "Suomen ympäristökeskus (Syke) — tulvavaaravyöhykkeet, perusskenaariot (CC BY 4.0)",
+      "tables": [
+        "climate/flood"
+      ],
+      "note": "Measured from Suomen ympäristökeskus's own flood-hazard polygons at 25 m per pixel: the publisher's classes are rendered flat and counted inside this area's land, and the share is that count divided by the area's land. The zones are published as millions of raster-derived fragments (3.4 M and 4.0 M features for the two 1/100a layers) and cannot be fetched as vectors at a usable size — the method and why are in docs/CLIMATE_FI.md.",
+      "warn": "SYKE flood-maps designated areas, not the whole country. An area with no figure is NOT MAPPED, which is not the same as no flood hazard. The Flood-mapped row says how much of the area has been assessed. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "flood_river_1000",
+      "label": "Watercourse flood hazard zone — 1/1000a",
+      "short": "River flood 1/1000a",
+      "unit": "% of land",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        200,
+        70,
+        120
+      ],
+      "desc": "Share of the area's land inside the watercourse flood hazard zone for a 1-in-1000-year flood (vesistötulva 1/1000a).",
+      "calc": "passthrough",
+      "num": [
+        "flood_river_1000"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "kunta",
+          "as": "flood_river_1000"
+        },
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "postinumero",
+          "as": "flood_river_1000"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios"
+        }
+      ],
+      "source": "Suomen ympäristökeskus (Syke) — tulvavaaravyöhykkeet, perusskenaariot (CC BY 4.0)",
+      "tables": [
+        "climate/flood"
+      ],
+      "note": "Measured from Suomen ympäristökeskus's own flood-hazard polygons at 25 m per pixel: the publisher's classes are rendered flat and counted inside this area's land, and the share is that count divided by the area's land. The zones are published as millions of raster-derived fragments (3.4 M and 4.0 M features for the two 1/100a layers) and cannot be fetched as vectors at a usable size — the method and why are in docs/CLIMATE_FI.md.",
+      "warn": "SYKE flood-maps designated areas, not the whole country. An area with no figure is NOT MAPPED, which is not the same as no flood hazard. The Flood-mapped row says how much of the area has been assessed. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "flood_mapped",
+      "label": "Flood-mapped share of the area",
+      "short": "Flood-mapped",
+      "unit": "% of land",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        200,
+        30,
+        150
+      ],
+      "desc": "Share of the area's land that Suomen ympäristökeskus has flood-mapped at all. **This is a coverage figure, not a hazard figure.** Where it is 0 the area has not been assessed and the flood rows above are blank; where it is high, a 0 in those rows means a real 0.",
+      "calc": "passthrough",
+      "num": [
+        "flood_mapped"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "kunta",
+          "as": "flood_mapped"
+        },
+        {
+          "src": "climate",
+          "block": "flood",
+          "geo": "postinumero",
+          "as": "flood_mapped"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://www.avoindata.fi/data/fi/dataset/tulvavaaravyohykkeet-perusskenaariot-flood-hazard-zones-basic-scenarios"
+        }
+      ],
+      "source": "Suomen ympäristökeskus (Syke) — tulvavaaravyöhykkeet, perusskenaariot (CC BY 4.0)",
+      "tables": [
+        "climate/flood"
+      ],
+      "note": "Taken from SYKE's own `kuiva maa` class — the dry land inside its mapped area — together with every flood class, so it is the publisher's own statement of what it has assessed, not an inference from where zones happen to be.",
+      "warn": "SYKE flood-maps designated areas, not the whole country. An area with no figure is NOT MAPPED, which is not the same as no flood hazard. The Flood-mapped row says how much of the area has been assessed."
+    },
+    {
+      "key": "radon_mean",
+      "label": "Radon, mean",
+      "short": "Radon mean",
+      "unit": "Bq/m³",
+      "fmt": "bq",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        40,
+        70,
+        130
+      ],
+      "desc": "Mean indoor radon concentration measured by STUK in detached houses (pientalot) in this area. Finland's mean is 228 Bq/m³ and the action level for a dwelling is 300 Bq/m³.",
+      "calc": "passthrough",
+      "num": [
+        "radon_mean"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "kunta",
+          "as": "radon_mean"
+        },
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "postinumero",
+          "as": "radon_mean"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://stuk.fi/pientalojen-radonpitoisuudet-kunnittain"
+        }
+      ],
+      "source": "Säteilyturvakeskus (STUK) — radon pientaloissa 2023 (CC BY 4.0)",
+      "tables": [
+        "climate/radon"
+      ],
+      "note": "Measured in detached houses only, so it describes the ground and the low-rise stock that sits on it — not a flat in a block. STUK's own blanks are suppressed figures, not zeros, and stay blank here.",
+      "warn": "Measurements are voluntary, so the sample is not a random sample of dwellings. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "radon_median",
+      "label": "Radon, median",
+      "short": "Radon median",
+      "unit": "Bq/m³",
+      "fmt": "bq",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        40,
+        55,
+        150
+      ],
+      "desc": "Median measured indoor radon concentration in detached houses. The median is well below the mean everywhere, because the distribution has a long upper tail.",
+      "calc": "passthrough",
+      "num": [
+        "radon_median"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "kunta",
+          "as": "radon_median"
+        },
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "postinumero",
+          "as": "radon_median"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://stuk.fi/pientalojen-radonpitoisuudet-kunnittain"
+        }
+      ],
+      "source": "Säteilyturvakeskus (STUK) — radon pientaloissa 2023 (CC BY 4.0)",
+      "tables": [
+        "climate/radon"
+      ],
+      "note": "As above; STUK publishes both, and both are carried.",
+      "warn": "Measurements are voluntary, so the sample is not a random sample of dwellings. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "radon_over300",
+      "label": "Radon over 300 Bq/m³",
+      "short": "Radon >300",
+      "unit": "% of measurements",
+      "fmt": "pct1",
+      "group": "Climate",
+      "direction": "lower_better",
+      "level": "postinumero",
+      "hue": [
+        20,
+        80,
+        120
+      ],
+      "desc": "Share of STUK's measurements in this area above 300 Bq/m³, the action level for an existing dwelling in Finnish regulation (STUK).",
+      "calc": "passthrough",
+      "num": [
+        "radon_over300"
+      ],
+      "sources": [
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "kunta",
+          "as": "radon_over300"
+        },
+        {
+          "src": "climate",
+          "block": "radon",
+          "geo": "postinumero",
+          "as": "radon_over300"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://stuk.fi/pientalojen-radonpitoisuudet-kunnittain"
+        }
+      ],
+      "source": "Säteilyturvakeskus (STUK) — radon pientaloissa 2023 (CC BY 4.0)",
+      "tables": [
+        "climate/radon"
+      ],
+      "note": "Blank where STUK suppressed the figure — typically an area with too few measurements. A blank is not a zero.",
+      "warn": "Measurements are voluntary, so the sample is not a random sample of dwellings. Screening indicators for comparing areas, not a property-level risk assessment."
+    },
+    {
+      "key": "projects_upcoming",
+      "label": "Transport projects under way or decided",
+      "short": "Projects",
+      "unit": "projects",
+      "fmt": "int",
+      "group": "Growth signals",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        166,
+        70,
+        60
+      ],
+      "desc": "Major transport projects that are under construction, decided or under study and whose published alignment touches this area.",
+      "calc": "passthrough",
+      "num": [
+        "projects_upcoming"
+      ],
+      "sources": [
+        {
+          "src": "infra",
+          "geo": "kunta",
+          "as": "projects_upcoming"
+        },
+        {
+          "src": "infra",
+          "geo": "postinumero",
+          "as": "projects_upcoming"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vayla.fi/kaikki-hankkeet"
+        }
+      ],
+      "source": "Väylävirasto — hanketiedot (CC BY 4.0), plus the curated major projects in data/external/infra_fi.csv",
+      "tables": [
+        "infra/index"
+      ],
+      "note": "Counted over **major** projects only — every curated project, and every Väylävirasto project the agency itself gave a project page (46 of its 267). Its list runs down to repainting a single bridge, and a repaint is not a growth signal. Projects already finished are not counted either.",
+      "warn": "A count of projects, not of investment: the agency publishes no cost estimate in its project layers, so a tunnel and a junction weigh the same. Read it as 'something is being built here', not as a measure of how much."
+    },
+    {
+      "key": "stations_planned_1200m",
+      "label": "Transport projects within 1.2 km",
+      "short": "Projects ≤1.2 km",
+      "unit": "projects",
+      "fmt": "int",
+      "group": "Growth signals",
+      "direction": "higher_better",
+      "level": "postinumero",
+      "hue": [
+        186,
+        60,
+        70
+      ],
+      "desc": "Major transport projects whose published alignment lies inside this area or within 1 200 m of it — roughly a fifteen-minute walk, the distance at which a new line or junction starts to matter to an address.",
+      "calc": "passthrough",
+      "num": [
+        "stations_planned_1200m"
+      ],
+      "sources": [
+        {
+          "src": "infra",
+          "geo": "kunta",
+          "as": "stations_planned_1200m"
+        },
+        {
+          "src": "infra",
+          "geo": "postinumero",
+          "as": "stations_planned_1200m"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://vayla.fi/kaikki-hankkeet"
+        }
+      ],
+      "source": "Väylävirasto — hanketiedot (CC BY 4.0), plus the curated major projects in data/external/infra_fi.csv",
+      "tables": [
+        "infra/index"
+      ],
+      "note": "Counted over **major** projects only — every curated project, and every Väylävirasto project the agency itself gave a project page (46 of its 267). Its list runs down to repainting a single bridge, and a repaint is not a growth signal. Projects already finished are not counted either. The 1 200 m buffer is measured in degrees of latitude, which in Finland reaches slightly further east–west than 1 200 m — the conservative direction.",
+      "warn": "A count of projects, not of investment: the agency publishes no cost estimate in its project layers, so a tunnel and a junction weigh the same. Read it as 'something is being built here', not as a measure of how much."
+    },
+    {
+      "key": "dw_pre1980",
+      "label": "Dwellings in buildings built before 1980",
+      "short": "Pre-1980",
+      "unit": "% of dwellings",
+      "fmt": "pct1",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        28,
+        70,
+        96
+      ],
+      "desc": "Dwellings in buildings the register records as completed before 1980, as a share of the dwellings in buildings whose completion year it publishes. 1980 is a cut, not a threshold of quality: it is simply a round year before the 1980s and 1990s stock.",
+      "calc": "passthrough",
+      "num": [
+        "dw_pre1980"
+      ],
+      "sources": [
+        {
+          "src": "micro",
+          "geo": "kunta",
+          "as": "dw_pre1980"
+        },
+        {
+          "src": "micro",
+          "geo": "postinumero",
+          "as": "dw_pre1980"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1/collections/avoimet_rakennukset/items?limit=10&f=application/json"
+        }
+      ],
+      "source": "Ryhti-rakennustietojärjestelmä — avoimet_rakennukset (Suomen ympäristökeskus, CC BY 4.0)",
+      "tables": [
+        "ryhti/avoimet_rakennukset"
+      ],
+      "note": "Counted over the register's own buildings with at least 2 dwellings — the register also carries saunas, sheds and bell towers, and a housing figure that counted those would not be a housing figure. 250 785 of 3 799 740 buildings qualify. It is a share of dwellings, not of buildings.",
+      "warn": "Buildings whose completion year the register does not publish are left out of both the numerator and the denominator, rather than counted as new."
+    },
+    {
+      "key": "bld_m2_per_dwelling",
+      "label": "Floor area per dwelling",
+      "short": "m² / dwelling",
+      "unit": "m²",
+      "fmt": "m2",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "The register's published gross floor area (kerrosala) of a building divided by the number of dwellings in it, summed over the area. A building average — the register publishes no per-dwelling area and no room counts, so this is not a measurement of any one dwelling and includes stairwells and common space.",
+      "calc": "passthrough",
+      "num": [
+        "bld_m2_per_dwelling"
+      ],
+      "sources": [
+        {
+          "src": "micro",
+          "geo": "kunta",
+          "as": "bld_m2_per_dwelling"
+        },
+        {
+          "src": "micro",
+          "geo": "postinumero",
+          "as": "bld_m2_per_dwelling"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1/collections/avoimet_rakennukset/items?limit=10&f=application/json"
+        }
+      ],
+      "source": "Ryhti-rakennustietojärjestelmä — avoimet_rakennukset (Suomen ympäristökeskus, CC BY 4.0)",
+      "tables": [
+        "ryhti/avoimet_rakennukset"
+      ],
+      "note": "Counted over the register's own buildings with at least 2 dwellings — the register also carries saunas, sheds and bell towers, and a housing figure that counted those would not be a housing figure. 250 785 of 3 799 740 buildings qualify. It is a share of dwellings, not of buildings.",
+      "warn": "Gross floor area includes stairwells and common space, so it is larger than the living area a dwelling advertises. Not comparable with the Ø dwelling size from Paavo, which is living area."
     }
   ],
   "osa": {
-    "_doc": "The osa-alue layer's indicators are NOT registered here: they are built by scripts/build_osa.py, because every one of them is a share computed from one Aluesarjat table and the registry's source/calc shape would only restate the script. The layer's registry travels with its data in data/processed/osa_alue.json. Its licence differs from the rest of the dashboard — Aluesarjat allows non-commercial use only, which is why the layer carries its own licence line in the UI and in docs/SOURCES.md.",
+    "_doc": "The osa-alue layer's indicators are NOT registered here: they are built by scripts/build_osa.py, because every one of them is a share computed from one Aluesarjat table and the registry's source/calc shape would only restate the script. The layer's registry travels with its data in data/processed/osa_alue.json. Aluesarjat is open for both non-commercial and commercial use; the condition is an attribution naming the database and the underlying source, which the layer carries in the UI and in docs/SOURCES.md.",
     "indicators": []
   },
   "_calcs": {

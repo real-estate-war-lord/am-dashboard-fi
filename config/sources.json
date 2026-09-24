@@ -7,7 +7,7 @@
     "page": "https://vero2.stat.fi/PXWeb/pxweb/fi/Vero/Vero__Kiinteistoverot/kive_202.px/",
     "years": "2014–2026",
     "publisher": "Verohallinto",
-    "licence": "Verohallinnon tilastot. Attribution 'Lähde: Verohallinto'. No open-licence statement is published on the tax-rate pages themselves, so the figures are used with attribution and not redistributed as an open-licensed dataset.",
+    "licence": "Licence not stated by publisher — public official figures. Attribution 'Lähde: Verohallinto'. Verohallinto's CC BY 4.0 statement (https://vero.fi/tietoa-verohallinnosta/tilastot/avoin_dat/, read 2026-09-24) is scoped to the corporate-tax datasets that page lists and does not name the tax-rate figures; neither the statistics index nor this PxWeb table carries a licence statement.",
     "note": "The 2026 column is marked ennakkotieto (preliminary) by the publisher."
   },
   "verohallinto_tulovero": {
@@ -18,7 +18,7 @@
       "2026": "https://www.vero.fi/syventavat-vero-ohjeet/paatokset/47465/kuntien-ja-seurakuntien-tuloveroprosentit-vuonna-2026/"
     },
     "publisher": "Verohallinto",
-    "licence": "Attribution 'Lähde: Verohallinto'.",
+    "licence": "Licence not stated by publisher — public official figures. Attribution 'Lähde: Verohallinto'. The rate is published as a municipal-council decision; the page carries no licence statement.",
     "note": "The rate is published as a decision, not as a statistic: no PxWeb table anywhere carries the municipal income tax percentage. The page's table is read from the JSON its own front end uses. Rows are matched to kunnat by name against kuntajako 2026 and every unmatched name is reported."
   },
   "kela_asumistuki": {

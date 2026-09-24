@@ -9,6 +9,7 @@ correctness is checkable by hand, and writes the whole thing to docs/PROBE_FI.md
 Usage:
   python3 scripts/probe_fi.py                 # everything
   python3 scripts/probe_fi.py --only statfin  # one group: statfin | geo | alue | files | ref
+                                              #            climate | ryhti | services | infra
   python3 scripts/probe_fi.py --out -         # print instead of writing the doc
 
 It is deliberately slow: THROTTLE seconds between calls, because these are somebody else's
@@ -325,8 +326,372 @@ def probe_ref():
             record(g, name, url, st, n, s, f"200 but unparseable: {e}")
 
 
+# ================================================================== batch 2: the map layers
+#
+# Everything below was added for the layer phases (docs/PLAN.md §6, phases 9–15). The rule is
+# the batch-1 rule: this repository may not name a host, a layer, a collection or a field that
+# has not answered a real request. Several of these probes are expected to come back negative —
+# a publisher that does not publish something is a finding, and the row is kept to prove it.
+
+RYHTI_BUILD = "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building"
+RYHTI_PLAN = "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_plan"
+SYKE_NZ = "https://paikkatiedot.ymparisto.fi/geoserver/inspire_nz/wfs"
+HEL_WFS = "https://kartta.hel.fi/ws/geoserver/avoindata/wfs"
+HSY_WFS = "https://kartta.hsy.fi/geoserver/wfs"
+
+
+def head(group, name, url):
+    """A HEAD for the big files — a probe must not pull 700 MB to learn a size."""
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": UA})
+    t0 = time.time()
+    time.sleep(THROTTLE)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            n = int(r.headers.get("Content-Length") or 0)
+            lm = r.headers.get("Last-Modified") or ""
+            record(group, name, url, r.status, n, time.time() - t0,
+                   f"{n:,} bytes" + (f" · Last-Modified {lm}" if lm else "")
+                   + (f" · {r.headers.get('Content-Type')}" if r.headers.get("Content-Type") else ""))
+            return n
+    except urllib.error.HTTPError as e:
+        record(group, name, url, e.code, 0, time.time() - t0,
+               "HTTP 429 — the publisher rate-limited this HEAD; the file itself answers 200 "
+               "when asked on its own" if e.code == 429 else f"HTTP {e.code}")
+    except Exception as e:  # noqa: BLE001
+        record(group, name, url, 0, 0, time.time() - t0, str(e)[:90])
+    return 0
+
+
+def wfs_hits(group, name, base, layer, cql=None):
+    """resultType=hits — the feature count without the features."""
+    url = (f"{base}?service=WFS&version=2.0.0&request=GetFeature"
+           f"&typeNames={urllib.parse.quote(layer)}&resultType=hits")
+    if cql:
+        url += "&CQL_FILTER=" + urllib.parse.quote(cql)
+    st, n, s, body = get(url)
+    if st != 200:
+        record(group, name, url, st, n, s, f"HTTP {st}")
+        return None
+    txt = body.decode("utf-8", "replace")
+    m = None
+    for key in ("numberMatched=\"", "numberOfFeatures=\""):
+        i = txt.find(key)
+        if i >= 0:
+            m = txt[i + len(key):txt.find("\"", i + len(key))]
+            break
+    record(group, name, url, st, n, s, f"{m} features" if m else "200 but no count in the response")
+    return m
+
+
+def ogc_collections(group, name, base):
+    """OGC API Features /collections -> the collection ids, verbatim."""
+    url = f"{base}/ogc/features/v1/collections?f=application/json"
+    st, n, s, body = get(url)
+    if st != 200:
+        record(group, name, url, st, n, s, f"HTTP {st}")
+        return []
+    try:
+        ids = [c.get("id") for c in json.loads(body).get("collections", [])]
+    except Exception:  # noqa: BLE001
+        record(group, name, url, st, n, s, "200 but not a collection list")
+        return []
+    record(group, name, url, st, n, s, f"{len(ids)} collections · " + ", ".join(ids))
+    return ids
+
+
+def ogc_item(group, name, base, coll, cql=None, limit=1):
+    """One real feature out of an OGC API collection — its fields, not a guess at them."""
+    url = f"{base}/ogc/features/v1/collections/{coll}/items?limit={limit}&f=application/json"
+    if cql:
+        url += "&filter=" + urllib.parse.quote(cql)
+    st, n, s, body = get(url)
+    if st != 200:
+        record(group, name, url, st, n, s, f"HTTP {st}")
+        return None
+    try:
+        gj = json.loads(body)
+    except Exception:  # noqa: BLE001
+        record(group, name, url, st, n, s, "200 but not JSON")
+        return None
+    fs = gj.get("features") or []
+    props = list((fs[0].get("properties") or {}).keys()) if fs else []
+    total = gj.get("numberMatched", gj.get("totalFeatures", "?"))
+    geom = (fs[0].get("geometry") or {}).get("type", "-") if fs else "-"
+    record(group, name, url, st, n, s,
+           f"{total:,} features · {geom} · {len(props)} fields · " + ", ".join(props[:16])
+           if isinstance(total, int) else f"{total} features · {geom} · " + ", ".join(props[:16]))
+    return gj
+
+
+def caps_grep(group, name, base, words, service="WFS"):
+    """Fetch a capabilities document and report which of `words` appear in a layer name.
+
+    This is how an ABSENCE is established: "no layer in HSY's 397 contains 'tulva'" is a
+    result, and the row proves the question was actually asked of the server.
+    """
+    url = f"{base}?service={service}&version={'1.3.0' if service == 'WMS' else '2.0.0'}&request=GetCapabilities"
+    st, n, s, body = get(url)
+    if st != 200:
+        record(group, name, url, st, n, s, f"HTTP {st}")
+        return []
+    txt = body.decode("utf-8", "replace")
+    names, i = [], 0
+    while True:
+        a = txt.find("<Name>", i)
+        if a < 0:
+            a = txt.find("<ows:Name>", i)
+            if a < 0:
+                break
+            b = txt.find("</ows:Name>", a)
+            names.append(txt[a + 10:b])
+        else:
+            b = txt.find("</Name>", a)
+            names.append(txt[a + 6:b])
+        i = b + 1
+    bits = []
+    for w in words:
+        hit = sorted({x for x in names if w.lower() in x.lower()})
+        bits.append(f"{w}: {len(hit)}" + (f" ({', '.join(hit[:3])})" if hit else " — none"))
+    record(group, name, url, st, n, s, f"{len(names)} layers · " + " · ".join(bits))
+    return names
+
+
+# ---------------------------------------------------------------- climate
+
+def probe_climate():
+    g = "Climate (phase 11)"
+    caps = caps_grep(g, "SYKE INSPIRE_Syke_Luonnonriskialueet capabilities", SYKE_NZ,
+                     ["Tulvavaaravyohykkeet", "Tulvavaarakartoitetut", "Merkittavat_tulvariski"])
+    zones = sorted(x for x in caps if "Tulvavaaravyohykkeet" in x)
+    if zones:
+        record(g, "flood-hazard zone layers", SYKE_NZ, 200, 0, 0.0,
+               f"{len(zones)} layers — return period is in the LAYER NAME, not only an attribute: "
+               + ", ".join(zones))
+    # the two return periods the dashboard needs, for both hazard types
+    for kind in ("Vesistotulva", "Meritulva"):
+        for per in ("100", "1000"):
+            lay = f"inspire_nz:NZ.Tulvavaaravyohykkeet_{kind}_1_{per}a"
+            if zones and lay not in zones:
+                record(g, f"{kind} 1/{per}a", SYKE_NZ, 0, 0, 0.0, "layer not listed in capabilities")
+                continue
+            wfs_sample(g, f"{kind} 1/{per}a sample", SYKE_NZ, lay)
+            wfs_hits(g, f"{kind} 1/{per}a national count", SYKE_NZ, lay)
+    # the mapped-area extent: everything outside it is "Not mapped", never "no flood risk"
+    for kind in ("Vesistotulva", "Meritulva"):
+        lay = f"inspire_nz:NZ.Tulvavaarakartoitetut_alueet_{kind}"
+        wfs_hits(g, f"mapped extent — {kind}", SYKE_NZ, lay)
+    # the bulk downloads, which are what a whole-country area share is actually computed from
+    for kind in ("meri", "vesisto"):
+        head(g, f"SYKE bulk zip — tulvavaaravyohykkeet_{kind}",
+             f"https://sykedata.ymparisto.fi/gisdata-1/tulva/tulvavaaravyohykkeet/tulvavaaravyohykkeet_{kind}.zip")
+    # sea level
+    wfs_sample(g, "Helsinki — FMI site flood height 2100 (points)", HEL_WFS,
+               "avoindata:FMI_Paikkakohtainen_tulvakorkeus_vuonna_2100_piste")
+    for name, url in (
+        ("avoindata.fi search — merenpinnan nousu",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=merenpinnan+nousu&rows=5"),
+        ("avoindata.fi search — tulvavaaravyöhyke",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=tulvavaaravy%C3%B6hyke&rows=5"),
+        ("avoindata.fi search — hulevesitulva",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=hulevesitulva&rows=5"),
+        ("avoindata.fi search — radon",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=radon&rows=5"),
+    ):
+        st, n, s, body = get(url)
+        result = f"HTTP {st}"
+        if st == 200:
+            try:
+                d = json.loads(body)["result"]
+                result = (f"{d['count']} datasets" + (" · " + "; ".join(x["title"][:44] for x in d["results"][:3])
+                                                     if d["results"] else " — nothing published"))
+            except Exception:  # noqa: BLE001
+                result = "200, unexpected payload"
+        record(g, name, url, st, n, s, result)
+    # stormwater: asked of both publishers, and the answer is written down
+    caps_grep(g, "HSY WFS — any hulevesi/tulva layer?", HSY_WFS, ["hulevesi", "tulva"])
+    caps_grep(g, "Helsinki WFS — any hulevesi/tulva layer?", HEL_WFS, ["hulevesi", "tulva"])
+    # radon
+    for area in ("kunta_ja_koko_suomi", "postinumero"):
+        head(g, f"STUK radon {area} 2023 (xlsx)",
+             f"https://stuk.fi/documents/150192312/157590338/radontilasto_pientalot_{area}_2023.xlsx")
+
+
+# ---------------------------------------------------------------- buildings, addresses, zoning
+
+def probe_ryhti():
+    g = "Buildings, addresses and zoning (phases 10, 15)"
+    colls = ogc_collections(g, "Ryhti ryhti_building collections", RYHTI_BUILD)
+    for c in ("avoimet_rakennukset", "avoimet_lupa_rakennukset", "open_address"):
+        if colls and c not in colls:
+            record(g, f"{c}", RYHTI_BUILD, 0, 0, 0.0, "collection not listed")
+            continue
+        ogc_item(g, f"{c} — one feature", RYHTI_BUILD, c)
+    # municipality filtering: the plain query parameter is silently ignored, CQL is not
+    ogc_item(g, "avoimet_rakennukset — CQL kuntanumero='091'", RYHTI_BUILD, "avoimet_rakennukset",
+             cql="kuntanumero='091'")
+    # the same question asked through classic WFS, which is what the fetchers use: it accepts
+    # propertyName and CSV, so an address pull is ~130 bytes a row instead of ~1,100
+    url = (f"{RYHTI_BUILD}/wfs?service=WFS&version=2.0.0&request=GetFeature"
+           "&typeNames=ryhti_building:open_address&count=3&outputFormat=csv&srsName=EPSG:4326"
+           "&propertyName=address_name_fin,address_name_swe,number_part_of_address_number,"
+           "subdivision_letter_of_address_number,municipality_number,postal_code,location_geometry_data"
+           "&CQL_FILTER=" + urllib.parse.quote("municipality_number='091'"))
+    st, n, s, body = get(url)
+    head_row = body.decode("utf-8", "replace").splitlines()[0] if st == 200 and body else ""
+    record(g, "open_address via WFS — CSV + propertyName + CQL (the fetch route)", url, st, n, s,
+           f"columns: {head_row}" if head_row else f"HTTP {st}")
+    wfs_hits(g, "open_address — Helsinki (091) count", f"{RYHTI_BUILD}/wfs",
+             "ryhti_building:open_address", cql="municipality_number='091'")
+    wfs_hits(g, "open_address — national count", f"{RYHTI_BUILD}/wfs", "ryhti_building:open_address")
+    # zoning
+    pc = ogc_collections(g, "Ryhti ryhti_plan collections", RYHTI_PLAN)
+    for c in ("pub_valid_ld_plan_ix_gs", "pub_valid_lm_plan_ix_gs",
+              "pub_prep_ld_plan_ix_gs", "pub_prep_lm_plan_ix_gs"):
+        if pc and c not in pc:
+            record(g, c, RYHTI_PLAN, 0, 0, 0.0, "collection not listed")
+            continue
+        ogc_item(g, f"{c} — one feature", RYHTI_PLAN, c)
+    # Helsinki's own kaava data, which is the one route that publishes building rights in k-m2
+    for lay in ("avoindata:Kaavayksikot", "avoindata:Kaavahakemisto_alue_kaava_voimassa",
+                "avoindata:Kaavahakemisto_alue_kaava_vireilla"):
+        wfs_sample(g, f"Helsinki {lay.split(':')[-1]}", HEL_WFS, lay, count=1)
+    # the DVV bulk file the spec expected — discontinued, and the readme is the evidence
+    head(g, "DVV osoiteet_2025.shp (legacy bulk file)",
+         "https://ftp.csc.fi/index/geodata/dvv/osoitteet/2025/osoiteet_2025.shp")
+    st, n, s, body = get("https://ftp.csc.fi/index/geodata/dvv/osoitteet/2025/rakennukset_readme.txt")
+    txt = body.decode("utf-8", "replace") if st == 200 else ""
+    stop = next((ln.strip() for ln in txt.splitlines() if "jakelu" in ln.lower() and "paatty" in
+                 ln.lower().replace("ä", "a")), "")
+    record(g, "DVV readme — is the file still maintained?",
+           "https://ftp.csc.fi/index/geodata/dvv/osoitteet/2025/rakennukset_readme.txt", st, n, s,
+           stop or (f"HTTP {st}" if st != 200 else "readme fetched, no end-of-distribution line found"))
+    # 1 km population grid
+    grid = caps_grep(g, "Tilastokeskus vaestoruutu capabilities",
+                     f"{GEOSTAT}/vaestoruutu/wfs", ["vaki", "_1km"])
+    km = sorted(x for x in grid if x.endswith("_1km"))
+    if km:
+        wfs_sample(g, f"1 km grid sample {km[-1]}", f"{GEOSTAT}/vaestoruutu/wfs", km[-1])
+        wfs_hits(g, f"1 km grid count {km[-1]}", f"{GEOSTAT}/vaestoruutu/wfs", km[-1])
+    # ARA energy certificates: asked, and the answer is a paid X-Road service
+    for name, url in (
+        ("ARA energiatodistusrekisteri — Suomi.fi service catalogue entry",
+         "https://liityntakatalogi.suomi.fi/dataset/energiatodistusrekisteri-ara-svc"),
+        ("avoindata.fi search — energiatodistus",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=energiatodistus&rows=5"),
+    ):
+        st, n, s, body = get(url)
+        result = f"HTTP {st}"
+        if st == 200 and "package_search" in url:
+            try:
+                d = json.loads(body)["result"]
+                result = (f"{d['count']} datasets" + (" · " + "; ".join(x["title"][:44] for x in d["results"][:3])
+                                                     if d["results"] else " — nothing published"))
+            except Exception:  # noqa: BLE001
+                result = "200, unexpected payload"
+        elif st == 200:
+            t = body.decode("utf-8", "replace")
+            result = ("200 · page names a fee ('maksullinen') and an ARA data permit ('tietolupa')"
+                      if "maksullinen" in t and "tietolupa" in t else "200")
+        record(g, name, url, st, n, s, result)
+
+
+# ---------------------------------------------------------------- services and transport
+
+def probe_services_layer():
+    g = "Services and transport (phase 12)"
+    head(g, "HSL static GTFS (keyless mirror)", "https://dev.hsl.fi/gtfs/hsl.zip")
+    st, n, s, body = get("https://api.digitransit.fi/routing-data/v3/finland/", timeout=30)
+    record(g, "Digitransit national routing data (needs a subscription key?)",
+           "https://api.digitransit.fi/routing-data/v3/finland/", st, n, s,
+           "401 — a free but REGISTERED subscription key is required, so it is out for a keyless build"
+           if st == 401 else f"HTTP {st}")
+    for name, url in (
+        ("FINAP / Fintraffic catalogue — schedule services",
+         "https://finap.fi/ote/service-search?sub_types=schedule"),
+        ("Palvelukartta — one unit", "https://api.hel.fi/servicemap/v2/unit/?page_size=1"),
+        ("Palvelukartta — service nodes, page 1", "https://api.hel.fi/servicemap/v2/service_node/?page_size=1"),
+        ("Palvelukartta — units in Helsinki", "https://api.hel.fi/servicemap/v2/unit/?municipality=helsinki&page_size=1"),
+        ("LIPAS — sports-site categories", "https://api.lipas.fi/v2/sports-site-categories"),
+        ("LIPAS — one sports site", "https://api.lipas.fi/v2/sports-sites?page-size=1"),
+    ):
+        st, n, s, body = get(url)
+        result = f"HTTP {st}"
+        if st == 200:
+            try:
+                d = json.loads(body)
+                if isinstance(d, dict) and "count" in d:
+                    first = (d.get("results") or [{}])[0]
+                    result = f"{d['count']:,} · fields: " + ", ".join(list(first.keys())[:14])
+                elif isinstance(d, list):
+                    result = f"{len(d)} entries · " + ", ".join(
+                        str((d[0] or {}).get(k)) for k in list((d[0] or {}).keys())[:4]) if d else "0 entries"
+            except Exception:  # noqa: BLE001
+                result = f"HTTP {st}, {n:,} bytes (not JSON — an HTML catalogue page)"
+        record(g, name, url, st, n, s, result)
+    head(g, "Geofabrik finland-latest.osm.pbf", "https://download.geofabrik.de/europe/finland-latest.osm.pbf")
+
+
+# ---------------------------------------------------------------- infra and schools
+
+def probe_infra_schools():
+    g = "Infra and schools (phases 13, 14)"
+    VAYLA = "https://avoinapi.vaylapilvi.fi/vaylatiedot/ows"
+    caps_grep(g, "Väylävirasto vaylatiedot capabilities", VAYLA, ["hanketiedot", "suunnitelma"])
+    # the project layers themselves: these are Väylävirasto's own hanke records, with the
+    # schedule and the cost estimate the agency publishes — not a guess at either
+    for lay in ("hanketiedot:tiehankkeet", "hanketiedot:ratahankkeet", "hanketiedot:vesivaylahankkeet",
+                "hanketiedot:tiesuunnitelmat", "hanketiedot:ratasuunnitelmat"):
+        wfs_sample(g, f"Väylä {lay.split(':')[-1]} sample", VAYLA, lay, count=1)
+        wfs_hits(g, f"Väylä {lay.split(':')[-1]} count", VAYLA, lay)
+    # the official school register, with coordinates — no geocoding needed
+    OPPI = f"{GEOSTAT}/oppilaitokset/wfs"
+    wfs_sample(g, "Tilastokeskus oppilaitokset sample", OPPI, "oppilaitokset:oppilaitokset", count=1)
+    wfs_hits(g, "Tilastokeskus oppilaitokset count", OPPI, "oppilaitokset:oppilaitokset")
+    # YTL: the national tables are PDFs, but the candidate-level microdata CSV is open and
+    # carries the school code, so school-level figures are plain arithmetic on published rows
+    for yr, term in ((2026, "K"), (2025, "S"), (2025, "K")):
+        head(g, f"YTL microdata FT{yr}{term}D4001.csv",
+             f"https://tiedostot.ylioppilastutkinto.fi/ext/data/FT{yr}{term}D4001.csv")
+    for name, url in (
+        ("Väylävirasto — project list page", "https://vayla.fi/hankkeet"),
+        ("Väylävirasto — ohjelmakokonaisuus (the investment programme moved here in autumn 2025)", "https://vayla.fi/ohjelmakokonaisuus"),
+        ("YTL — statistics landing", "https://www.ylioppilastutkinto.fi/tietopalvelut/tilastot"),
+        ("Vipunen — open statistics service", "https://vipunen.fi/"),
+        ("avoindata.fi search — oppilaitokset",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=oppilaitokset&rows=5"),
+        ("avoindata.fi search — ylioppilastutkinto",
+         "https://www.avoindata.fi/data/api/3/action/package_search?q=ylioppilastutkinto&rows=5"),
+        ("Väylävirasto — all projects (hankehaku)", "https://vayla.fi/kaikki-hankkeet"),
+    ):
+        st, n, s, body = get(url)
+        result = f"HTTP {st}"
+        if st == 200 and "package_search" in url:
+            try:
+                d = json.loads(body)["result"]
+                result = (f"{d['count']} datasets" + (" · " + "; ".join(x["title"][:44] for x in d["results"][:3])
+                                                     if d["results"] else " — nothing published"))
+            except Exception:  # noqa: BLE001
+                result = "200, unexpected payload"
+        elif st == 200:
+            result = f"200 · {n:,} bytes"
+        record(g, name, url, st, n, s, result)
+    # school points from Palvelukartta, which is the Helsinki-region route
+    for node, what in (("1097", "basic education"), ("1257", "upper secondary"), ("869", "daycare")):
+        url = f"https://api.hel.fi/servicemap/v2/unit/?service_node={node}&page_size=1"
+        st, n, s, body = get(url)
+        result = f"HTTP {st}"
+        if st == 200:
+            try:
+                result = f"service_node {node} ({what}) → {json.loads(body).get('count', '?'):,} units"
+            except Exception:  # noqa: BLE001
+                result = "200, unexpected payload"
+        record(g, f"Palvelukartta service_node {node} — {what}", url, st, n, s, result)
+
+
 GROUPS = {"statfin": probe_statfin, "geo": probe_geo, "alue": probe_alue,
-          "files": probe_files, "ref": probe_ref}
+          "files": probe_files, "ref": probe_ref,
+          "climate": probe_climate, "ryhti": probe_ryhti,
+          "services": probe_services_layer, "infra": probe_infra_schools}
 
 
 def report():
@@ -336,7 +701,9 @@ def report():
            "variable's value count means the API can eliminate it (leave it out and get the total); `T` "
            "marks the time variable. A ✗ row is kept, not deleted: knowing that a route is dead is the "
            "point of a probe.\n"]
-    for gname in ["StatFin PxWeb", "Geometry (WFS)", "Aluesarjat", "File sources", "Reference values"]:
+    for gname in ["StatFin PxWeb", "Geometry (WFS)", "Aluesarjat", "File sources", "Reference values",
+                  "Climate (phase 11)", "Buildings, addresses and zoning (phases 10, 15)",
+                  "Services and transport (phase 12)", "Infra and schools (phases 13, 14)"]:
         rows = [r for r in RESULTS if r["group"] == gname]
         if not rows:
             continue
