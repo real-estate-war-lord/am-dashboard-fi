@@ -140,6 +140,41 @@ def cells(table, key_vars=None, area_v=None, time_v=None, keep_totals=False):
     return _cache[ck]
 
 
+VIEW_ND = 4              # decimals on the inline national-view outlines: ~11 m
+VIEW_MIN_DEG = 0.002     # drop a point within ~200 m of the last one kept on the same ring
+
+
+def thin_rings(rings):
+    """Round and thin a ring set for the national view. Never drops a ring, never closes a hole."""
+    out = []
+    for poly in rings or []:
+        if not poly:
+            continue
+        nested = isinstance(poly[0][0], (list, tuple))
+        parts = poly if nested else [poly]
+        kept_parts = []
+        for ring in parts:
+            kept, last = [], None
+            for q in ring:
+                pt = [round(q[0], VIEW_ND), round(q[1], VIEW_ND)]
+                if last is None or abs(pt[0] - last[0]) + abs(pt[1] - last[1]) >= VIEW_MIN_DEG:
+                    kept.append(pt)
+                    last = pt
+            if kept and kept[0] != kept[-1]:
+                kept.append(kept[0])
+            # a ring is never dropped: an island that thins to nothing keeps its first 4 points,
+            # because losing it would silently change the map rather than simplify it
+            if len(kept) < 4:
+                kept = [[round(q[0], VIEW_ND), round(q[1], VIEW_ND)] for q in ring[:4]]
+                if kept and kept[0] != kept[-1]:
+                    kept.append(kept[0])
+            if len(kept) >= 4:
+                kept_parts.append(kept)
+        if kept_parts:
+            out.append(kept_parts if nested else kept_parts[0])
+    return out
+
+
 def source_cells(src, ind):
     """{area: {period: {code: value}}} for one source entry, with its name mapping applied."""
     if src.get("src") == "statfin":
@@ -158,6 +193,8 @@ def source_cells(src, ind):
         return climate_cells(src), [climate_stamp(src)], {}
     if src.get("src") == "infra":
         return infra_cells(src), [infra_stamp()], {}
+    if src.get("src") == "micro":
+        return micro_cells(src), [micro_stamp()], {}
     say(f"  ⚠ {ind['key']}: unknown source type {src.get('src')!r} — skipped")
     return {}, [], {}
 
@@ -240,6 +277,48 @@ def climate_stamp(src):
             "verify_at_source": m.get("verify_at_source", ""), "licence": m.get("licence", ""),
             "updated": m.get("year") or (d.get("built") or ""), "fetched": d.get("built", ""),
             "publisher": m.get("source", "")}
+
+
+_micro = None
+
+
+def micro_load():
+    global _micro
+    if _micro is None:
+        p = ROOT / "data" / "processed" / "micro" / "index.json"
+        _micro = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        if not _micro:
+            say("  ⚠ data/processed/micro/index.json missing — run `make micro`")
+    return _micro
+
+
+def micro_cells(src):
+    """Counts and shares of Ryhti's own published building fields, per area.
+
+    Not a series: the register is a current snapshot with no published history, so the figure
+    is stamped with the build date and the same value stands for every year of the dashboard.
+    """
+    d = micro_load()
+    if not d:
+        return {}
+    block = ((d.get("indicators") or {}).get(src["geo"])) or {}
+    year = str((d.get("built") or "")[:4])
+    out = {}
+    for area, vals in block.items():
+        v = vals.get(src["as"])
+        if v is None:
+            continue
+        out.setdefault(norm_area(area), {}).setdefault(year, {})[src["as"]] = float(v)
+    return out
+
+
+def micro_stamp():
+    d = micro_load()
+    return {"table": "ryhti/avoimet_rakennukset",
+            "label": d.get("source", "Ryhti-rakennustietojärjestelmä"),
+            "verify_at_source": d.get("verify_at_source", ""),
+            "licence": d.get("licence", ""), "updated": d.get("built", ""),
+            "fetched": d.get("built", ""), "publisher": "Suomen ympäristökeskus (Syke) / Ryhti"}
 
 
 _infra = None
@@ -555,7 +634,14 @@ def main():
     postal_detail = load_geo("postinumerot")
 
     kmeta = {f["properties"]["kunta"]: f["properties"] for f in kunnat_detail["features"]}
-    krings = {f["properties"]["kunta"]: G.rings_of(f["geometry"]) for f in kunnat_coarse["features"]}
+    # The INLINE kunta outlines are the national view's, drawn between zoom 5 and 9, where one
+    # screen pixel is 250 m or more. They were carried at 5 decimals — about 1 m — which is
+    # 455 kB of a page with a 3 MB ceiling and not one pixel of difference. 4 decimals is ~11 m,
+    # and a point within ~200 m of the previous one on the same ring is still inside a single
+    # pixel at zoom 8, so it cannot be told apart there either. The pin's own lookup keeps the full-precision rings in dist/geo/kunnat_lookup.json,
+    # and data/geo/kunnat.geojson is untouched, so nothing that measures anything is coarsened.
+    krings = {f["properties"]["kunta"]: thin_rings(G.rings_of(f["geometry"]))
+              for f in kunnat_coarse["features"]}
     pmeta = {f["properties"]["nr"]: f["properties"] for f in postal_detail["features"]}
     prings = {f["properties"]["nr"]: G.rings_of(f["geometry"]) for f in postal_detail["features"]}
 
@@ -566,7 +652,11 @@ def main():
                  **({"name_sv": p["name_sv"]} if p.get("name_sv") and p["name_sv"] != p["name"] else {}),
                  "hist": {}, "histq": {}, "inh": []}
              for c, p in kmeta.items()}
-    AREA = {n: {"nr": n, "name": p["name"], "muni": p["kunta"], "bb": p["bb"], "c": p.get("c"),
+    # `bb` only pre-fits the map viewport while an area's rings are still loading, so 4 decimals
+    # (~11 m) is already far finer than the question. At 5 it was 98 kB of the page.
+    AREA = {n: {"nr": n, "name": p["name"], "muni": p["kunta"],
+                "bb": [round(v, 4) for v in p["bb"]],
+                "c": [round(v, 4) for v in p["c"]] if p.get("c") else None,
                 "hist": {}, "histq": {}, "inh": []}
             for n, p in pmeta.items()}
 

@@ -4525,6 +4525,94 @@
       ],
       "note": "Counted over **major** projects only — every curated project, and every Väylävirasto project the agency itself gave a project page (46 of its 267). Its list runs down to repainting a single bridge, and a repaint is not a growth signal. Projects already finished are not counted either. The 1 200 m buffer is measured in degrees of latitude, which in Finland reaches slightly further east–west than 1 200 m — the conservative direction.",
       "warn": "A count of projects, not of investment: the agency publishes no cost estimate in its project layers, so a tunnel and a junction weigh the same. Read it as 'something is being built here', not as a measure of how much."
+    },
+    {
+      "key": "dw_pre1980",
+      "label": "Dwellings in buildings built before 1980",
+      "short": "Pre-1980",
+      "unit": "% of dwellings",
+      "fmt": "pct1",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        28,
+        70,
+        96
+      ],
+      "desc": "Dwellings in buildings the register records as completed before 1980, as a share of the dwellings in buildings whose completion year it publishes. 1980 is a cut, not a threshold of quality: it is simply a round year before the 1980s and 1990s stock.",
+      "calc": "passthrough",
+      "num": [
+        "dw_pre1980"
+      ],
+      "sources": [
+        {
+          "src": "micro",
+          "geo": "kunta",
+          "as": "dw_pre1980"
+        },
+        {
+          "src": "micro",
+          "geo": "postinumero",
+          "as": "dw_pre1980"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1/collections/avoimet_rakennukset/items?limit=10&f=application/json"
+        }
+      ],
+      "source": "Ryhti-rakennustietojärjestelmä — avoimet_rakennukset (Suomen ympäristökeskus, CC BY 4.0)",
+      "tables": [
+        "ryhti/avoimet_rakennukset"
+      ],
+      "note": "Counted over the register's own buildings with at least 2 dwellings — the register also carries saunas, sheds and bell towers, and a housing figure that counted those would not be a housing figure. 250 785 of 3 799 740 buildings qualify. It is a share of dwellings, not of buildings.",
+      "warn": "Buildings whose completion year the register does not publish are left out of both the numerator and the denominator, rather than counted as new."
+    },
+    {
+      "key": "bld_m2_per_dwelling",
+      "label": "Floor area per dwelling",
+      "short": "m² / dwelling",
+      "unit": "m²",
+      "fmt": "m2",
+      "group": "Housing stock",
+      "direction": "neutral",
+      "level": "postinumero",
+      "hue": [
+        90,
+        60,
+        150
+      ],
+      "desc": "The register's published gross floor area (kerrosala) of a building divided by the number of dwellings in it, summed over the area. A building average — the register publishes no per-dwelling area and no room counts, so this is not a measurement of any one dwelling and includes stairwells and common space.",
+      "calc": "passthrough",
+      "num": [
+        "bld_m2_per_dwelling"
+      ],
+      "sources": [
+        {
+          "src": "micro",
+          "geo": "kunta",
+          "as": "bld_m2_per_dwelling"
+        },
+        {
+          "src": "micro",
+          "geo": "postinumero",
+          "as": "bld_m2_per_dwelling"
+        }
+      ],
+      "src_verify": [
+        {
+          "geo": "kunta",
+          "url": "https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1/collections/avoimet_rakennukset/items?limit=10&f=application/json"
+        }
+      ],
+      "source": "Ryhti-rakennustietojärjestelmä — avoimet_rakennukset (Suomen ympäristökeskus, CC BY 4.0)",
+      "tables": [
+        "ryhti/avoimet_rakennukset"
+      ],
+      "note": "Counted over the register's own buildings with at least 2 dwellings — the register also carries saunas, sheds and bell towers, and a housing figure that counted those would not be a housing figure. 250 785 of 3 799 740 buildings qualify. It is a share of dwellings, not of buildings.",
+      "warn": "Gross floor area includes stairwells and common space, so it is larger than the living area a dwelling advertises. Not comparable with the Ø dwelling size from Paavo, which is living area."
     }
   ],
   "osa": {

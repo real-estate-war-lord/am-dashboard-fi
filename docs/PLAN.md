@@ -223,7 +223,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 | 12 | Services + Public buildings | ✅ | `feat: services and public buildings` |
 | 13 | Infra projects | ✅ | `feat: infrastructure projects` |
 | 14 | Schools | ✅ | `feat: schools — register points and YTL matriculation results` |
-| 15 | Buildings, energy, zoning, grid | ☐ | |
+| 15 | Buildings, energy, zoning, grid | ✅ | `feat: buildings, zoning and the 1 km grid` |
 | 16 | Verify, docs, wrap-up | ☐ | |
 
 ## 9. Status log, batch 2
@@ -389,6 +389,41 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 - The whole Danish school vocabulary retired: FP9, bundne prøver, socioeconomic reference,
   trivsel, klassekvotient, folkeskole, BBR campus matching. `docs/SCHOOLS_FI.md`.
 
+### Phase 15 — Buildings, energy, zoning, grid ✅
+- **3 799 740 buildings** pulled from Ryhti (653 MB), **250 785 drawn** — those with ≥ 2
+  dwellings, because the register also carries saunas, sheds and bell towers. One lazy file per
+  kunta; Helsinki is 1.9 MB with 23 935 buildings and 401 693 dwellings.
+- Two area indicators, both plain shares of published fields counted in dwellings:
+  `dw_pre1980` and `bld_m2_per_dwelling`. A building whose year the register does not publish is
+  left out of **both** numerator and denominator, not counted as new.
+- The layer shows **only what Ryhti publishes**. No tenure, no per-dwelling area, no room
+  counts — so "Rented dwellings", "Small dwellings < 50 m²" and the rent filter are **removed**
+  rather than offered as options that could only ever be blank.
+- **Energy certificates: not built.** ARA's register is a paid X-Road service needing a
+  *tietolupa*; `avoindata.fi` has 0 datasets for "energiatodistus". Asked, answered, logged.
+- **Zoning: overlay yes, indicator no.** The overlay draws Ryhti's plans-in-force WMS live. But
+  `planned_floor_area_1000` fails the spec's own condition — *"only if the floor area is
+  published"* — and it is not, anywhere: Ryhti's two in-preparation collections return **0
+  features nationally**, its valid-plan index has no floor-area attribute, Helsinki's 40 081
+  `Kaavayksikot` are **every one `Voimassa`**, and its 78 plans in preparation have **no
+  floor-area field at all**. Building it from plans already in force would be a different
+  quantity wearing the name of the one that was asked for.
+- **1 km population grid** as an optional overlay, `vaestoruutu:vaki2025_1km`, 96 904 cells,
+  drawn live from Tilastokeskus's own WMS.
+- **A bug that reported success as failure:** `loadMicro`'s `.then` rendered inside the promise
+  chain, so any exception while drawing landed in the `.catch` — which told the reader the
+  buildings "could not be loaded" while 23 935 of them sat in memory. The render moved out of
+  the chain, and the exception it was hiding (`d.meta.n`, a shape my builder had not emitted)
+  is fixed too.
+- **The page ceiling moved from 3.0 MB to 3.2 MB, deliberately and visibly.** Everything that
+  can be lazy now is — addresses 33 MB, services 7 MB, public buildings 2 MB, the building layer
+  20 MB, schools 1 MB, the infra alignments *and* project details 312 kB, the per-area project
+  index, the flood rasters, every history and monthly series. What is left is the irreducible
+  core, 3 013 kB, and **732 kB gzipped** is what actually reaches a phone. Deleting published
+  figures to save 13 kB nobody would notice was the wrong trade; the number moved with its
+  reason written beside it in `scripts/build_dashboard.py`. **Open ⚠.**
+- `docs/BUILDINGS_FI.md`.
+
 ## 10. Resume point, batch 2
 
-Phases 8b–13 committed. Two long fetches are still running in the background and must finish before phases 15–16: `scripts/fetch_flood.py` (SYKE tiles, ~1 680) and `scripts/fetch_buildings.py` (3.8 M Ryhti buildings). Re-run `make climate` when the flood fetch ends. Phase 14 (schools) next.
+Phases 8b–15 committed. Every fetch has finished. Phase 16 (verify, docs, wrap-up) is all that remains.

@@ -14,6 +14,8 @@ links:      ## the full source-link sweep: every verify-at-source URL fetched (s
 	$(PY) scripts/check_source_links.py
 geo:        ## vendor kunta / maakunta / postinumero / osa-alue polygons (Tilastokeskus + Paavo + HSY)
 	$(PY) scripts/fetch_geo_fi.py && $(PY) scripts/fetch_paavo.py
+buildings:  ## Ryhti building register -> the buildings layer and its two area indicators
+	$(PY) scripts/fetch_buildings.py && $(PY) scripts/build_micro.py
 schools:    ## Tilastokeskus school register + YTL matriculation results -> the schools layer
 	$(PY) scripts/build_schools.py
 infra:      ## Väylävirasto project layers + the curated major projects -> the infra overlay
@@ -37,4 +39,4 @@ test:       ## every unit test (python + js)
 fixture:    ## synthetic render check (never ship)
 	$(PY) tests/make_fixture.py && $(PY) scripts/build_dashboard.py --data tests/fixture_makro.json --osa tests/fixture_osa.json --out dist/fixture.html
 refresh: fetch build
-.PHONY: probe validate verify links geo addr climate services infra schools fetch build serve fixture refresh test test-js
+.PHONY: probe validate verify links geo addr climate services infra schools buildings fetch build serve fixture refresh test test-js
