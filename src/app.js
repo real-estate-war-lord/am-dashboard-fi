@@ -74,6 +74,11 @@ const isSafety = i => !!i && i.group === "Safety";
 const osaOwn = key => IND_OSA.some(i => i.key === key);
 /* the quarter layer's own indicators plus the inherited Safety family */
 const IND_Q = IND_OSA.concat(SAFETY.filter(i => !osaOwn(i.key)));
+/* On the MAP an osa-alue with no figure of its own is drawn in its kunta's colour already
+   (`lfLayers`: `src = micro && vk(a) != null ? a : m`), so every kunta-level indicator is
+   selectable in osa-alue mode too — it is simply inherited, and the picker says so. v1.1 offered
+   the short list instead, which is why clicking "Unemp." on the Helsinki card did nothing. */
+const IND_Q_MAP = IND_OSA.concat(IND.filter(i => !osaOwn(i.key)));
 /* registry `direction`: for lower_better indicators rank #1 is the lowest value and a fall is the good change */
 /* quarter-layer indicators that are published per district (peruspiiri), not per quarter: the KK survey's crime and
    safety shares, and unemployment — their values carry ^ instead of the ° of a municipality value */
@@ -455,7 +460,7 @@ const yearsForPool = (k, pool) => yearsOf(k).filter(y => y >= mapFrom(k));
 const histYears = (k, pool) => yearsOf(k);
 function curPool() { if (S.view === "area") { const e = areaEntity(); return e ? e.peers : MUNI; } if (S.view === "table" && T.level === "osa_alue") return OSA ? OSA.areas : MUNI; return osaMode() ? OSA.areas : MUNI; }
 const yearsFor = k => projOf(k) ? [] : yearsForPool(k, curPool());
-const curInds = () => { if (S.view === "area") { const e = areaEntity(); return e ? e.inds : IND; } if (S.view === "table") return T.level === "osa_alue" ? IND_Q : IND; return osaMode() ? IND_Q : IND; };
+const curInds = () => { if (S.view === "area") { const e = areaEntity(); return e ? e.inds : IND; } if (S.view === "table") return T.level === "osa_alue" ? IND_Q : IND; return osaMode() ? IND_Q_MAP : IND; };
 const curInd = () => { const L = curInds(); return L.find(i => i.key === MK.ind) || L[0] || { key: "", label: "", fmt: "pct1" }; };
 
 /* ---------- routing (hash) ----------
@@ -693,6 +698,7 @@ document.addEventListener("click", e => {
     MK.micro = k === "buildings"; MK.osaView = k === "osa_alue" ? "osa_alue" : "postinumero";
     go(hashFor()); return; }
   if (g("[data-lyopen]")) { layersToggle(); return; }
+  if (g("[data-cardfold]")) { UI.mapCard = !UI.mapCard; syncHash(); mkRefreshStrip(); return; }
   if ((el = g("[data-layer]"))) { if (el.disabled) return; layerToggle(el.dataset.layer); return; }
   if (g("[data-fs]")) { toggleFullscreen(); return; }
   if ((el = g("[data-chmode]"))) { CH.mode = el.dataset.chmode; syncHash(); renderKeep(); return; }
@@ -779,7 +785,17 @@ document.addEventListener("input", e => {
   if (e.target.id === "tq") { T.q = e.target.value.trim().toLowerCase(); renderTableBody(); }
   if (e.target.id === "anlab") { AN.label = e.target.value.trim(); TP.label = AN.label || TP_LABEL; syncHash(); }
 });
-document.addEventListener("toggle", e => { if (e.target.classList && e.target.classList.contains("indx")) UI.indxOpen = e.target.open; }, true);
+document.addEventListener("toggle", e => {
+  if (e.target.classList && e.target.classList.contains("indx")) UI.indxOpen = e.target.open;
+  /* a <details> whose key is in `show=` — the one place an open section is written to the URL */
+  const k = e.target.dataset && e.target.dataset.show;
+  if (k) {
+    const list = S.view === "area" ? AR.show : S.view === "property" ? AN.show : MK.show;
+    const i = list.indexOf(k);
+    if (e.target.open && i < 0) list.push(k); else if (!e.target.open && i >= 0) list.splice(i, 1);
+    syncHash();
+  }
+}, true);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && UI.exOpen) { exportClose(); return; }
   if (e.key === "Escape" && UI.lyOpen) { layersClose(); return; }
@@ -957,7 +973,8 @@ function pickCtx(target) {
   const list = e ? e.inds : (S.view === "property" ? IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))) : curInds());
   const level = e ? e.type : (S.view === "table" ? T.level : osaMode() ? "osa_alue" : "kunta");
   return { list, key: MK.ind, level, entity: e || tpE,
-           inherits: i => !!(e && inherits(e, i.key) && V(e.o, i.key) == null) };
+           inherits: i => e ? !!(inherits(e, i.key) && V(e.o, i.key) == null)
+                            : !!(S.view === "makro" && osaMode() && !osaOwn(i.key)) };
 }
 const pickYearsCache = {};
 function pickYears(key, level) {
@@ -1040,8 +1057,14 @@ function climFor(key) { const c = CLIM_LAYERS.find(x => x.ind === key); return c
 function indChips(target) {
   target = target || "ind";
   const c = pickCtx(target);
-  const ks = QUICK_KEYS.map(k => c.list.find(i => i.key === k)).filter(Boolean);
-  if (ks.length < 2) return "";
+  /* QUICK_KEYS is written for the kunta level; an osa-alue page has one of them (`growth`), and a
+     one-chip row that is always filled tells nobody anything. Pad from the level's own list, in
+     GROUP_ORDER, so the row is the same shape everywhere. */
+  const seen = new Set(), ks = [];
+  const take = key => { const i = c.list.find(x => x.key === key); if (i && !seen.has(key)) { seen.add(key); ks.push(i); } };
+  QUICK_KEYS.forEach(take); CARD_KEYS.forEach(take);
+  if (ks.length < 6) PC.grouped(c.list).forEach(([, l]) => l.forEach(i => { if (ks.length < 6) take(i.key); }));
+  if (!ks.length) return "";
   return `<div class="iq" data-testid="ind-chips" data-row="2">${ks.map(i =>
     `<button class="iqb ${c.key === i.key ? "on" : ""}" data-ind="${esc(i.key)}" data-pt="${esc(target)}" title="${esc(i.label)}">${esc(i.short || i.label)}</button>`).join("")}</div>`;
 }
@@ -1237,32 +1260,66 @@ function srcNote(extra = "") {
     Municipality-level indicators are shown on postal-code polygons with the municipality value (marked °) when no finer statistic exists.
     ${esc((D.meta && D.meta.note) || "")}</div>${extra}<p class="cap">Full definitions and table stamps under <button class="lk mini" data-go="sources">Sources</button>. Built ${esc((D.meta && D.meta.built) || "–")}.</p></details>`;
 }
+/* One rank format, everywhere: "#n of N", N = the areas that actually have a figure. The `title`
+   says so, because "#303 of 308" is otherwise read as "308 municipalities" rather than "308 with a
+   published figure for this indicator". */
+function rankText(rk) {
+  if (!rk) return "";
+  return `<span title="${esc(`of ${rk.n} ${rk.pool || "areas"} with a published figure for this indicator`)}">#${rk.r} of ${rk.n}</span>`;
+}
 function rankOf(o, key, peers) {
   const v = V(o, key); if (v == null) return null;
   const vals = peers.map(p => V(p, key)).filter(x => x != null);
   const lb = lowerBetter(key);   /* #1 = best: the highest value, or the lowest where lower is better */
   /* a neutral indicator still has an order — highest first — but #1 is a position, not a verdict */
-  return { r: 1 + vals.filter(x => lb ? x < v : x > v).length, n: vals.length, neutral: neutralDir(key) };
+  return { r: 1 + vals.filter(x => lb ? x < v : x > v).length, n: vals.length, neutral: neutralDir(key),
+           pool: peers === MUNI ? "kunnat" : peers === AREAS ? "postal-code areas" : OSA && peers === OSA.areas ? "osa-alueet" : "areas" };
 }
 /* good/bad sense of a change d in indicator key: "up" = favourable (green), "dn" = unfavourable */
 /* neutral: no favourable end, so a change gets no colour at all — growth is not success (docs/OUTLOOK_FI.md §3) */
 const cls = (d, key) => { if (neutralDir(key || "")) return ""; const s = lowerBetter(key || "") ? -d : d; return s > 0 ? "up" : s < 0 ? "dn" : ""; };
 const goodBad = (d, key) => d == null ? "" : ({ up: "good", dn: "bad" })[cls(d, key)] || "";
+/* ---------- the map area card (v2.0 P4) ----------
+   The owner's brief: less, and toggles. When a kunta is selected the card carries its identity, the
+   five headline figures, and two buttons. Everything else — the outlook, the upcoming projects —
+   folds into `<details>` that are closed by default and whose state is in the URL, so a link opens
+   on exactly what the sender was looking at. The whole card collapses to its title (`card=0`). */
+const CARD_KEYS = ["growth", "price_m2", "rent", "unemp", "crime_1000"];
+const showOn = (list, k) => list.indexOf(k) >= 0;
+/* one <details>, its open state serialised into `show=` */
+function showSec(list, key, label, meta, body, testid) {
+  return `<details class="sec" data-testid="${esc(testid || ("sec-" + key))}" data-show="${esc(key)}" ${showOn(list, key) ? "open" : ""}>
+    <summary><b>${esc(label)}</b>${meta ? `<span class="dim">${meta}</span>` : ""}</summary>
+    <div class="secbody">${body}</div></details>`;
+}
 function muniStrip(m) {
-  /* the selected municipality in one line: population, region, four headline figures + crime with rank, link to its page.
-     The figures are the municipality's own, so the national indicator list applies in quarter mode too. */
   const has = i => i && V(m, i.key) != null;
-  const key = HL_KEYS.filter(k => !STRIP_EXTRA.includes(k)).map(k => IND.find(i => i.key === k)).filter(has).slice(0, 4)
-    .concat(STRIP_EXTRA.map(k => IND.find(i => i.key === k)).filter(has));
-  const cell = i => { const rk = rankOf(m, i.key, MUNI); return `<div><span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(V(m, i.key))}</b><em>${rk ? `#${rk.r} of ${rk.n}` : ""}</em></div>`; };
-  return `<div class="mstrip">
-    <div class="mstrip-id"><b>${esc(m.name)}</b><span class="dim">${esc(m.region || "")} · ${m.pop != null ? nf(m.pop, 0) + " inhabitants" : ""} · ${muniAreas(m.code).length} ${osaMode() ? "osa-alueet" : "postal codes"}</span>${upcomingLine("kunta", m.code)}${publicLine("kunta", m.code)}${String(m.code) === CITY_FC_MUNI && CITY_FC ? outlookBothHtml(m) : outlookLine(m, "kunta")}</div>
-    <div class="mstrip-k">${key.map(cell).join("")}</div>
+  const keys = CARD_KEYS.map(k => IND.find(i => i.key === k)).filter(has);
+  const cell = i => { const rk = rankOf(m, i.key, MUNI);
+    return `<button class="mcell ${MK.ind === i.key ? "on" : ""}" data-testid="tile-${esc(i.key)}" data-arind="${esc(i.key)}"
+      title="${esc(i.desc || i.label)} — click to colour the map by this figure">
+      <span>${esc(i.short || i.label)}</span><b>${fmtOf(i)(V(m, i.key))}</b><em>${rk ? rankText(rk) : ""}</em></button>`; };
+  /* the per-area project index rides in infra.json, not in the page — ask for it once, then
+     refresh this card alone (a full re-render here would rebuild the live map underneath it) */
+  if (!INFRA_GEO.done && INFRA_ALL.length) infraLoad(() => mkRefreshStrip());
+  const up = infraOf("kunta", m.code).filter(pj => pj.status !== "opened");
+  const outlook = String(m.code) === CITY_FC_MUNI && CITY_FC ? outlookBothHtml(m) : outlookLine(m, "kunta");
+  if (!UI.mapCard) return `<div class="mstrip is-closed" data-testid="area-card">
+    <div class="mstrip-id"><b>${esc(m.name)}</b><span class="dim">${esc(m.region || "")}</span></div>
+    <button class="mfold" data-cardfold aria-expanded="false" title="Show the area card">+</button></div>`;
+  return `<div class="mstrip" data-testid="area-card">
+    <div class="mstrip-id"><b>${esc(m.name)}</b><span class="dim">${esc(m.region || "")}${m.pop != null ? ` · ${nf(m.pop, 0)} inhabitants` : ""} · ${muniAreas(m.code).length} ${osaMode() ? "osa-alueet" : "postal codes"}</span></div>
+    <div class="mstrip-k">${keys.map(cell).join("")}</div>
     <div class="mstrip-act"><button class="lk primary" data-go="${withQ(pageOf(m))}">Open ${esc(m.name)} page ›</button><button class="lk" data-go="${chartLink(MK.ind, "kunta", m.code)}" title="Open the chart generator with this municipality">↗ Chart</button></div>
+    <button class="mfold" data-cardfold aria-expanded="true" title="Collapse the area card">–</button>
+    <div class="mstrip-secs">
+      ${outlook ? showSec(MK.show, "outlook", `Outlook ${esc(((IND.find(i => i.key === "fc_growth") || {}).proj || {}).to || "2040")}`, "", outlook) : ""}
+      ${up.length ? showSec(MK.show, "upcoming", `Upcoming projects (${up.length})`, "",
+        `<div class="uplist">${up.map(pj => `<button class="lk mini" data-project="${esc(pj.id)}" title="${esc(pj.name)}">${esc(pj.label_short || pj.name)}${pj.open_year || pj.open_window ? ` <span class="dim">${esc(openLabel(pj))}</span>` : ""}</button>`).join("")}</div>
+         <p class="cap">Väylävirasto hanketiedot and the curated major projects — every one that has not opened. <button class="lk mini" data-go="data/projects">All projects ›</button></p>`) : ""}
+    </div>
   </div>`;
 }
-/* ---------- Outlook lines (docs/OUTLOOK_FI.md §5.7, §8) ---------- */
-/* the one city that publishes its own area forecast beside Tilastokeskus' — Helsinki (091) */
 const CITY_FC_MUNI = "091";
 /* the one-line outlook under population: "Outlook 2040: +5.9 % (20–34: +0.3 pp vs Finland)" */
 function outlookLine(o, level) {
@@ -1447,6 +1504,10 @@ function levelSeg() {
 function mkTools() {
   return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indPicker("ind") + periodControl("ind")}`
     + `${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}`;
+}
+function mkRefreshStrip() {
+  const st = document.getElementById("mkstrip"), mu = MK.muni ? byCode[MK.muni] : null;
+  if (st) st.innerHTML = mu && !microMode() ? muniStrip(mu) : "";
 }
 function mkRefreshTools() {
   const el = document.querySelector("#mapcard .tools"); if (el) el.innerHTML = mkTools();

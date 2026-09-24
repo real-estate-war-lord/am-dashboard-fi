@@ -1901,3 +1901,50 @@ th .thn{display:inline}
 .period[data-mode=projection] .pbadge,.pbadge[data-mode=projection]{color:var(--proj);border-color:var(--proj-2)}
 .period[data-mode=projection]{color:var(--proj)}
 .period[data-mode=returnperiod] .sg.on{background:var(--clim);border-color:var(--clim);color:#fff}
+
+/* ===================================================================================
+   v2.0 P4 — the map area card: identity, five figures, two buttons, two toggles
+   =================================================================================== */
+.mstrip{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+  gap:var(--s2) var(--s4);align-items:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);padding:var(--s3) var(--s4);margin-bottom:var(--s3)}
+.mstrip-id{min-width:0}
+.mstrip-id b{font-family:var(--disp);font-size:19px;letter-spacing:-.02em;display:block}
+.mstrip-id .dim{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.mstrip-k{display:flex;gap:var(--s5);margin-left:0}
+.mcell{display:block;text-align:left;background:none;border:0;border-radius:7px;padding:3px 7px;
+  margin:-3px -7px;cursor:pointer;font:inherit;color:var(--ink)}
+.mcell:hover{background:var(--panel2)}
+.mcell.on{box-shadow:inset 0 -2px 0 var(--good)}
+.mcell span{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted)}
+.mcell b{display:block;font-family:var(--mono);font-size:17px;font-variant-numeric:tabular-nums;margin-top:1px}
+.mcell em{display:block;font-style:normal;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.mstrip-act{display:flex;gap:var(--s2);align-items:center;padding-right:26px}
+.mfold{position:absolute;top:10px;right:10px;width:22px;height:22px;line-height:20px;text-align:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--muted);
+  font-family:var(--mono);font-size:13px;cursor:pointer;padding:0}
+.mfold:hover{color:var(--ink);border-color:var(--ink)}
+.mstrip.is-closed{grid-template-columns:1fr;padding:var(--s2) var(--s4)}
+.mstrip.is-closed .mstrip-id b{font-size:15px;display:inline;margin-right:8px}
+.mstrip-secs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);
+  border-top:1px solid var(--line2);padding-top:var(--s2);margin-top:var(--s1)}
+.sec{min-width:0;max-width:100%}
+.sec>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;
+  font-size:13px;padding:2px 0;color:var(--ink2)}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary:before{content:"▸";color:var(--muted);font-size:10px;transition:transform .12s}
+.sec[open]>summary:before{content:"▾"}
+.sec>summary:hover{color:var(--ink)}
+.sec>summary b{font-family:var(--body);font-weight:600}
+.sec>summary .dim{font-family:var(--mono);font-size:10.5px}
+.secbody{padding:var(--s2) 0 var(--s1) 14px;max-width:78ch}
+.uplist{display:flex;flex-wrap:wrap;gap:5px}
+@media (max-width:1250px){
+  .mstrip{grid-template-columns:minmax(0,1fr) auto}
+  .mstrip-act{grid-column:1/-1;padding-right:0}
+}
+@media (max-width:900px){
+  .mstrip{grid-template-columns:1fr}
+  .mstrip-k{flex-wrap:wrap;gap:var(--s4) var(--s5)}
+}

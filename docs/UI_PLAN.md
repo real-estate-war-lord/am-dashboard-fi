@@ -119,7 +119,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
 - ☑ **P3 IndicatorPicker + PeriodControl** — one component each, on Map / Area / Data › Areas /
   Charts / Test property; year · return period · projection badge; climate indicator ⇄ SYKE zones;
   projection purple dashed, climate blue, observed green.
-- ☐ **P4 Map area card** — identity + 5 headline figures + two actions; `Outlook 2040 ▸` and
+- ☑ **P4 Map area card** — identity + 5 headline figures + two actions; `Outlook 2040 ▸` and
   `Upcoming projects (n) ▸` as toggles with URL state; whole card collapsible.
 - ☐ **P5 Area page** — header → tiles → picker/period/chips → study row (chart | draggable mini-map,
   equal height) → `<details>` toggles in `show=`; KEY FIGURES block removed; inherited values labelled.
@@ -302,6 +302,36 @@ Gate: green — validate ✓, test 38 python + 48 node ✓, build clean, `make u
 - `Charts` has no period control (its `from ▾ / to ▾` selects are its period), and a Climate chart
   there still draws one return period rather than both — logged, not a MUST for v2.0.
 
+### P4 — the map area card ☑
+Commit: `feat: v2.0 P4 — the map area card is identity, five figures, two buttons and two toggles`
+Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 30/30.
+
+**Built**
+1. **The card** (`data-testid=area-card`) now carries only: name · maakunta · inhabitants · level count;
+   the five headline figures in one row (Growth · Price · Rent · Unemp. · Crime, each a button that
+   colours the map by it, `data-testid=tile-<key>`); and `[Open <kunta> page ›] [↗ Chart]`.
+2. **Two toggles, closed by default, state in `show=`**: `Outlook 2040` (Tilastokeskus and Helsingin
+   kaupunki side by side, the projected-change line and the two-projections note) and
+   `Upcoming projects (n)`, which replaces the UPCOMING chip row. The public-buildings chip row is gone
+   from the card — the task's "nothing else on the card"; those counts stay on the area page and the
+   buildings themselves in Layers ▾.
+3. **The whole card folds** to its name (`–` / `+`, `data-cardfold`), and the collapsed state is `card=0`.
+4. **One `<details>` mechanism.** `showSec()` renders them and a single `toggle` listener writes the
+   open set into `show=` for whichever view is on screen (`MK.show` / `AR.show` / `AN.show`) — P5 and
+   P6 reuse both.
+5. **`rankText()`** — the one rank format, `#n of N`, with a `title` that says N counts the areas with a
+   published figure for *this* indicator. The rest of the surfaces adopt it in P8.
+6. **Two more live bugs.**
+   - **The project index was never loaded unless the Infra layer was on**, so "Upcoming" was empty on
+     every card. It rides in `infra.json`, not in the page; the card asks for it once and refreshes
+     itself (never a full re-render — that would rebuild the live map underneath).
+   - **A headline figure on the card could not be selected in osa-alue mode.** The map already draws an
+     osa-alue with no figure of its own in its kunta's colour, but `curInds()` offered the short
+     osa-alue list, so `parseHash` silently reset `ind=unemp` back to `growth`. The map's list is now
+     the full one, with the kunta-level rows tagged `municipality` in the picker.
+7. **The chips row is never empty.** `QUICK_KEYS` is written for the kunta level and an osa-alue page
+   had exactly one of them; the row now pads from the level's own list, in `GROUP_ORDER`, to six.
+
 ## 6. Next
 
-Start P4 — the map area card.
+Start P5 — the area page.

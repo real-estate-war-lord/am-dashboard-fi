@@ -596,6 +596,81 @@ def _family_ramps(page, base):
 
 
 # ===========================================================================
+# P4 — the map area card
+# ===========================================================================
+
+
+@check("P4-card-contents", phase="P4")
+def _card_contents(page, base):
+    """identity, five figures, two buttons, two toggles — and nothing else"""
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(2000)
+    card = page.query_selector("[data-testid=area-card]")
+    assert card, "no area card"
+    ident = page.eval_on_selector("[data-testid=area-card] .mstrip-id", "e => e.textContent")
+    for word in ["Helsinki", "Uusimaa", "inhabitants", "osa-alueet"]:
+        assert word in ident, (word, ident)
+    cells = texts(page, "[data-testid=area-card] .mstrip-k .mcell > span")
+    assert len(cells) == 5, cells
+    acts = texts(page, "[data-testid=area-card] .mstrip-act button")
+    assert acts == ["Open Helsinki page ›", "↗ Chart"], acts
+    # the UPCOMING chip row is gone; the projects are a toggle
+    assert not page.query_selector("[data-testid=area-card] .upcoming")
+    secs = page.eval_on_selector_all("[data-testid=area-card] details", "e => e.map(x => x.dataset.show)")
+    assert secs == ["outlook", "upcoming"], secs
+    assert all(not page.eval_on_selector(f"[data-testid=area-card] details[data-show={k}]", "e => e.open")
+               for k in secs), "a toggle is open by default"
+
+
+@check("P4-card-toggles", phase="P4")
+def _card_toggles(page, base):
+    """the toggles carry their state in the URL, both ways"""
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(2000)
+    page.click("[data-testid=area-card] details[data-show=outlook] summary")
+    page.wait_for_timeout(400)
+    assert "show=outlook" in hash_of(page), hash_of(page)
+    body = page.eval_on_selector("[data-testid=area-card] details[data-show=outlook]", "e => e.textContent")
+    assert "Tilastokeskus" in body and "Helsingin kaupunki" in body, body[:200]
+    assert "residents" in body, body[:200]
+    page.click("[data-testid=area-card] details[data-show=outlook] summary")
+    page.wait_for_timeout(400)
+    assert "show=" not in hash_of(page), hash_of(page)
+    # …and a link that names them opens on them
+    goto(page, base, "#map/091?show=outlook,upcoming")
+    page.wait_for_timeout(2000)
+    for k in ["outlook", "upcoming"]:
+        assert page.eval_on_selector(f"[data-testid=area-card] details[data-show={k}]", "e => e.open"), k
+
+
+@check("P4-card-fold", phase="P4")
+def _card_fold(page, base):
+    """the whole card collapses, and the collapsed state travels in the link"""
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(1800)
+    page.click("[data-testid=area-card] [data-cardfold]")
+    page.wait_for_timeout(400)
+    assert "card=0" in hash_of(page), hash_of(page)
+    assert not page.query_selector("[data-testid=area-card] .mstrip-k")
+    goto(page, base, "#map/091?card=0")
+    page.wait_for_timeout(1500)
+    assert page.eval_on_selector("[data-testid=area-card]", "e => e.classList.contains('is-full') === false")
+    assert not page.query_selector("[data-testid=area-card] .mstrip-k")
+
+
+@check("P4-card-tiles-select", phase="P4")
+def _card_tiles_select(page, base):
+    """a headline figure on the card selects that indicator"""
+    goto(page, base, "#map/091?ind=growth")
+    page.wait_for_timeout(1800)
+    page.click("[data-testid=tile-unemp]")
+    page.wait_for_timeout(800)
+    assert "ind=unemp" in hash_of(page), hash_of(page)
+    btn = page.eval_on_selector("[data-testid=ind-picker-btn] .ipkl", "e => e.textContent")
+    assert btn.startswith("Unemp"), btn
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
