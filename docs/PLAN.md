@@ -218,7 +218,7 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
 |---|---|---|---|
 | 8b | Licence corrections | ✅ | `fix: licence corrections from the v1.0 review` |
 | 9 | Probe for layers | ✅ | `chore: FI layer probe` |
-| 10 | Test property + Analysis + Compare | ☐ | |
+| 10 | Test property + Analysis + Compare | ✅ | `feat: test property, address search, Analysis and Compare` |
 | 11 | Climate risk | ☐ | |
 | 12 | Services + Public buildings | ☐ | |
 | 13 | Infra projects | ☐ | |
@@ -269,6 +269,39 @@ Verification rows for every new layer in docs/VERIFICATION.md (5 samples each) a
   route, the nine dead assumptions, and a one-line-per-phase table of what will and will not
   be built from what.
 
+### Phase 10 — Test property + Analysis + Compare ✅
+- `src/testprop.js` is Finland's: box 59.7–70.1 N / 19.0–31.6 E, `outside_fi`, short links
+  refused by name, **plus an address parser** (`parseAddress`, `normAddr`). 27 JS tests.
+- **Address search from 3 719 340 published addresses, with no server.** The spec asked for
+  the DVV bulk file; that distribution ended 14.3.2025, so the source is Ryhti `open_address`
+  — the same register, live and keyless. `fetch_addresses.py` pulls it per kunta through the
+  WFS/CSV route (~130 B a row instead of ~1.1 kB) and asserts every pull against the server's
+  own `resultType=hits`; `build_addr.py` packs it into `addr/<kunta>.json` + 36 first-letter
+  shards. **33 MB total, largest file 627 kB** — delta-encoded coordinates and no shipped name
+  index, because the page can normalise 4 500 street names in microseconds.
+- 142 097 addresses the register publishes with a point but **no street name in either
+  language** are counted in the manifest, not silently dropped.
+- A street that exists in several kunnat is **listed, never guessed between**; the two
+  normalisations (Python and JavaScript) are pinned to each other by a test that runs both.
+- **Compare**: two pins, aligned rows, read in each indicator's own direction, `neutral` rows
+  unmarked and **no overall winner**, stated in the sheet. Swap / Remove B / Copy link.
+- **Three real bugs found by testing it in a browser**, all inherited from the Danish
+  skeleton and all invisible until now:
+  1. `String(Number("091"))` is `"91"` — a harmless Danish idiom (no Danish kommune code
+     starts with a zero) that here made **every 0xx kunta a lookup miss**. A pin in the middle
+     of Helsinki reported "in water or outside Finland" while Tampere worked. 27 call sites,
+     now one `kcode()`; `tests/test_codes.py` guards it.
+  2. `bboxOf()` **cached the empty bounding box** computed before the lazy rings landed, so an
+     area could never be found again for the rest of the session.
+  3. Six `L.polygon(a.rings, …)` calls **threw** when the lazy rings had not arrived, taking
+     the whole render down. All six now go through `hasRings()`.
+- The Analysis and Compare views now ask for the pin's own `area/<kunta>.json`, so a pin
+  resolves all the way to kunta → postinumero → osa-alue instead of stopping at the kunta.
+- Danish leftovers in the dormant Analysis code fixed: KKBEF1/FOLK1A/BOL101 → the Finnish
+  tables, DAWA → Tilastokeskus, Nørrebro → peruspiiri, DST → Tilastokeskus/Helsingin kaupunki.
+- Checks: validate ✓ · test ✓ **38 py + 27 js** · build ✓ 2.4 MB · browser console clean ·
+  screenshots `docs/screenshots/v1_1_p10-{1,2,3}.png`.
+
 ## 10. Resume point, batch 2
 
-Phases 8b and 9 committed. Phase 10 (Test property + Analysis + Compare) under way: `scripts/fetch_addresses.py` is pulling all 3.9 M Ryhti addresses in the background and `scripts/build_addr.py` + the `ADR` module in `src/app.js` are written.
+Phases 8b, 9 and 10 committed. Phase 11 (Climate risk) next: the route is SYKE's WMS raster tiled per kunta plus the mapped-extent vectors, because the zones cannot be fetched as vectors at any sane size (docs/PROBE_FI.md, batch-2 finding 3).

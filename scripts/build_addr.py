@@ -88,13 +88,19 @@ def build_one(code, props):
     # street identity is the pair of published names; the Finnish one leads where it exists
     streets = collections.OrderedDict()          # (fin, swe) -> {house -> (lat, lon)}
     rows = 0
+    skipped = collections.Counter()
     for r in read_csv(src):
         fin = (r.get("address_name_fin") or "").strip()
         swe = (r.get("address_name_swe") or "").strip()
         if not fin and not swe:
-            continue                              # a coordinate with no street name cannot be searched
+            # The register publishes some addresses with a point but no street name in either
+            # language. They are real rows; they simply cannot be reached by typing a street,
+            # so they are counted and reported rather than quietly dropped.
+            skipped["no_street_name"] += 1
+            continue
         pt = point(r.get("location_geometry_data"))
         if pt is None:
+            skipped["no_point"] += 1
             continue
         num = (r.get("number_part_of_address_number") or "").strip()
         let = (r.get("subdivision_letter_of_address_number") or "").strip().lower()
@@ -107,6 +113,7 @@ def build_one(code, props):
         rows += 1
     if not streets:
         return None, {}
+    nonum = sum(1 for houses in streets.values() for h in houses if not any(c.isdigit() for c in h))
 
     rowsout, index = [], {}
     for (fin, swe), houses in streets.items():
@@ -129,6 +136,7 @@ def build_one(code, props):
     payload = {
         "k": code, "name": props.get("name", ""), "name_sv": props.get("name_sv", ""),
         "n": rows, "streets": len(rowsout),
+        "skipped": dict(skipped), "no_house_number": nonum,
         "built": dt.date.today().isoformat(),
         "source": "Ryhti-rakennustietojärjestelmä — open_address",
         "licence": "CC BY 4.0 — Lähde: Ryhti-rakennustietojärjestelmä (Suomen ympäristökeskus)",
@@ -151,6 +159,7 @@ def main():
     codes = args.only or sorted(names)
     shards = collections.defaultdict(lambda: collections.defaultdict(list))
     total, biggest, missing, written = 0, (0, ""), [], 0
+    skipped = collections.Counter()
     for code in codes:
         payload, index = build_one(code, names.get(code, {}))
         if payload is None:
@@ -167,6 +176,7 @@ def main():
         if n > MAX_BYTES:
             # Never ship a file over the ceiling silently — the repo rule is a rule.
             print(f"  ! {code} is {n:,} B, over the {MAX_BYTES:,} B ceiling", file=sys.stderr)
+        skipped.update(payload["skipped"])
         for street in index:
             shards[street[0]][street].append(code)
         print(f"  · {code} {names.get(code, {}).get('name', ''):<22} "
@@ -183,6 +193,7 @@ def main():
     manifest = {
         "built": dt.date.today().isoformat(),
         "addresses": total, "kunnat": written,
+        "skipped": dict(skipped),
         "shards": sorted(f"_{ord(c):x}" if not (c.isalnum() and c.isascii()) else c for c in shards),
         "source": "Ryhti-rakennustietojärjestelmä — open_address",
         "verify_at_source": ("https://paikkatiedot.ymparisto.fi/geoserver/ryhti_building/ogc/features/v1"
@@ -190,13 +201,21 @@ def main():
         "licence": "CC BY 4.0 — Lähde: Ryhti-rakennustietojärjestelmä (Suomen ympäristökeskus)",
         "note": ("Coordinates are the register's own, rounded to 1e-5 degrees (~1 m). A house "
                  "published twice keeps its first point. Kunnat with no published address are "
-                 "listed in `without`."),
+                 "listed in `without`. `skipped.no_street_name` counts addresses the register "
+                 "publishes with a point but no street name in either language: they are real "
+                 "rows that simply cannot be reached by typing a street, so they are counted "
+                 "here rather than quietly dropped. `skipped.no_point` counts rows with no "
+                 "usable geometry."),
         "without": missing,
     }
     (OUT / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n",
                                        encoding="utf-8")
     print(f"\n{total:,} addresses · {written} kunnat · {len(shards)} shards "
           f"· largest kunta file {biggest[0]:,} B ({biggest[1]})")
+    if skipped:
+        print("not searchable, and counted rather than dropped silently:")
+        for k, v in sorted(skipped.items()):
+            print(f"  {v:,}  {'no street name in either language' if k == 'no_street_name' else 'no usable point geometry'}")
     if missing:
         print(f"no address file for {len(missing)} kunnat: {', '.join(missing[:12])}"
               + (" …" if len(missing) > 12 else ""))

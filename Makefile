@@ -14,6 +14,8 @@ links:      ## the full source-link sweep: every verify-at-source URL fetched (s
 	$(PY) scripts/check_source_links.py
 geo:        ## vendor kunta / maakunta / postinumero / osa-alue polygons (Tilastokeskus + Paavo + HSY)
 	$(PY) scripts/fetch_geo_fi.py && $(PY) scripts/fetch_paavo.py
+addr:       ## pull every building address in Finland (Ryhti) and build the lazy lookup
+	$(PY) scripts/fetch_addresses.py && $(PY) scripts/build_addr.py
 fetch:      ## pull every StatFin table named in config/indicators.json, and the file sources
 	$(PY) scripts/fetch_statfin.py && $(PY) scripts/import_kela.py && $(PY) scripts/import_verohallinto.py
 build:      ## raw -> processed -> dist/index.html
@@ -27,4 +29,4 @@ test:       ## every unit test (python + js)
 fixture:    ## synthetic render check (never ship)
 	$(PY) tests/make_fixture.py && $(PY) scripts/build_dashboard.py --data tests/fixture_makro.json --osa tests/fixture_osa.json --out dist/fixture.html
 refresh: fetch build
-.PHONY: probe validate verify links geo fetch build serve fixture refresh test test-js
+.PHONY: probe validate verify links geo addr fetch build serve fixture refresh test test-js

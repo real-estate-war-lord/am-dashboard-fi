@@ -187,6 +187,21 @@ def main():
         for f in srv.glob("*.json"):
             shutil.copy(f, sd / f.name)
         print(f"copied {len(list(sd.glob('*.json')))} services files → {sd}")
+    # The address lookup: ~65 MB across 300-odd files, so it is copied to dist rather than
+    # inlined, and dist/addr is gitignored — the Pages deploy rebuilds it from data/processed.
+    adr = PROC / "addr"
+    if adr.exists():
+        import shutil
+        ad = out.parent / "addr"; ad.mkdir(exist_ok=True)
+        (ad / "ix").mkdir(exist_ok=True)
+        big, n_ = 0, 0
+        for f in list(adr.glob("*.json")) + list((adr / "ix").glob("*.json")):
+            dest = ad / ("ix" if f.parent.name == "ix" else ".") / f.name
+            shutil.copy(f, dest)
+            big = max(big, dest.stat().st_size); n_ += 1
+        print(f"copied {n_} address files → {ad} (largest {big/1024:.0f} kB)")
+        if big > 3_000_000:
+            raise SystemExit(f"✗ an address file is {big:,} B, over the 3,000,000 B ceiling")
     if micro_idx:
         import shutil
         md = out.parent / "micro"; md.mkdir(exist_ok=True)

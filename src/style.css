@@ -1588,6 +1588,24 @@ th .thn{display:inline}
 .tptipc .tpwarn{margin-top:9px;padding-top:8px;border-top:1px solid var(--line2);color:var(--warn);font-size:11.5px}
 .tperr{flex-basis:100%;margin-top:7px;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--bad);max-width:760px}
 .tpnote{flex-basis:100%;margin:7px 0 0;line-height:1.5;max-width:760px}
+/* the address disambiguation list: the same street name exists in dozens of kunnat, so the
+   page offers them rather than picking one silently */
+.tpchoices{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  margin-top:7px;max-width:760px}
+.tpchoices .dim{font-family:var(--mono);font-size:11px;line-height:1.5}
+
+/* Compare: two properties, one row each. `anbetter` marks the side that is better in the
+   direction that row declares — never a total, because there is no overall winner. */
+.ancmphead{display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;margin-top:10px}
+.ancmpside{flex:1 1 280px;min-width:0}
+.ancmpvs{align-self:center;font-family:var(--mono);font-size:11px;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.08em;padding:0 2px}
+.ancmpadd{margin-top:10px}
+.ancmpadd .tpq{min-width:min(420px,60vw)}
+.ancmp th:first-child{white-space:normal}
+.ancmp td.anbetter{font-weight:650;color:var(--good);position:relative}
+.ancmp td.anbetter::after{content:"\00a0\25cf";font-size:8px;vertical-align:middle}
+@media (max-width:640px){.ancmpvs{display:none}}
 
 .tp-pin i{display:block;width:16px;height:16px;border-radius:50%;background:var(--pin);
   border:3px solid #fff;box-shadow:0 0 0 1px var(--pin),0 1px 5px rgba(0,0,0,.4)}

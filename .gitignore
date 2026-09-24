@@ -29,3 +29,6 @@ data/external/raw/
 validate.txt
 fetch.txt
 probe.txt
+
+# the address lookup is ~65 MB rebuilt from data/processed/addr on every deploy
+dist/addr/
