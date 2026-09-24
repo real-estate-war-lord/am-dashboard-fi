@@ -131,7 +131,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done and committed.
   % of a median; compound annual outlook rate; period label per indicator; `#n of N` everywhere; fi-FI.
 - ☑ **P9 Responsive** — ≤ 1024 px top bar + drawer; stacking; table scroll; legend pill; no overflow
   at 1366×768, 1440×900, 1536×864, 390×844.
-- ☐ **P10 Tests, screenshots, wrap-up** — `tests/ui_v2.spec.py` green, `docs/ui_v2/*.png` at 1440 and
+- ☑ **P10 Tests, screenshots, wrap-up** — `tests/ui_v2.spec.py` green, `docs/ui_v2/*.png` at 1440 and
   390, README screenshots, CHANGELOG v2.0 draft, this file final.
 
 ---
@@ -494,6 +494,32 @@ Gate: green — validate ✓, test 38+48 ✓, build clean, `make ui` 65/65.
 5. **One export affordance.** The two inline `⤓ Export CSV` buttons in the Areas and Projects
    toolbars are gone; Export ▾ is the only one.
 
+### P10 — the global sweeps, the screenshots and the wrap-up ☑
+Commit: `test: v2.0 P10 — the global sweeps, 70 checks, and the morning screenshots`
+Gate: green — validate ✓, test 38 python + 48 node ✓, build clean, `make ui` **70/70**.
+
+**Built**
+1. **Five global sweeps**, over the ten primary routes *and* nine more the app can show
+   (`SHEET_ROUTES`: the buildings level, the postal level, a climate map, a three-layer map, the
+   loaded Test property, the fully-open area page, the distribution chart, the school and
+   public-building lists): the retired words, zero JS errors, one picker / one period control / one
+   tab bar per view, every legend inside its map and pairwise non-overlapping, and every hash stable.
+2. **`make ui SHOTS=1`** writes `docs/ui_v2/<route>_1440.png` and `_390.png` — 38 files — and the
+   README now shows three of them.
+3. **CHANGELOG v2.0 draft** and this file, final.
+
+**Two more bugs, found by the sweeps**
+- `isPt` / `isArea` read `.type` off a null geometry, so `lfInfraLabels()` threw as soon as the
+  Infra layer was on at a zoom where labels are drawn. Both predicates are null-safe now and both
+  label loops filter on `infraDrawable`.
+- The feature-legend stack on the **big** map grew down into the indicator legend with three layers
+  on. Every legend on every map is now one scrollable, foldable column; the indicator legend starts
+  open and the feature layers start folded, which is what makes five legends fit over a 650 px map.
+
+---
+
 ## 6. Next
 
-Start P10 — tests, screenshots and the wrap-up.
+Nothing. v2.0 is complete on `v2.0-ui`, ten phases, 70 acceptance checks green, **not merged, not
+tagged, not pushed**. The morning review checklist is at the end of the run summary; the screenshots
+are in `docs/ui_v2/`.

@@ -2026,10 +2026,13 @@ body.has-full{overflow:hidden}
 .lychip:disabled{opacity:.45;cursor:not-allowed}
 
 /* a folded legend keeps its title and nothing else */
-.mmlegs .maplegend{pointer-events:auto}
-.mmlegs .maplegend.folded>*:not(.lgtitle){display:none}
-.mmlegs .maplegend.folded .lgtitle{margin-bottom:0}
-.mmlegs .maplegend.folded .lgtitle span{display:none}
+.maplegs .maplegend{pointer-events:auto}
+.maplegs .maplegend.folded>*:not(.lgtitle){display:none}
+.maplegs .maplegend.folded .lgtitle{margin-bottom:0}
+.maplegs .maplegend.folded .lgtitle span{display:none}
+.maplegs .maplegend.folded details{display:none}
+.maplegs .maplegend.folded>details.ollegend{display:block}
+.maplegs .maplegend.folded>details.ollegend>*:not(summary){display:none}
 .lgfold{float:right;margin:-2px -2px 0 6px;width:17px;height:17px;line-height:15px;text-align:center;
   background:var(--panel2);border:1px solid var(--line);border-radius:5px;color:var(--muted);
   font-family:var(--mono);font-size:11px;cursor:pointer;padding:0}
@@ -2121,3 +2124,10 @@ main{overflow-x:hidden}
   #body{padding:10px var(--gutter) 48px}
   .legpill{display:inline-flex}
 }
+
+/* One stack for every legend on the big map too, bottom-right: v1.1 pinned the feature legends to
+   the top-right corner and the indicator legend to the bottom-right one, and with three layers on
+   the feature stack grew down into it. Scrolls rather than overlaps once it is taller than 72 %. */
+.mklegs{top:auto;bottom:22px;right:12px;max-height:72%;align-items:flex-end;pointer-events:auto;
+  max-width:min(60%,300px)}
+.mklegs .maplegend{position:static;flex:0 0 auto;max-width:100%}

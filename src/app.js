@@ -982,18 +982,19 @@ function legendHtml(sc, ind, key, note) {
     `${note ? `<div class="lgnote">${note}</div>` : ""}`;
 }
 function setLegend(id, sc, ind, key, note) { const el = document.getElementById(id); if (el) el.innerHTML = legendHtml(sc, ind, key, note);
-  setInfraLegend(); setPublicLegend(); setServicesLegend(); mmFoldable(id); }
-/* A legend on a MINI map is a guest: the map is 420 px tall and three open legend cards cover it.
-   Each one keeps its title and folds its body away; the indicator legend — the one that explains
-   the colours under the pin — starts open, the feature layers start folded. On the big map nothing
-   folds. The state is per element id and survives a redraw. */
+  setInfraLegend(); setPublicLegend(); setServicesLegend(); mmFoldable(id); mmFoldLater("climlegend"); }
+/* A legend is a guest on the map it explains. Every one keeps its title and can fold its body away;
+   the indicator legend — the one that explains the colours underneath — starts open, the feature
+   layers start folded. Five open cards are 1 100 px of legend over a 650 px map, which is what v1.1
+   did with the Infra, Public buildings, Services and Climate layers all on at once. The state is per
+   element id and survives a redraw. */
 const LEG_FOLD = {};
 /* the setters fill their element and return; decorate on the next tick so the markup exists */
 const mmFoldLater = id => setTimeout(() => mmFoldable(id), 0);
 function mmFoldable(id) {
   const el = document.getElementById(id);
-  if (!el || !el.closest(".mmlegs") || !el.innerHTML.trim()) return;
-  const isInd = /legend$/.test(id) && /^(armap|anmap)legend$/.test(id);
+  if (!el || !el.closest(".maplegs") || !el.innerHTML.trim()) return;
+  const isInd = /^(maplegend|armaplegend|anmaplegend)$/.test(id);
   if (!(id in LEG_FOLD)) LEG_FOLD[id] = !isInd;
   el.classList.toggle("folded", !!LEG_FOLD[id]);
   const t = el.querySelector(".lgtitle");
@@ -1002,7 +1003,7 @@ function mmFoldable(id) {
   const b = el.querySelector(".lgfold"); if (b) b.textContent = LEG_FOLD[id] ? "+" : "–";
 }
 function setInfraLegend() {
-  mmFoldLater("aninfralegend");
+  mmFoldLater("aninfralegend"); mmFoldLater("infralegend");
   const el = document.getElementById("infralegend"); if (!el) return;
   const live = !!(MK.infra && INFRA.length);
   el.style.display = live ? "" : "none";
@@ -1594,7 +1595,7 @@ function vMakro() {
       <div id="mkquick">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
     <div id="mkexplain">${microMode() ? microExplain() : indExplain(ind)}</div>
     <div id="mkstrip">${muni && !microMode() ? muniStrip(muni) : ""}</div>
-    <div class="mapwrap" data-testid="map"><div id="lfmap"></div>${legendPill()}<div class="maplegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div>
+    <div class="mapwrap" data-testid="map"><div id="lfmap"></div>${legendPill()}<div class="maplegs mklegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div></div>
     ${srcNote(`<p class="cap">${muni ? "Click a polygon for its figures and a link to its page." : "Click a polygon for its figures; open a municipality with the search box above or from the popup. Table view lists everything side by side."} Colour classes: quintiles of the visible areas. Boundaries: Tilastokeskus (simplified, CC BY 4.0); basemap OpenStreetMap.${MK.srv ? ` <b>Services:</b> ${esc(srvAttribLine())}.` : ""}</p>`)}
   </div>`;
 }
@@ -2567,8 +2568,10 @@ const INFRA_ST = {
 const INFRA_TYPE = { metro: "Metro", letbane: "Light rail", brt: "BRT", rail: "Rail", road: "Road",
                      bridge_tunnel: "Bridge / tunnel", urban_dev: "Urban development", hospital: "Hospital", university: "University", public_building: "State building" };
 const infraSt = p => INFRA_ST[p.status] || INFRA_ST.study;
-const isPt = f => f.geometry.type === "Point";
-const isArea = f => f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon";
+/* null-safe: a project whose alignment the publisher has not drawn has no geometry at all, and
+   these two are asked about every feature in the layer, not only the drawable ones */
+const isPt = f => !!(f && f.geometry) && f.geometry.type === "Point";
+const isArea = f => !!(f && f.geometry) && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon");
 /* "M5: Helsinki H" → "Helsinki H" for map labels */
 const infraShort = p => (p.name || "").replace(/^[^:]{1,14}:\s*/, "");
 function infraStyle(p) {
@@ -2690,12 +2693,12 @@ function lfInfraLabels() {
     m.on("click", () => openInfra(p, ll));
     labs.push(m);
   };
-  if (z >= 12) INFRA.filter(isPt).forEach(f => {
+  if (z >= 12) INFRA.filter(f => infraDrawable(f) && isPt(f)).forEach(f => {
     const p = f.properties, c = f.geometry.coordinates;
     put([c[1], c[0]], `<b>${esc(text(p))}</b>${p.open_year ? ` <i>· ${p.open_year}</i>` : ""}`, "infralab-st", p);
   });
   /* one label per line, at mid-zoom: national view is too crowded, close-up the station labels take over */
-  if (z >= 8 && z < 12) INFRA.filter(f => !isPt(f) && !isArea(f)).forEach(f => {
+  if (z >= 8 && z < 12) INFRA.filter(f => infraDrawable(f) && !isPt(f) && !isArea(f)).forEach(f => {
     const p = f.properties;
     const cs = f.geometry.type === "MultiLineString" ? f.geometry.coordinates.flat() : f.geometry.coordinates;
     const c = cs[Math.floor(cs.length / 2)];
@@ -4443,7 +4446,7 @@ function setPubLegendIn(id, live, rows, note, zoomNote, gm) {
   el.innerHTML = pubLegendHtml(rows || [], note, zoomNote, gm);
 }
 function setPublicLegend() {
-  mmFoldLater("anpublegend");
+  mmFoldLater("anpublegend"); mmFoldLater("publiclegend");
   const live = !!(MK.pub && PUB && document.getElementById("lfmap"));
   setPubLegendIn("publiclegend", live, live ? pubRows() : [], null,
     !live ? "" : !PUB_HAS_CASES()
@@ -4725,7 +4728,7 @@ function srvLegendHtml() {
       : `${nf(LF.srvN || 0, 0)} drawn in view${n >= SRV_MAX_MARKERS ? " · at the drawing ceiling — zoom in" : ""}`}</div>`;
 }
 function setServicesLegend() {
-  mmFoldLater("anservicelegend");
+  mmFoldLater("serviceslegend");
   const el = document.getElementById("serviceslegend"); if (!el) return;
   const live = !!(MK.srv && SRV && document.getElementById("lfmap"));
   if (!live) { el.innerHTML = ""; el.style.display = "none"; return; }

@@ -354,7 +354,8 @@ def _legends_are_keys(page, base):
     """a floating legend has no filter button left in it, and legends never overlap"""
     goto(page, base, "#map/091?ind=growth&infra=1&public=1&services=1&clim=sea_100")
     page.wait_for_timeout(2500)
-    inner = texts(page, ".maplegend button, .maplegend .only, .maplegend [data-pubcat], "
+    # the only control a legend keeps is its own fold (spec §4.5, "collapsible with –")
+    inner = texts(page, ".maplegend button:not(.lgfold), .maplegend .only, .maplegend [data-pubcat], "
                         ".maplegend [data-srvcat], .maplegend [data-pubkind], .maplegend [data-srvmode]")
     assert not inner, f"clickable filters left in a legend: {inner[:4]}"
     vis = [b for b in boxes(page, ".maplegend") if b["w"] > 4 and b["h"] > 4]
@@ -1321,6 +1322,108 @@ def _one_export(page, base):
 
 
 # ===========================================================================
+# P10 — the global sweeps
+# ===========================================================================
+
+
+# every other page the app can show, so a sheet is not left broken by a shared component
+SHEET_ROUTES = [
+    ("charts_dist", "#charts?ind=growth&a=kunta:091,kunta:837&mode=bar"),
+    ("map_micro", "#map/091?micro=1"),
+    ("map_pno", "#map/091/postinumero"),
+    ("map_climate", "#map/091?ind=flood_sea_1000"),
+    ("map_layers", "#map/091?infra=1&public=1&services=1"),
+    ("property_layers", "#property?p=60.2448,24.8665&lay=infra,public,buildings"),
+    ("area_show_all", "#area/kunta/091?show=outlook,figures,sub"),
+    ("schoollist", "#schoollist/kunta:091"),
+    ("publist", "#publist/kunta:091"),
+]
+
+
+@check("P10-retired-words", phase="P10")
+def _retired_words(page, base):
+    """the controls v2.0 retired are named nowhere a reader can click them"""
+    gone = ["Climate risk", "KEY FIGURES", "Compare with", "Paste Google Maps link",
+            "Export data", "Own properties"]
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(700)
+        txt = body_text(page)
+        for w in gone:
+            assert w.lower() not in txt.lower(), (h, w)
+        # the return-period pills are a period control now, never a toolbar button
+        tool = page.eval_on_selector_all(
+            "[data-testid=map-toolbar] button",
+            "els => els.filter(e => !e.closest('.lypop') && !e.closest('[data-testid=period]')"
+            " && !e.closest('[data-testid=ind-picker]')).map(e => e.textContent.trim())")
+        assert not [t for t in tool if "1/100a" in t or "1/1000a" in t], (h, tool)
+
+
+@check("P10-every-route-clean", phase="P10")
+def _every_route_clean(page, base):
+    """every route the app can show renders without a JS error"""
+    bad = []
+    for name, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(1400)
+        if ERRORS:
+            bad.append((name, ERRORS[:2]))
+    assert not bad, bad
+
+
+@check("P10-picker-once", phase="P10")
+def _picker_once(page, base):
+    """one picker, one period control, one export menu per view — no duplicates anywhere"""
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(700)
+        n = len(page.query_selector_all("[data-testid=ind-picker]"))
+        assert n <= 1, (h, f"{n} pickers")
+        assert len(page.query_selector_all("[data-testid=period]")) <= 1, h
+        assert len(page.query_selector_all("[data-testid=data-tabs]")) <= 1, h
+
+
+@check("P10-legends-inside-map", phase="P10")
+def _legends_inside(page, base):
+    """every legend sits inside its map and never on top of another one"""
+    for h in ["#map/091?ind=flood_sea_100&infra=1&public=1&services=1",
+              "#property?p=60.2448,24.8665&lay=infra,public,buildings",
+              "#area/kunta/091"]:
+        goto(page, base, h)
+        page.wait_for_timeout(3200)
+        wrap = boxes(page, ".mapwrap")
+        assert wrap, h
+        # the stack itself must sit inside the map, and nothing in it may be clipped away: with
+        # every legend folded to its title the column fits, which is the point of folding them
+        for st in boxes(page, ".mapwrap .maplegs"):
+            if st["w"] < 4:
+                continue
+            assert any(st["x"] >= w["x"] - 2 and st["right"] <= w["right"] + 2
+                       and st["y"] >= w["y"] - 2 and st["bottom"] <= w["bottom"] + 2 for w in wrap), (h, st)
+            assert not page.evaluate(
+                "sel => { const e = document.querySelector(sel);"
+                " return e ? e.scrollHeight > e.clientHeight + 2 : false; }",
+                ".mapwrap .maplegs"), (h, "the legend stack has to be scrolled")
+        legs = [b for b in boxes(page, ".mapwrap .maplegend") if b["w"] > 4 and b["h"] > 4]
+        for i, a in enumerate(legs):
+            inside = any(a["x"] >= w["x"] - 2 and a["right"] <= w["right"] + 2
+                         and a["y"] >= w["y"] - 2 and a["bottom"] <= w["bottom"] + 2 for w in wrap)
+            assert inside, (h, "a legend hangs outside its map", a)
+            for c in legs[i + 1:]:
+                assert not overlap(a, c), (h, a, c)
+
+
+@check("P10-hash-stable-everywhere", phase="P10")
+def _hash_stable(page, base):
+    """every route, including the sheets, round-trips through the codec unchanged"""
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        once = hash_of(page)
+        page.wait_for_timeout(500)
+        assert hash_of(page) == once, (h, once, hash_of(page))
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
@@ -1379,7 +1482,7 @@ def run(phase_upto="P10", shots=False, only=None):
                     ctx = browser.new_context(viewport={"width": w, "height": h})
                     ctx.route("**://*/**", block_external)
                     pg = ctx.new_page()
-                    for name, route in ROUTES:
+                    for name, route in ROUTES + SHEET_ROUTES:
                         goto(pg, base, route)
                         pg.wait_for_timeout(900)
                         pg.screenshot(path=str(SHOTDIR / f"{name}_{w}.png"), full_page=(w == 390))

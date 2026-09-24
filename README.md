@@ -7,7 +7,14 @@ side by side, plus map layers for services, public buildings, infrastructure pro
 schools, buildings and zoning, and a **Test property** sheet that reads all of it for one
 address.
 
-![The macro map, old-flat prices per m²](docs/screenshot.png)
+![The map: one toolbar — search, Layers ▾, indicator, period — over the choropleth](docs/screenshot.png)
+
+| The area page | The Test property page |
+|---|---|
+| ![Area page: header, five headline tiles, the study row, the toggles](docs/ui_v2/area_kunta_1440.png) | ![Test property: the same study row anchored on one pin](docs/ui_v2/property_1440.png) |
+
+Every route is captured at 1440 px and at 390 px in [`docs/ui_v2/`](docs/ui_v2/), rebuilt by
+`make ui SHOTS=1`.
 
 **Live:** _(GitHub Pages link goes here once `main` is published)_
 
