@@ -1,0 +1,1240 @@
+{
+ "vintage": "kunta_1_20260101#maakunta_1_20260101",
+ "source": "https://data.stat.fi/api/classifications/v2/correspondenceTables/kunta_1_20260101%23maakunta_1_20260101",
+ "publisher": "Tilastokeskus",
+ "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
+ "map": {
+  "018": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "049": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "078": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "091": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "092": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "106": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "149": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "186": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "224": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "235": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "245": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "257": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "407": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "434": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "444": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "504": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "505": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "543": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "611": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "616": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "638": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "710": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "753": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "755": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "858": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "927": {
+   "code": "01",
+   "name": "Uusimaa"
+  },
+  "918": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "853": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "895": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "833": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "761": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "734": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "704": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "738": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "680": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "631": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "636": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "538": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "503": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "529": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "561": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "577": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "480": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "481": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "445": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "430": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "423": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "322": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "400": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "304": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "284": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "202": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "019": {
+   "code": "02",
+   "name": "Southwest Finland"
+  },
+  "050": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "051": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "102": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "079": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "181": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "214": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "271": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "230": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "484": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "531": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "608": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "609": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "684": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "747": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "783": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "886": {
+   "code": "04",
+   "name": "Satakunta"
+  },
+  "834": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "694": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "433": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "165": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "169": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "109": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "103": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "082": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "086": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "061": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "981": {
+   "code": "05",
+   "name": "Kanta-Häme"
+  },
+  "908": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "922": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "936": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "980": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "020": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "108": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "143": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "211": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "177": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "418": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "250": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "291": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "702": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "837": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "790": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "887": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "604": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "581": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "635": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "619": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "508": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "536": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "562": {
+   "code": "06",
+   "name": "Pirkanmaa"
+  },
+  "560": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "576": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "781": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "316": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "398": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "111": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "098": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "142": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "081": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "016": {
+   "code": "07",
+   "name": "Päijät-Häme"
+  },
+  "075": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "285": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "286": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "624": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "489": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "935": {
+   "code": "08",
+   "name": "Kymenlaakso"
+  },
+  "580": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "831": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "700": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "689": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "739": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "405": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "416": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "441": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "153": {
+   "code": "09",
+   "name": "South Karelia"
+  },
+  "178": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "213": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "097": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "046": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "740": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "768": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "593": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "623": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "681": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "491": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "507": {
+   "code": "10",
+   "name": "South Savo"
+  },
+  "595": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "762": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "749": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "686": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "687": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "844": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "778": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "857": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "171": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "204": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "140": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "420": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "402": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "297": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "263": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "239": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "925": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "915": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "921": {
+   "code": "11",
+   "name": "North Savo"
+  },
+  "260": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "276": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "309": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "422": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "426": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "146": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "167": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "176": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "090": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "848": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "707": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "607": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "541": {
+   "code": "12",
+   "name": "North Karelia"
+  },
+  "500": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "495": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "592": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "601": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "729": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "850": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "892": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "077": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "182": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "216": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "172": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "179": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "435": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "312": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "275": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "410": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "265": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "256": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "249": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "226": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "931": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "992": {
+   "code": "13",
+   "name": "Central Finland"
+  },
+  "989": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "934": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "232": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "233": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "218": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "300": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "301": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "408": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "403": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "151": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "152": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "145": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "052": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "010": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "005": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "846": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "759": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "743": {
+   "code": "14",
+   "name": "South Ostrobothnia"
+  },
+  "893": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "905": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "598": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "599": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "499": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "475": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "545": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "399": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "440": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "287": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "288": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "280": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "231": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "946": {
+   "code": "15",
+   "name": "Ostrobothnia"
+  },
+  "924": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "236": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "272": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "421": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "074": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "217": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "584": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "849": {
+   "code": "16",
+   "name": "Central Ostrobothnia"
+  },
+  "832": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "791": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "785": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "889": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "859": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "746": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "748": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "691": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "615": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "625": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "626": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "630": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "678": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "535": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "563": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "564": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "494": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "483": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "208": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "139": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "069": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "071": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "072": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "009": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "425": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "436": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "317": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "305": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "244": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "977": {
+   "code": "17",
+   "name": "North Ostrobothnia"
+  },
+  "290": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "105": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "205": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "578": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "620": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "697": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "765": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "777": {
+   "code": "18",
+   "name": "Kainuu"
+  },
+  "845": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "851": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "854": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "890": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "758": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "751": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "698": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "732": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "742": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "683": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "614": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "583": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "498": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "148": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "047": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "273": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "261": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "240": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "241": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "320": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "976": {
+   "code": "19",
+   "name": "Lapland"
+  },
+  "941": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "318": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "438": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "417": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "295": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "062": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "065": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "060": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "035": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "043": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "076": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "170": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "478": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "736": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "771": {
+   "code": "21",
+   "name": "Åland"
+  },
+  "766": {
+   "code": "21",
+   "name": "Åland"
+  }
+ }
+}

@@ -1,0 +1,22 @@
+Boundary data in data/geo/ — Finland edition
+
+kunnat.geojson     tilastointialueet:kunta1000k_2026 · kuntajako 2026 · 308 features
+                   simplified 50.00% with mapshaper, keep-shapes
+maakunnat.geojson  tilastointialueet:maakunta1000k_2026 · 19 features
+                   simplified 30.00% with mapshaper, keep-shapes
+                   © Tilastokeskus, CC BY 4.0 — Lähde: Tilastokeskus
+                   https://geo.stat.fi/geoserver/tilastointialueet/wfs
+
+osa_alueet.geojson 306 features over Helsinki, Espoo, Vantaa and Kauniainen
+                   Helsinki: avoindata:Piirijako_osaalue, © Helsingin kaupunki, CC BY 4.0
+                   Espoo/Vantaa/Kauniainen: taustakartat_ja_aluejaot:seutukartta_pien_2021,
+                   © HSY, CC BY 4.0. Frozen at 2021 — no later vintage is published.
+                   simplified 50.00% with mapshaper, keep-shapes
+
+kunta_maakunta.json Tilastokeskus classification API, kunta_1_20260101#maakunta_1_20260101
+                   © Tilastokeskus, CC BY 4.0
+
+postinumerot.geojson — see scripts/fetch_paavo.py; © Tilastokeskus (Paavo), CC BY 4.0
+
+Simplification only removes vertices. No boundary was moved, no area merged and no
+hole filled: Kauniainen stays a hole inside Espoo. Every ring keeps at least four points.

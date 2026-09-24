@@ -59,7 +59,7 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 |---|---|---|---|
 | 0 | Plan + clean skeleton | ✅ | `feat: Finland skeleton` |
 | 1 | Probe | ✅ | `chore: FI endpoint probe` |
-| 2 | Geometry | ☐ | |
+| 2 | Geometry | ✅ | `data: Finnish boundary layers` |
 | 3 | Area indicators (rows 1–11) | ☐ | |
 | 4 | Market indicators (rows 12–21) | ☐ | |
 | 5 | Taxes (rows 29–30) | ☐ | |
@@ -100,8 +100,15 @@ docs/VERIFICATION.md: recompute 5 kunta × 4 indicators, 5 postal codes × (pric
 - All five reference values answer and match by hand: Helsinki 694 392; 00100 price 7 167 €/m² on 35 sales; 00100 rent 29,43 €/m² on 746 observations.
 - Checks: `make probe` ✓ · `make validate` ✓ · `make test` ✓ · `make build` ✓ · `make fixture` ✓.
 
+### Phase 2 — Geometry ✅
+- `scripts/geo_common.py` (WFS download with paging and caching, mapshaper-or-Visvalingam simplification with a searched percentage, ring/bbox/centroid/area helpers), `fetch_geo_fi.py` and `fetch_paavo.py`.
+- Written: `kunnat` 308 · `maakunnat` 19 · `osa_alueet` 306 (Helsinki 148, Espoo 88, Vantaa 61, Kauniainen 9) · `postinumerot` 3 018, all EPSG:4326, all under the 3 MB ceiling, plus `kunta_maakunta.json` from Tilastokeskus's classification API and `ATTRIBUTION.txt`.
+- Sanity: every code a string with its leading zero, every postal area and osa-alue carrying a kunta that exists, 335 661 km² of land, and 8 known points resolving correctly through all four layers — Kauniainen still a hole inside Espoo.
+- Two bugs the checks caught: all 61 Vantaa osa-alueet collapsing onto one code (HSY publishes Vantaa at *tila* level), and kunnat with no maakunta (no boundary layer carries the mapping).
+- Checks: `make geo` ✓ · `make validate` ✓ · `make test` ✓ 24+15 · `make build` ✓ · `make fixture` ✓.
+
 ---
 
 ## 5. Resume point
 
-**Next action:** Phase 2 — geometry. `scripts/fetch_geo_fi.py` + `fetch_paavo.py` → `data/geo/{maakunnat,kunnat,postinumerot,osa_alueet}.geojson`.
+**Next action:** Phase 3 — area indicators (rows 1–11): `config/indicators.json`, `scripts/fetch_statfin.py`, `scripts/build_makro.py` (with the level-of-detail split decided in phase 2).
