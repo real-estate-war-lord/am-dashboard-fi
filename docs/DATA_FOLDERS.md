@@ -1,56 +1,43 @@
-# Data folders — what lives where, and why
+# Data folders — one way, one producer
 
-The rule: **data flows one way, left to right, and every folder has exactly one producer.**
+The pipeline flows one way, and **exactly one script writes each folder**. If you are
+unsure where a number came from, walk the chain backwards: the page reads `dist/`, which is
+assembled from `data/processed/`, which is computed from `data/raw/` + `data/geo/` +
+`data/external/`, each of which records where it came from.
 
 ```
-config/            hand-edited      → the registry: what to fetch, how to compute, how to show
-data/geo/          fetch_geo_dawa   → boundary polygons (committed, simplified)
-                   fetch_geo_cph    → Copenhagen quarters + districts (committed)
-data/raw/          fetch_statbank   → untouched API pulls, dated (CSV not committed; .meta.json committed)
-data/external/     hand-filled      → the few series with no API (rents), as small CSVs (committed)
-data/processed/    build_*          → the JSON the dashboard reads (committed)
-dist/              build_dashboard  → the single-file dashboard (index.html committed; fixture.html never)
+data/
+├── raw/<source>/          untouched pulls, one file per table + a *.meta.json stamp
+│                          producer: scripts/fetch_*.py          in git: only *.meta.json
+├── geo/                   simplified GeoJSON the page draws
+│                          producer: scripts/fetch_geo_fi.py, fetch_paavo.py   in git: yes
+│   └── raw/               the unsimplified WFS downloads                      in git: no
+├── external/              small file-sourced CSVs (Verohallinto, Kela)
+│                          producer: scripts/import_*.py          in git: yes (CSV, not the source XLSX/PDF)
+└── processed/             the JSON the page reads
+                           producer: scripts/build_makro.py       in git: yes
+dist/                      the assembled page
+                           producer: scripts/build_dashboard.py   in git: no (built by CI)
 ```
 
-| folder | producer | consumer | in git? | naming |
-|---|---|---|---|---|
-| `config/indicators.json` | you / Claude | every script | yes | one registry, no other config files |
-| `data/geo/<layer>.geojson` | `scripts/fetch_geo_dawa.py` | `build_makro.py` | **yes** (simplified, ~few MB) | `kommuner`, `postnumre`, `sogne`, `landsdele`, `regioner` |
-| `data/geo/cph_kvarterer.geojson`, `cph_bydele.geojson` | `scripts/fetch_geo_cph.py` | `build_cph.py` | **yes** | Københavns Kommune WFS `k101`, CC BY 4.0 (`ATTRIBUTION_CPH.txt`) |
-| `data/raw/bbr/<kommune>_{enhed,bygning}.jsonl` | `scripts/fetch_bbr.py` | `build_bbr.py` | no (≈ 0.5 MB per 1 000 units; whole country ≈ 2 GB) | one file per municipality, resumable |
-| `data/raw/dar/*.jsonl` | `scripts/fetch_dar.py` | `build_micro.py` | no (≈ 60 MB) | addresses (DAR) and property numbers (BBR) for Micro buildings |
-| `data/processed/micro/<kommune>.json` + `index.json` | `scripts/build_micro.py` | the page, on demand (`dist/micro/`) | **yes** (≈ 60 B per building; whole country ≈ 12 MB) | buildings with ≥ 2 dwellings: position, dwellings, tenure, size, year, rooms |
-| `data/processed/bbr.json` | `scripts/build_bbr.py` | `build_makro.py`, `build_cph.py` | **yes** | housing-stock indicators + distributions per postal code / quarter / municipality |
-| `data/geo/raw/` | same script | nobody (archive) | no | full-precision originals |
-| `data/geo/ATTRIBUTION.txt` | same script | README / map footer | yes | required by the DAGI licence |
-| `data/raw/<db>_<TABLE>_<YYYY-MM-DD>.csv` | `scripts/fetch_statbank.py` | `build_makro.py`, `build_market.py` | no (regenerable; can be large) | `dst_FOLK1A_2026-09-15.csv`, `s20_BM011_2026-09-15.csv` — the newest date wins |
-| `data/raw/<db>_<TABLE>.meta.json` | same script | builders (labels), Sources view (freshness) | yes | one per table, overwritten on every fetch |
-| `data/external/<indicator>.csv` | you, by hand, once a year | `build_makro.py` | yes | `rent_private.csv`, `rent_social.csv`; format `kommune;value`; header row required |
-| `data/external/SOURCES.md` | you | readers | yes | where each file came from, URL, date, who copied it |
-| `data/processed/makro.json` | `scripts/build_makro.py` | `build_dashboard.py` | yes | municipalities + postal-code areas + indicator definitions + provenance |
-| `data/processed/market.json` | `scripts/build_market.py` | `build_dashboard.py` | yes | national macro series |
-| `data/processed/portfolio.json` | (later, private) | `build_dashboard.py` | **no** — never in the public repo | schema in `src/app.js` header |
-| `dist/index.html` | `scripts/build_dashboard.py` | GitHub Pages, your browser | yes | the deliverable |
-| `dist/fixture.html` | `make fixture` | you, for design checks | no | synthetic numbers |
+## The rules
 
-## Provenance chain
-
-Every number on the screen can be traced back:
-
-1. **Screen** → indicator label + ⓘ tooltip (definition, source, caveat) — from `config/indicators.json`.
-2. **`data/processed/makro.json`** → `indicators[].asof` gives the period used per geography, `meta.sources[].asof` gives the source's own "updated" date.
-3. **`data/raw/*.meta.json`** → the full StatBank `tableinfo` at fetch time (variables, codes, update timestamp).
-4. **`data/raw/*.csv`** → the exact rows the calc consumed (regenerate with `make fetch` on any date).
-
-## What never goes into git
-
-`.env` (API keys), `data/raw/*.csv`, `data/geo/raw/`, `dist/fixture.html`, `tests/fixture_*.json`, anything portfolio-related. See `.gitignore`.
-
-## Refresh policy
-
-| cadence | what | why |
-|---|---|---|
-| monthly (Action) | `make fetch && make build` | AUP01, UDB010, PRIS01, DNRENTM are monthly |
-| quarterly | check `make validate` still passes | DST occasionally retires or renames tables (PRIS111 → PRIS01 happened in 2026) |
-| yearly | `data/external/*.csv` from boligstat.dk and LBF | published once a year |
-| once, before 2026-10-01 | `make geo` | DAWA closes; afterwards Datafordeler (docs/GEO.md) |
+1. **Nothing is edited by hand in `data/processed/`.** It is a build output. Fix the
+   config or the build script and rebuild.
+2. **Every raw pull carries a stamp.** `scripts/statfin.py` writes `<file>.meta.json` next
+   to every pull with the table name, the request URL, the exact query, the publisher's own
+   `updated` timestamp, the fetch date and the licence. The stamps are committed even though
+   the pulls are not, so a committed figure can always be traced to a dated request.
+3. **Raw pulls are never committed.** They are re-downloadable and large. `.gitignore`
+   keeps `data/raw/**` out and lets `*.meta.json` through.
+4. **Source files stay out, extracts go in.** A Verohallinto XLSX or a Kela export is
+   downloaded to `data/external/raw/` (ignored) and the parsed CSV is committed, so a
+   reviewer can diff the numbers without the repo carrying binaries.
+5. **No processed or dist file over 3 MB.** Anything bigger is split per kunta and loaded
+   on demand by the page (`dist/micro/<kunta>.json`, `dist/services/<kunta>.json`).
+6. **Suppressed is not zero.** A cell the publisher suppressed is `null` through the whole
+   chain and renders as `–`. An area we do not cover reads "Not covered yet".
+7. **Codes are strings.** Kunta `"091"`, postinumero `"00100"`. Nothing casts them to int,
+   anywhere, ever.
+8. **Vintages are pinned.** See `docs/GEO.md`: each table's area classification carries its
+   own year, and two vintages are never joined without a documented crosswalk.

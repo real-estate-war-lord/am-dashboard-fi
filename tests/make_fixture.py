@@ -1,68 +1,145 @@
 #!/usr/bin/env python3
-"""SYNTHETIC development fixture — random numbers on box-shaped polygons.
-Only for checking that the template renders; never ship dist/ built from this.
-Writes tests/fixture_makro.json and tests/fixture_market.json."""
+"""SYNTHETIC development fixture — random numbers on box-shaped polygons over Finland.
+
+Only for checking that the template renders; never ship dist/ built from this. Every
+figure it writes is made up, and the fixture says so in meta.built and in every source
+line, so a fixture render can never be mistaken for the real dashboard.
+
+It prefers the real registry in config/indicators.json and falls back to a small
+synthetic list while the registry is still being filled (docs/PLAN.md phases 3–7), so
+`make fixture` is a render check in every phase of the build.
+
+Writes tests/fixture_makro.json and tests/fixture_osa.json.
+"""
 import json
 import math
 import pathlib
 import random
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
-from statbank_common import cfg  # noqa: E402
 
 random.seed(7)
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 HERE = pathlib.Path(__file__).resolve().parent
-c = cfg()
-inds = [{k: i[k] for k in ("key", "label", "short", "unit", "level", "hue", "fmt", "desc", "source") if k in i} | {"warn": i.get("warn", ""), "table_only": i.get("table_only", False)} for i in c["indicators"]]
-RANGES = {"growth": (-1, 2.5), "income": (200000, 320000), "income_med": (220000, 300000), "young": (12, 32), "single": (35, 60), "benefit": (8, 25),
-          "rent_private": (700, 1500), "rent_social": (800, 1100), "renters": (30, 75), "unemp": (2, 6), "higher_ed": (25, 60), "flats": (10, 85),
-          "foreign": (5, 25), "price_m2": (15000, 80000), "discount": (1, 8), "dom": (30, 200), "supply": (5, 30), "pipeline": (2, 20), "almene": (5, 35), "avg_m2": (80, 130)}
-munis = [("101", "SYN-Copenhagen", 55.68, 12.57), ("147", "SYN-Frederiksberg", 55.68, 12.53), ("751", "SYN-Aarhus", 56.16, 10.20),
-         ("461", "SYN-Odense", 55.40, 10.39), ("851", "SYN-Aalborg", 57.05, 9.92), ("157", "SYN-Gentofte", 55.75, 12.55)]
-M, A = [], []
-for code, name, lat, lon in munis:
-    m = {"code": code, "name": name, "pop": random.randint(40000, 650000)}
-    for i in inds:
-        lo, hi = RANGES[i["key"]]; m[i["key"]] = round(random.uniform(lo, hi), 2)
-    M.append(m)
-    for j in range(4):
-        cx, cy = lat + (j // 2) * 0.03, lon + (j % 2) * 0.05
-        ring = [[round(cx + 0.03 * math.sin(t), 5), round(cy + 0.05 * math.cos(t), 5)] for t in [k * math.pi / 3 for k in range(6)]]
-        a = {"nr": f"{int(code)*10 + j}", "name": f"{name} {j+1}", "muni": code, "rings": [ring], "pop": random.randint(3000, 40000)}
-        for i in inds:
-            if i["level"] == "postnr":
-                lo, hi = RANGES[i["key"]]; a[i["key"]] = round(random.uniform(lo, hi), 2)
-        A.append(a)
-makro = {"meta": {"built": "SYNTHETIC", "sources": [{"label": "SYNTHETIC FIXTURE — not real data", "asof": "n/a"}], "attribution": ["synthetic"], "note": "SYNTHETIC numbers."},
-         "indicators": inds, "municipalities": M, "areas": A}
-(HERE / "fixture_makro.json").write_text(json.dumps(makro, ensure_ascii=False))
-series, latest = {}, {}
-for m in c["macro"]:
-    base = random.uniform(50, 150); s = []
-    for k in range(24):
-        s.append({"t": f"{2024 + k // 12}M{k % 12 + 1:02d}", "v": round(base * (1 + 0.004 * k + random.uniform(-0.01, 0.01)), 2)})
-    series[m["key"]] = s
-    latest[m["key"]] = {"t": s[-1]["t"], "v": s[-1]["v"], "yoy": round((s[-1]["v"] / s[-13]["v"] - 1) * 100, 2), "label": m["label"], "unit": m.get("unit", ""), "dec": m.get("dec", 1), "src": m.get("src", "")}
-market = {"series": series, "latest": latest, "hero": c["macro_hero"], "table": [m["key"] for m in c["macro"]], "note": "SYNTHETIC fixture."}
-(HERE / "fixture_market.json").write_text(json.dumps(market, ensure_ascii=False))
-print("fixture written")
 
-# --- SYNTHETIC Copenhagen quarter layer (tests/fixture_cph.json) ---
-cph_sec = c.get("cph") or {}
-cinds = [{k: i[k] for k in ("key", "label", "short", "unit", "hue", "group", "fmt") if k in i} | {"level": "kvarter", "desc": i.get("desc", ""), "source": i.get("source", ""), "warn": i.get("warn", "")} for i in cph_sec.get("indicators", [])]
-CR = {"growth": (-1, 3), "young": (10, 40), "single": (40, 70), "income_med": (200000, 400000), "higher_ed": (20, 70), "renters": (30, 80),
-      "private_rental": (5, 40), "andel": (5, 40), "almene": (0, 50), "avg_m2": (60, 120), "new_stock": (0, 30), "unemp": (1, 6)}
-years = [str(y) for y in range(2016, 2027)]
-Q = []
-for j in range(12):
-    cx, cy = 55.64 + (j // 4) * 0.03, 12.50 + (j % 4) * 0.04
-    ring = [[round(cx + 0.013 * math.sin(t), 5), round(cy + 0.02 * math.cos(t), 5)] for t in [k * math.pi / 3 for k in range(6)]]
-    q = {"code": f"2{j//3+1:02d}{j%3+1:02d}", "name": f"SYN-Kvarter {j+1}", "bydel": f"SYN-Bydel {j//3+1}", "bydel_code": f"100{j//3+1}", "muni": "101", "rings": [ring], "pop": random.randint(3000, 25000), "hist": {}}
-    for i in cinds:
-        lo, hi = CR.get(i["key"], (0, 100)); base = random.uniform(lo, hi); q[i["key"]] = round(base, 2)
-        q["hist"][i["key"]] = {y: round(base * (1 + 0.02 * (k - 10) + random.uniform(-0.03, 0.03)), 2) for k, y in enumerate(years)}
-    Q.append(q)
-cph = {"meta": {"built": "SYNTHETIC", "years": years, "latest_year": "2026", "sources": [{"label": "SYNTHETIC FIXTURE", "asof": "n/a"}], "attribution": "synthetic"}, "indicators": cinds, "areas": Q}
-(HERE / "fixture_cph.json").write_text(json.dumps(cph, ensure_ascii=False))
-print("cph fixture written")
+# (key, label, short, unit, level, fmt, group, direction, lo, hi)
+FALLBACK = [
+    ("growth",     "Population growth",        "Growth",     "% / yr",        "postinumero", "signpct1", "Demographics",   "higher_better", -1.5, 2.5),
+    ("young",      "Share aged 20–34",         "20–34",      "%",             "postinumero", "pct1",     "Demographics",   "neutral",       10, 34),
+    ("single",     "One-person households",    "1-person",   "%",             "postinumero", "pct1",     "Demographics",   "neutral",       28, 62),
+    ("foreign",    "Foreign-language speakers", "Foreign lang.", "%",          "kunta",       "pct1",     "Demographics",   "neutral",       1, 26),
+    ("income_med", "Median income of inhabitants", "Median inc.", "€ / yr",    "postinumero", "eur0",     "Income & jobs",  "higher_better", 18000, 42000),
+    ("unemp",      "Unemployment rate",        "Unemp.",     "%",             "postinumero", "pct1",     "Income & jobs",  "lower_better",  3, 20),
+    ("higher_ed",  "Tertiary education",       "Tertiary",   "%",             "postinumero", "pct1",     "Income & jobs",  "higher_better", 12, 62),
+    ("renters",    "Renter households",        "Renters",    "%",             "postinumero", "pct1",     "Housing stock",  "neutral",       10, 78),
+    ("flats",      "Multi-dwelling share",     "Kerrostalo", "%",             "postinumero", "pct1",     "Housing stock",  "neutral",       2, 96),
+    ("avg_m2",     "Average dwelling size",    "Ø m²",       "m²",            "postinumero", "m2",       "Housing stock",  "neutral",       52, 118),
+    ("vacant",     "Unoccupied dwellings",     "Unoccupied", "%",             "kunta",       "pct1",     "Housing stock",  "lower_better",  3, 26),
+    ("price_m2",   "Old flats, price",         "Price",      "€ / m²",        "postinumero", "eur0",     "Market",         "neutral",       900, 8200),
+    ("rent",       "Free-market rent",         "Rent",       "€ / m² / month", "postinumero", "eur1",    "Market",         "neutral",       9, 27),
+    ("crime_1000", "Reported offences",        "Crime",      "per 1,000 inh.", "kunta",      "per1000",  "Safety",         "lower_better",  40, 160),
+]
+HUES = [[10, 88, 70], [40, 84, 128], [166, 42, 22], [90, 60, 150], [150, 90, 30], [12, 94, 104]]
+
+# a handful of real kunta codes and rough centroids, so the synthetic map lands on Finland
+KUNNAT = [("091", "SYN-Helsinki", "Uusimaa", 60.17, 24.94), ("049", "SYN-Espoo", "Uusimaa", 60.21, 24.66),
+          ("092", "SYN-Vantaa", "Uusimaa", 60.29, 25.04), ("837", "SYN-Tampere", "Pirkanmaa", 61.50, 23.79),
+          ("853", "SYN-Turku", "Varsinais-Suomi", 60.45, 22.27), ("564", "SYN-Oulu", "Pohjois-Pohjanmaa", 65.01, 25.47),
+          ("179", "SYN-Jyväskylä", "Keski-Suomi", 62.24, 25.75), ("398", "SYN-Lahti", "Päijät-Häme", 60.98, 25.66)]
+YEARS = [str(y) for y in range(2014, 2027)]
+
+
+def cfg_inds():
+    p = ROOT / "config" / "indicators.json"
+    if not p.exists():
+        return []
+    c = json.loads(p.read_text(encoding="utf-8"))
+    out = []
+    for i in c.get("indicators", []):
+        out.append((i["key"], i.get("label", i["key"]), i.get("short", i["key"]), i.get("unit", ""),
+                    i.get("level", "kunta"), i.get("fmt", "pct1"), i.get("group", "Other"),
+                    i.get("direction", "neutral"), 0.0, 100.0))
+    return out
+
+
+def ring(lat, lon, rx, ry, n=10):
+    return [[round(lat + ry * math.sin(k * 2 * math.pi / n), 5), round(lon + rx * math.cos(k * 2 * math.pi / n), 5)]
+            for k in range(n)]
+
+
+def build(rows, key_prefix=""):
+    specs = rows or FALLBACK
+    inds = [{"key": k, "label": lab, "short": sh, "unit": u, "level": lv, "fmt": f, "group": g,
+             "direction": d, "hue": HUES[n % len(HUES)],
+             "desc": "SYNTHETIC FIXTURE — this number is random, not a published figure.",
+             "source": "SYNTHETIC FIXTURE", "warn": ""}
+            for n, (k, lab, sh, u, lv, f, g, d, _lo, _hi) in enumerate(specs)]
+    rng = {k: (lo, hi) for k, _l, _s, _u, _lv, _f, _g, _d, lo, hi in specs}
+    return inds, rng
+
+
+def series(lo, hi):
+    base = random.uniform(lo, hi)
+    return {y: round(base * (1 + 0.015 * (i - len(YEARS) + 1) + random.uniform(-0.03, 0.03)), 2)
+            for i, y in enumerate(YEARS)}
+
+
+def main():
+    inds, rng = build(cfg_inds())
+    M, A = [], []
+    for code, name, maakunta, lat, lon in KUNNAT:
+        m = {"code": code, "name": name, "region": maakunta, "pop": random.randint(20000, 680000), "hist": {}}
+        for i in inds:
+            lo, hi = rng[i["key"]]
+            h = series(lo, hi)
+            m[i["key"]] = h[YEARS[-1]]
+            m["hist"][i["key"]] = h
+        M.append(m)
+        for j in range(5):
+            cy, cx = lat + (j // 3) * 0.055, lon + (j % 3) * 0.085
+            a = {"nr": f"{int(code):03d}{j:02d}"[:5], "name": f"{name} area {j + 1}", "muni": code,
+                 "rings": [ring(cy, cx, 0.045, 0.026)], "pop": random.randint(900, 26000), "hist": {}}
+            for i in inds:
+                if i["level"] != "kunta":
+                    lo, hi = rng[i["key"]]
+                    h = series(lo, hi)
+                    a[i["key"]] = h[YEARS[-1]]
+                    a["hist"][i["key"]] = h
+            A.append(a)
+    meta = {"built": "SYNTHETIC", "years": YEARS, "latest_year": YEARS[-1],
+            "sources": [{"key": "synthetic", "label": "SYNTHETIC FIXTURE — not real data", "asof": "n/a",
+                         "licence": "n/a", "fetched": "n/a"}],
+            "attribution": ["SYNTHETIC FIXTURE — every number on this page is random"],
+            "note": "Synthetic numbers on box-shaped polygons. Never publish a build made from this file."}
+    (HERE / "fixture_makro.json").write_text(
+        json.dumps({"meta": meta, "indicators": inds, "municipalities": M, "areas": A}, ensure_ascii=False),
+        encoding="utf-8")
+    print(f"fixture_makro.json: {len(M)} kunnat · {len(A)} postinumeroalueet · {len(inds)} indicators")
+
+    # the third level: synthetic osa-alueet inside the four Helsinki-region kunnat
+    osa_specs = [s for s in (FALLBACK if not cfg_inds() else FALLBACK) if s[4] != "kunta"][:8]
+    oinds, orng = build(osa_specs)
+    for i in oinds:
+        i["level"] = "osa_alue"
+    Q = []
+    for code, name, _mk, lat, lon in KUNNAT[:4]:
+        for j in range(6):
+            cy, cx = lat + (j // 3) * 0.022, lon + (j % 3) * 0.034
+            q = {"code": f"{code}{j + 1:03d}", "name": f"{name.replace('SYN-', '')} osa-alue {j + 1}",
+                 "peruspiiri": f"{name.replace('SYN-', '')} peruspiiri {j // 3 + 1}",
+                 "peruspiiri_code": f"{code}{j // 3 + 1}", "muni": code,
+                 "rings": [ring(cy, cx, 0.016, 0.010)], "pop": random.randint(700, 18000), "hist": {}}
+            for i in oinds:
+                lo, hi = orng[i["key"]]
+                h = series(lo, hi)
+                q[i["key"]] = h[YEARS[-1]]
+                q["hist"][i["key"]] = h
+            Q.append(q)
+    (HERE / "fixture_osa.json").write_text(json.dumps(
+        {"meta": {"built": "SYNTHETIC", "years": YEARS, "latest_year": YEARS[-1],
+                  "sources": [{"key": "synthetic", "label": "SYNTHETIC FIXTURE", "asof": "n/a"}],
+                  "attribution": "SYNTHETIC FIXTURE"},
+         "indicators": oinds, "areas": Q}, ensure_ascii=False), encoding="utf-8")
+    print(f"fixture_osa.json: {len(Q)} osa-alueet · {len(oinds)} indicators")
+
+
+if __name__ == "__main__":
+    main()

@@ -2,7 +2,7 @@
 """Assemble the self-contained dashboard: dist/index.html.
 
 Inlines src/style.css, vendored Leaflet, src/testprop.js, src/app.js and the data
-(data/processed/makro.json + market.json, optional portfolio.json) into the
+(data/processed/makro.json + osa_alue.json) into the
 template src/index.html — one file that opens from disk or GitHub Pages.
 
 Usage: python scripts/build_dashboard.py [--data path/to/makro.json] [--out dist/index.html]
@@ -21,17 +21,17 @@ def load(p: pathlib.Path):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
-def kommuner_lookup(out_dir: pathlib.Path):
-    """dist/geo/kommuner_lookup.json — simplified kommune rings for the test-property pin.
+def kunnat_lookup(out_dir: pathlib.Path):
+    """dist/geo/kunnat_lookup.json — simplified kunta rings for the test-property pin.
 
-    Postal codes can cross a kommune border, so the pin asks these polygons which
-    municipality a point is really in. Holes are kept: Frederiksberg is a hole in
-    København, and dropping it would put every Frederiksberg pin in København.
-    The page fetches this lazily, the first time a pin is dropped.
+    A postal code can cross a kunta border, so the pin asks these polygons which kunta a
+    point is really in. Holes are kept: Kauniainen is a hole in Espoo, and dropping it
+    would put every Kauniainen pin in Espoo. The page fetches this lazily, the first
+    time a pin is dropped.
     """
-    src = ROOT / "data" / "geo" / "kommuner.geojson"
+    src = ROOT / "data" / "geo" / "kunnat.geojson"
     if not src.exists():
-        print("  ⚠ data/geo/kommuner.geojson missing — no kommune lookup (pins fall back to the postal code)")
+        print("  ⚠ data/geo/kunnat.geojson missing — no kunta lookup (pins fall back to the postal code)")
         return
     gj = load(src)
     try:
@@ -40,7 +40,7 @@ def kommuner_lookup(out_dir: pathlib.Path):
     except ImportError:
         shape = None
         simplify = None
-        print("  · shapely not installed — kommune rings shipped unsimplified")
+        print("  · shapely not installed — kunta rings shipped unsimplified")
     rows = []
     for f in gj.get("features", []):
         props = f.get("properties") or {}
@@ -66,14 +66,14 @@ def kommuner_lookup(out_dir: pathlib.Path):
                 w_, e_ = min(w_, lon), max(e_, lon)
             out.append(rings)
         if out:
-            rows.append({"code": props.get("kode"), "name": props.get("navn"),
+            rows.append({"code": props.get("kunta"), "name": props.get("name"),
                          "bb": [s_, w_, n_, e_], "polys": out})
     gd = out_dir / "geo"
     gd.mkdir(parents=True, exist_ok=True)
-    dest = gd / "kommuner_lookup.json"
-    dest.write_text(json.dumps({"built": dt.date.today().isoformat(), "source": "DAGI kommuner (DAWA), simplified",
-                                "kommuner": rows}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"wrote {dest} ({dest.stat().st_size/1024:.0f} kB) · {len(rows)} kommuner"
+    dest = gd / "kunnat_lookup.json"
+    dest.write_text(json.dumps({"built": dt.date.today().isoformat(), "source": "Tilastokeskus kuntajako, simplified",
+                                "kunnat": rows}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"wrote {dest} ({dest.stat().st_size/1024:.0f} kB) · {len(rows)} kunnat"
           + (f" · simplified {simplify}" if simplify else " · not simplified"))
 
 
@@ -102,17 +102,13 @@ def check_js(paths):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=str(PROC / "makro.json"))
-    ap.add_argument("--market", default=str(PROC / "market.json"))
-    ap.add_argument("--portfolio", default=str(PROC / "portfolio.json"))
-    ap.add_argument("--cph", default=str(PROC / "cph.json"))
+    ap.add_argument("--osa", default=str(PROC / "osa_alue.json"))
     ap.add_argument("--out", default=str(ROOT / "dist" / "index.html"))
     args = ap.parse_args()
 
     check_js([SRC / "app.js", SRC / "testprop.js"])
     makro = load(pathlib.Path(args.data)) or {}
-    market = load(pathlib.Path(args.market)) or {}
-    portfolio = load(pathlib.Path(args.portfolio))
-    cph = load(pathlib.Path(args.cph))
+    osa = load(pathlib.Path(args.osa))
     micro_idx = load(PROC / "micro" / "index.json")
     infra = load(ROOT / "data" / "geo" / "infra_projects.geojson")
     infra_index = load(PROC / "infra_index.json")
@@ -125,22 +121,22 @@ def main():
         "municipalities": makro.get("municipalities", []),
         "areas": makro.get("areas", []),
         "national": makro.get("national"),
-        "macro": market,
-        "portfolio": portfolio,
-        "cph": cph,
+        # never in this public repo — the key stays so the page code needs no branch
+        "portfolio": None,
+        "osa": osa,
         "micro": micro_idx,
         # infrastructure overlay: only the features meant for the map (scripts/build_infra.py, docs/INFRA.md)
         # every project: the map layer filters on `map`, the Pipeline table lists them all
         "infra": {"features": (infra or {}).get("features", []), "meta": (infra or {}).get("meta")} if infra else None,
         "infra_index": (infra_index or {}).get("areas") if infra_index else None,
-        # public buildings: counts per area inline, the buildings themselves loaded on demand (dist/public/<kommune>.json)
+        # public buildings: counts per area inline, the buildings themselves loaded on demand (dist/public/<kunta>.json)
         # public buildings: counts per area inline; the school aggregates ride along in the same areas
         # dict (scripts/build_schools.py), while the school records load on demand from schools.json
-        "public": {"areas": public_index["areas"], "built": public_index["built"], "kommuner": public_index["kommuner"],
+        "public": {"areas": public_index["areas"], "built": public_index["built"], "kunnat": public_index["kunnat"],
                    "recent_years": public_index["recent_years"],
                    "schools": public_index.get("schools")} if public_index else None,
-        # services: the index only (as-of, vocabulary, per-kommune counts + bbox). The points
-        # themselves load on demand from dist/services/<kommune>.json for whatever is in view.
+        # services: the index only (as-of, vocabulary, per-kunta counts + bbox). The points
+        # themselves load on demand from dist/services/<kunta>.json for whatever is in view.
         "services": services_index,
     }
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</script", "<\\/script")
@@ -162,7 +158,7 @@ def main():
             import shutil
             shutil.copy(src, out.parent / src.name)
             print(f"copied {src.name} → {out.parent}")
-    # building-level files are loaded on demand by the page (dist/micro/<kommune>.json)
+    # building-level files are loaded on demand by the page (dist/micro/<kunta>.json)
     pub = PROC / "public"
     if pub.exists():
         import shutil
@@ -183,8 +179,8 @@ def main():
         for f in (PROC / "micro").glob("*.json"):
             shutil.copy(f, md / f.name)
         print(f"copied {len(list(md.glob('*.json')))} micro files → {md}")
-    kommuner_lookup(out.parent)
-    print(f"wrote {out} ({out.stat().st_size/1e6:.1f} MB) · {len(data['municipalities'])} municipalities · {len(data['areas'])} areas")
+    kunnat_lookup(out.parent)
+    print(f"wrote {out} ({out.stat().st_size/1e6:.1f} MB) · {len(data['municipalities'])} kunnat · {len(data['areas'])} areas")
 
 
 if __name__ == "__main__":

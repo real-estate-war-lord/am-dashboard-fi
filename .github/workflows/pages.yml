@@ -1,0 +1,22 @@
+name: pages
+on:
+  push:
+    branches: [main]            # UI or data change on main → rebuild and deploy
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      # stdlib only: the page is assembled from the committed data/processed JSON,
+      # so the deploy never touches a data source and cannot be broken by one.
+      - run: python scripts/build_dashboard.py
+      - uses: actions/upload-pages-artifact@v4
+        with: { path: dist }
+      - id: deployment
+        uses: actions/deploy-pages@v4
