@@ -109,7 +109,7 @@ A new session continues from here: read §Progress, then §Next, then the phase 
 
 Legend: ☐ not started · ◐ in progress · ☑ done and committed.
 
-- ☐ **P1 Navigation and routes** — 4 nav items, Export ▾ footer, Data 3 tabs, Compare deleted,
+- ☑ **P1 Navigation and routes** — 4 nav items, Export ▾ footer, Data 3 tabs, Compare deleted,
   redirects (`#table/*`, `#pipeline`, `#sources`, `#analysis`, `#compare`), Leaflet teardown registry,
   `window.__maps`.
 - ☐ **P2 One toolbar on the Map** — row 1 `[search ▾][Layers ▾][Indicator ▾][Period]` + level segment;
@@ -151,8 +151,69 @@ make ui                # tests/ui_v2.spec.py, phases done so far   (own server, 
 
 ## 5. Progress
 
-*(nothing committed yet — this file is the first commit)*
+### P1 — navigation, routes, the Leaflet teardown registry ☑
+Commit: `feat: v2.0 P1 — four destinations, the Data section, the v1.1 redirects and the map registry`
+Gate: green — `make validate` ✓, `make test` 38 python + 38 node ✓, `make build` clean, `make ui` 10/10.
+
+**Built**
+1. **`src/route_core.js`** (IIFE → `window.ROUTE_CORE`, inlined as `{{ROUTE_JS}}`, 11 node tests in
+   `tests/route.test.js`). `splitHash` / `buildHash` / `parseLatLon` / `propParse` / `propSerialise`
+   (list-capable) / `toV2` (old → canonical, **idempotent**) / `toInternal` / `pathFor`. The table:
+   `table/<lvl>`→`data/areas/<lvl>` · `pipeline`→`data/projects` · `sources`→`data/sources` ·
+   `data`/`data/national`→`data/areas/kunta` · `analysis?a=&la=`→`property?p=lat,lon:label` ·
+   `compare?a=<type>:<code>`→that area's page (→`map` if unparsable). `buildHash` leaves `, : / @ ;`
+   unescaped so a link stays readable.
+2. **Four nav items** — Map · Data · Charts · Test property, each `data-testid=nav-item`; the sidebar
+   footer is **Export ▾** (This view · All area data · Projects · Sources catalogue) plus a build line,
+   replacing the single button and its four lines of caption. Menu closes on Esc and on an outside click.
+3. **Data = three tabs** (`dataTabs()`, `data-testid=data-tab`): Areas (old Table), Projects (old
+   Pipeline), Sources. The internal view ids (`table`, `pipeline`, `sources`) are unchanged — only the
+   hash, the labels and the breadcrumb moved. An empty **Fetched** cell now falls back to the build date
+   with a `build` tag.
+4. **Compare deleted** — `cmpGo`, `anCompare`, `anCmpCells/Table/Sources`, `anLocB`, `anCmpLink`,
+   `UI.cmpOpen`, `AN.b`/`AN.labelB`, the three `data-cmp*` handlers and the "⇄ Compare with…" button.
+5. **`hashFor()` / `parseHash()` rewritten** on top of `route_core`; `parseHash()` ends with a canonical
+   `replaceState`, so a v1.1 link redirects exactly once and every route round-trips. New URL keys:
+   `show=` (open `<details>`, all three views) and `card=0` (the map area card collapsed).
+6. **Leaflet teardown registry** — `LF_MAPS` names the four map keys (`map`, `amap`, `anmap`, `pmap`)
+   and their layer groups; `dropMap()` does `off(); stop(); remove()` and nulls the groups and draw
+   caches; `dropMaps()` runs at the top of `render()`, before `#body` is replaced. `mapPanes(map)`
+   creates the `srvpane`/`pubpane`/`climPane` panes and the three canvas renderers **per map**
+   (`amOf(map)`); the app-wide `LF.canvas / srvCanvas / pubCanvas / anCanvas` are gone.
+   `window.__maps` is the live list and the test hook.
+7. **Two live bugs fixed on the way.**
+   - `Cannot read properties of undefined (reading '_leaflet_pos')` on the Test property sheet: Leaflet
+     ends a zoom animation from a `setTimeout` that `map.remove()` cannot cancel. Four one-line guards
+     on `L.Map.prototype` (`_onZoomTransitionEnd`, `_move`, `_getMapPanePos`, `_getNewPixelOrigin`).
+   - **`#area/postinumero/00100` took 18.3 s to render.** `V()` asks for a kunta's per-area file the
+     moment it reads a postal code with no history, and a median over a postal-code page's peers reads
+     all 3018 of them — so v1.1 re-rendered the page once per file that landed, 308 times. `pnoWant`
+     now coalesces the re-render into one 220 ms tick: **0.77 s**.
+8. **`tests/ui_v2.spec.py` + `make ui`** — the acceptance runner (own server on a free ephemeral port,
+   stopped in a `finally:`). Ten P1 checks.
+
+**Decisions added**
+- **D9 — the Export menu ships four items in P1, five in P7.** *Test property (CSV)* needs the rebuilt
+  property view (P6) and the long schema (P7); shipping a menu item that downloads nothing would be
+  exactly the kind of glitch this round is meant to remove. P7 adds it and rewrites the four others'
+  schema.
+- **D10 — `AR.group` and `AR.tab` keep their `g=` / `t=` URL keys until P5** rebuilds the area page,
+  so the interim commits do not regress the key-figures tabs.
+- **D11 — the test harness answers off-machine requests with a 200, it does not abort them.** Aborting
+  makes Leaflet re-request a tile for ever (44 retries of one tile in four seconds starved Playwright's
+  own selector polling), and every abort raises a `console.error` that would count as a page error.
+- **D12 — `goto()` in the spec adds a cache-busting `?n=`**: a `page.goto` that differs only in its
+  fragment is a same-document navigation, and Chromium then never fires a load.
+
+**Known issues / open**
+- The map toolbar is still v1.1's: both search boxes, the Climate risk button, the four return-period
+  pills and the separate Infra / Public buildings / Services / Zoning / grid buttons. **P2.**
+- The area page still has the KEY FIGURES block and its group tabs. **P5.**
+- The Test property sheet is still the v1.1 analysis sheet under a new route. **P6.**
+- `exportCsv` / `exportAll` still carry v1.1 (and, in `exportAll`, some leftover Danish) column names
+  and the file is named `macro-dashboard-dk_all_…`. **P7 rewrites both.**
+- Horizontal overflow at 390 px is not yet asserted. **P9.**
 
 ## 6. Next
 
-Start P1.
+Start P2 — one toolbar on the Map.
