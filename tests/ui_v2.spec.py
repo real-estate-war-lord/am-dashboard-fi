@@ -19,6 +19,7 @@ import functools
 import http.server
 import os
 import pathlib
+import re
 import socketserver
 import sys
 import threading
@@ -1421,6 +1422,23 @@ def _hash_stable(page, base):
         once = hash_of(page)
         page.wait_for_timeout(500)
         assert hash_of(page) == once, (h, once, hash_of(page))
+
+
+# ===========================================================================
+# V1 — the parity audit every later phase works from
+# ===========================================================================
+
+AUDIT = ROOT / "docs" / "v2_1" / "PARITY_AUDIT.md"
+# a row is `| NAV6 | … |` — the id column is what V3–V7 cite, so it is what is counted
+AUDIT_ROW = re.compile(r"^\| *[A-Z]{1,5}[0-9]+ *\|", re.M)
+
+
+@check("v21_audit_exists", phase="V1")
+def _v21_audit(page, base):
+    """the parity audit exists and still lists the gaps V2–V7 are assigned from"""
+    assert AUDIT.exists(), f"{AUDIT} is missing — V1 writes it and no later phase may delete it"
+    rows = AUDIT_ROW.findall(AUDIT.read_text(encoding="utf-8"))
+    assert len(rows) >= 40, f"the audit has {len(rows)} rows, fewer than the 40 V1 shipped"
 
 
 # ===========================================================================
