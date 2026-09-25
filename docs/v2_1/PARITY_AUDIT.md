@@ -65,7 +65,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | PICK8 | Selecting re-renders only the dependent parts — **no full page rebuild** (AC-P4) | **partial** | `indSet()` `src/app.js:1104` ends in `go(hashFor())` → full `render()`. DK has `pickInd()` → `areaRefresh()`/`tpRefresh()` (`ref/dk_src/app.js:995`, `:2401`). Scroll is restored by `renderKeep()`, but the mini map is rebuilt (zoom lost) and `⤢` full screen closes | V5 | MUST |
 | PICK9 | Chips row = picker short form, active one filled, never empty (AC-I4) | done | `indChips()` `:1118`; check `P3-chips` | — | MUST |
 | PICK10 | Pinned chips (`+`, localStorage, max 12) | missing | SHOULD in DK §9, deferred there too (`ref/QA.md` "Deferred") | — | LATER |
-| PICK11 | Picker on the Test property offers the pin's finest level first, then inherited groups (DK P10 §4) | **partial** | `pickCtx()` `src/app.js:1029` gives the property the full `IND` list (Climate included), but `inherits: () => false` on that branch — so no `From the municipality` heading and no `muni` tag in the property picker | V4 | MUST |
+| PICK11 | Picker on the Test property offers the pin's finest level first, then inherited groups (DK P10 §4) | **done (V4)** | `pickCtx()` takes `anEntity()` — `tpEntity()` dressed as an area-page entity — so the property gets `e.inds` and the area page's own `inherits()`; `curInds()` got the same branch so the hash guard cannot reset what the picker just offered (DECISIONS V4); check `V4-property-picker-groups` | — | MUST |
 
 ## 3. PeriodControl (spec §4.3, AC-T1/T2)
 
@@ -87,9 +87,9 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | LAY3 | Context section: flood zones row present only while a Climate indicator is active; hiding writes `zones=0` (AC-L3) | done | `layersMenu()`, `hashFor()` `:505`; check `P3-climate-zones` | — | MUST |
 | LAY4 | Menu state in `lay=` (AC-L2) | **done (V3)** | one key on both routes; the map's names are the menu's own `data-layer` values. See NAV6; check `V3-map-lay-key` | — | MUST |
 | LAY5 | Menu closes on Esc / outside click, `role=dialog`, `aria-expanded` | done | `layersClose()` `:1529`, keydown `:838`, `:1480` | — | MUST |
-| LAY6 | **Test property has the same menu** (`TP_LAYERS`, DK P10 §2/§3) | **missing** | the property map has a chip row instead (`tpMapTools()` `src/app.js:3502`: Infra · Public buildings · Buildings) — no `Layers ▾`, no Services, no zones row, and the radius is a separate segmented control | V4 | MUST |
-| LAY7 | Every drawn layer is switchable and the async loader never re-adds a layer that is off (DK P10 §3) | **partial** | `anMapOverlays()` `:3228` redraws from `ANL` on every load, but Services and the flood zones are not in `ANL` at all, so they cannot be switched — and the buildings/infra legends are folded cards inside the map with no matching switch in a menu (see `docs/ui_v2/property_1440.png`) | V4 | MUST |
-| LAY8 | State survives a re-render and a reload | done (for the three layers that exist) | `anParseLayers()` `:339`, `hashFor()` `:524`; check `P6-study-row` | V4 (extend) | MUST |
+| LAY6 | **Test property has the same menu** (`TP_LAYERS`, DK P10 §2/§3) | **done (V4)** | `tpMapTools()` is **deleted**; `layersBtn()` is on the property toolbar and `layersMenu()` branches to `anLayersMenu()` (`src/app.js`), with the radius chips and the zones row in it; check `V4-property-layers-menu` | — | MUST |
+| LAY7 | Every drawn layer is switchable and the async loader never re-adds a layer that is off (DK P10 §3) | **done (V4)** | every overlay — infra, public, services, zones, buildings, rings — is drawn in `anMapOverlays()` from `ANL`/`MK.clim` alone, and `pubLoad`/`srvLoad`/`loadMicro`/`infraLoad` all land back in that one function; checks `V4-property-layer-off-sticks`, `V4-property-services` | — | MUST |
+| LAY8 | State survives a re-render and a reload | **done (V4)** | `anParseLayers()` reads five names now (`rings` joined them — see DECISIONS V4), `hashFor()` writes the same five plus `srv=` and `zones=0`; check `V4-property-layer-off-sticks` reloads the hash it produced | — | MUST |
 
 ## 5. Unified search and the map pin (spec §5.1, **DK P10 §1**, AC-M1–M3)
 
@@ -175,7 +175,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | MM3 | Teardown registry: every Leaflet map registered and removed before `#main` is replaced; `window.__maps` (AC-MM3) | done | `LF_MAPS` `:381`, `dropMaps()` `:400`; checks `P1-maps-registry`, `P1-maps-no-errors` | — | MUST |
 | MM4 | Clicking a neighbour opens its page; the selected area is outlined | done | `arMapInit()`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
 | MM5 | The mini map keeps its zoom when the indicator changes | **missing** | consequence of PICK8 / AREA4 — the map is destroyed and rebuilt | V5 | MUST |
-| MM6 | Flood zones drawn in the mini map when a Climate indicator is active | **missing** | `wmsLayers()` / `climLayers()` `src/app.js:2445`, `:2466` both start `if (!LF.map) return` — they only ever draw on the macro map | V4 (property), V5 (area) | MUST |
+| MM6 | Flood zones drawn in the mini map when a Climate indicator is active | **done (V4) on the property**, missing on the area page | the property map draws its own SYKE tile layer in its own `climPane` inside `anMapOverlays()` (`LF.anClimL`), with a folded `legend-zones` card and a `zones` row in its `Layers ▾`; check `V4-property-climate`. `climLayers()` still starts `if (!LF.map) return`, so `arMapInit()` has none | V5 (area) | MUST |
 
 ## 12. Test property (spec §5.5′, AC-TP1–TP9, DK P10 §1–§4)
 
@@ -183,22 +183,22 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 |---|---|---|---|---|---|
 | TP1 | `#property?p=lat,lon[:label]`, one pin; `#analysis?a=&la=` redirects (AC-TP1) | done | `route_core.js` codec (list-capable, D6); check `P1-redirects` | — | MUST |
 | TP2 | Header: kunta · postinumero · osa-alue · coordinates + `Open on map`, area chips, `OpenStreetMap ↗`, `Copy link` | done | `tpHead()`; check `P6-header`; `docs/ui_v2/property_1440.png` | — | MUST |
-| TP3 | Header also carries **`Export ▾`** (UI_V3 §4: sidebar footer, Data header **and** the property header) | **missing** | `exportBtn()` is called from `renderNav()` `:630` and `dataTabs()` `:643` only; `docs/ui_v2/property_1440.png` shows no Export on the page | V4 | MUST |
+| TP3 | Header also carries **`Export ▾`** (UI_V3 §4: sidebar footer, Data header **and** the property header) | **done (V4)** | `exportBtn("prop")` is the last action in `tpHead()`'s `.tools`; the menu opens in place and its `Test property` item downloads the pin's two files; check `V4-property-export` | — | MUST |
 | TP4 | Always five tiles, no grey filler slab | done | check `P6-five-tiles`; `docs/ui_v2/property_1440.png` | — | MUST |
 | TP5 | The shared study row anchored on the pin's finest area, with the level named (AC-TP2) | done | `studyRow()` reused; check `P6-study-row` | — | MUST |
 | TP6 | Tiles clickable → select the indicator and recolour the mini map (AC-TP3) | done | `indSet` on `[data-ind]` tiles; check `P6-study-row` | V5 (in-place, see PICK8) | MUST |
 | TP7 | Sections as `<details>` with state in `show=`; Infrastructure nearby open by default | done | `tpSec()` / `showSec()`; check `P6-sections` | — | MUST |
 | TP8 | Eight sections (outlook, profile, safety, infra, public, schools, climate, sources) | done | `vAnalysis()` `:3510+`; check `P6-sections` | — | MUST |
 | TP9 | Duplicate public-building rows grouped by (name, use code, distance ±20 m) with a count | done | check `P6-sections` (P6 build note 5) | — | MUST |
-| TP10 | Radius rings and a radius select (500 / 1 000 / 2 000 / 5 000 m) | done | `TP_RADII` `:353`, `tpMapTools()` `:3502` | V4 (move into Layers ▾) | MUST |
-| TP11 | **Services layer** on the property map with the macro map's category filters, own legend, per-map panes (DK P10 §2, AC-TP7) | **missing** | `ANL` is `{infra, pub, micro}` (`:337`); `TP_LEGENDS` `:2291` has public / infra / buildings and no `legend-services` | V4 | MUST |
-| TP12 | Every drawn layer has one switch in Layers ▾; off removes markers **and** legend at once; survives reload (DK P10 §3, AC-TP8) | **partial** | see LAY6/LAY7 | V4 | MUST |
-| TP13 | Full indicator list incl. Climate, with the inheritance groups (DK P10 §4, AC-TP9) | **partial** | the list is complete (`pickCtx()` `:1029` → `IND` + osa-alue extras, Climate included), the **grouping and `muni` tags are not** (see PICK11) | V4 | MUST |
-| TP14 | A Climate indicator on the property shows the return-period control, climate bars and the zones in the mini map (AC-TP9) | **partial** | control and bars work (shared components); zones do not — see MM6 | V4 | MUST |
+| TP10 | Radius rings and a radius select (500 / 1 000 / 2 000 / 5 000 m) | **done (V4)** | one `tpRadChips()` row, in `Layers ▾` on both routes; and the control now *works* here — `parseHash()` fills `TP.lat/lon` from `p=`, so `tpWithin()` is armed and the overlays really shrink (DECISIONS V4); check `V4-property-radius` counts the markers before and after | — | MUST |
+| TP11 | **Services layer** on the property map with the macro map's category filters, own legend, per-map panes (DK P10 §2, AC-TP7) | **done (V4)** | `ANL.srv`, `anSrvKoms()` / `anSrvRows()` (bounded by `AN_SRV_M` = 2 000 m, not by the zoom floors — DECISIONS V4), `srvMarkers(rows, map)` extracted so both maps build markers through `amOf(map)`, `legend-services` in `TP_LEGENDS`, `srv=` in the property hash; check `V4-property-services` | — | MUST |
+| TP12 | Every drawn layer has one switch in Layers ▾; off removes markers **and** legend at once; survives reload (DK P10 §3, AC-TP8) | **done (V4)** | see LAY6/LAY7; checks `V4-property-layers-menu`, `V4-property-layer-off-sticks` | — | MUST |
+| TP13 | Full indicator list incl. Climate, with the inheritance groups (DK P10 §4, AC-TP9) | **done (V4)** | see PICK11; check `V4-property-picker-groups` asserts a `Climate` header, a `From the municipality` header, ≥ 45 rows and the `muni` tags | — | MUST |
+| TP14 | A Climate indicator on the property shows the return-period control, climate bars and the zones in the mini map (AC-TP9) | **done (V4)** | all three asserted together in `V4-property-climate`, plus the `zones=0` hide toggle and that anything else takes the row away again | — | MUST |
 | TP15 | Empty state: input focused, one example (AC-E1) | done | `anEmpty()` `:3467`; check `P6-empty-state` | — | MUST |
 | TP16 | Per-map panes and renderers — never the macro map's layers | done | `mapPanes()` `:403`, `amOf()`; check `P6-per-map-renderers` | — | MUST |
-| TP17 | Mini-map note names the fill, the radius and the place (DK Q8: not all three rings spelled out) | **partial** | `docs/ui_v2/property_1440.png`: "rings at 500 m · 1 000 m · 1 200 m" wraps to two lines | V4 | SHOULD |
-| TP18 | The identity block always claims its own line in the header (DK Q2 — the 1536 px two-column break) | **missing** | `src/style.css:1639` is `.anhead .arid{flex:1 1 420px}` — exactly the value DK changed to `flex:1 1 100%` | V4 | MUST |
+| TP17 | Mini-map note names the fill, the radius and the place (DK Q8: not all three rings spelled out) | **done (V4)** | the note reads `<level> <name> · rings out to 1,2 km` — one line at 1440, two at 390; the three radii are spelled out once, in the `Radius rings` row of `Layers ▾`, where the switch for them is | — | SHOULD |
+| TP18 | The identity block always claims its own line in the header (DK Q2 — the 1536 px two-column break) | **done (V4)** | `.anhead .arid{flex:1 1 100%}` (`src/style.css`); check `V4-property-head-one-line` runs at 1536×864 and asserts the actions sit below the identity block and the tiles share its left edge | — | MUST |
 | TP19 | Portfolio / multi-pin | n/a | amendment A2 moved it to LATER in Denmark; the FI codec is already list-capable | — | LATER |
 
 ## 13. Export ▾ (spec §4.9, AC-X1–X4, TP4)
@@ -331,16 +331,18 @@ SRCH8. All eight are `done (V3)` above, nine checks registered under phase V3. T
 with them: the test-property radius is now a row in `Layers ▾` instead of a sixth toolbar control
 (the property page's own copy is still V4's).
 
-**V4 — test property**
-LAY6 + LAY7 + TP12 (one `Layers ▾` with one switch per drawn layer, off means gone, state sticks),
-TP11 (Services), TP13 + PICK11 (inherited groups in the property picker), TP14 + MM6 (zones in the mini
-map), TP3 (`Export ▾` in the property header), TP18 (`.anhead .arid` at 1536), TP10 (radius into the menu).
-*Also if there is room:* TP17.
+**V4 — test property** ☑ shipped
+LAY6 + LAY7 + LAY8 + TP12 (one `Layers ▾` with one switch per drawn layer, off means gone, state
+sticks), TP11 (Services), TP13 + PICK11 (inherited groups in the property picker), TP14 + MM6's
+property half (zones in the mini map), TP3 (`Export ▾` in the property header), TP18 (`.anhead .arid`
+at 1536), TP10 (radius into the menu — and made to filter). All `done (V4)` above, eight checks
+registered under phase V4. TP17 came with them. **MM6's area-page half is still V5's.**
 
 **V5 — area page, sheets, Data, Export**
 PICK8 + AREA4 + MM5 + TP6 (in-place refresh: port `areaRefresh()` / `tpRefresh()` from `ref/dk_src`),
 SHEET1 (no filler on the project / public / school sheets, with a check), SHEET2 (breadcrumb check),
-MM6 (area mini map). *Also if there is room:* AREA5, DATA4, EXP8, EXP10, SHEET3.
+MM6 (area mini map — the property's half shipped in V4, and `anMapOverlays()` is the pattern to copy).
+*Also if there is room:* AREA5, DATA4, EXP8, EXP10, SHEET3.
 
 **V6 — responsive, numbers, accessibility, states**
 A11Y1, A11Y2, A11Y3 (accessibility sweep), NUM8 (`1,2 km`), NUM9 (`score` / `weighted` sweep),

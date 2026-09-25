@@ -256,7 +256,6 @@ main{overflow-y:auto;display:flex;flex-direction:column}
 /* leading caption inside a segmented control, e.g. "Within  500 m | 1 km" on the pin filter */
 .segl{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
   background:var(--panel2);display:flex;align-items:center;padding:5px 8px 5px 10px}
-.seg.tprad .sg{padding:5px 9px}
 
 .chart{width:100%;height:auto;display:block}
 .grid{stroke:var(--line2)}
@@ -1663,8 +1662,10 @@ th .thn{display:inline}
 .tppop .cap{margin:2px 0 0}
 
 /* ---------- Analysis sheet: one property against every layer ---------- */
-/* the title is an input, so the identity column needs a basis of its own — a bare input shrinks to ~20 characters */
-.anhead .arid{flex:1 1 420px;min-width:0}
+/* The identity block always claims its own line (DK Q2, audit TP18). At 420 px of basis the header
+   split into two columns around 1536 px — the name and its area tags on the left, the five actions
+   riding up beside them — and the tile row below started at a different left edge than the title. */
+.anhead .arid{flex:1 1 100%;min-width:0}
 .anhead .anlab{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:-.03em;color:var(--ink);
   display:block;width:100%;border:1px solid transparent;border-radius:8px;background:transparent;padding:2px 7px;margin:0 0 8px -7px}
 .anhead .anlab:hover{border-color:var(--line)}
@@ -2061,9 +2062,6 @@ body.has-full{overflow:hidden}
 .mmlegs .maplegend{position:static;flex:0 0 auto;max-width:100%}
 .mmlegs .maplegend .lgnote{max-width:none}
 .studyrow .minimap #anmap{min-height:420px}
-.tpmaptools{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;background:var(--panel);
-  border:1px solid var(--line);border-radius:var(--r);padding:var(--s2) var(--s4);margin-top:var(--s3)}
-.tpmaptools .lychips{padding:0}
 .lychip:disabled{opacity:.45;cursor:not-allowed}
 
 /* a folded legend keeps its title and nothing else */
@@ -2105,7 +2103,7 @@ body.has-full{overflow:hidden}
    =================================================================================== */
 /* Nothing may make the page wider than the window. Three offenders in v1.1: a table that was
    never in a scroll box, a breadcrumb whose last two parts could not shrink, and the chips row. */
-.card,.seclist,.mstrip,.tpmaptools,.datatabs{max-width:100%;min-width:0}
+.card,.seclist,.mstrip,.datatabs{max-width:100%;min-width:0}
 .tbl{max-width:100%}
 .card>.tbl,.seclist .secbody>.tbl{display:block;overflow-x:auto}
 #hd,.crumbs{min-width:0}

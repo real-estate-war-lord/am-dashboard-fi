@@ -1341,6 +1341,8 @@ SHEET_ROUTES = [
     ("map_layers", "#map/091?infra=1&public=1&services=1"),   # the v1.1 flags, still readable (NAV6)
     ("map_pin", "#map/091/postinumero?pin=60.24480,24.86650&rad=1000"),
     ("property_layers", "#property?p=60.2448,24.8665&lay=infra,public,buildings"),
+    # every property layer at once, including the two V4 added (services, the SYKE zones)
+    ("property_all_layers", "#property?p=60.2448,24.8665&ind=flood_sea_100&lay=infra,public,services,rings"),
     ("area_show_all", "#area/kunta/091?show=outlook,figures,sub"),
     ("schoollist", "#schoollist/kunta:091"),
     ("publist", "#publist/kunta:091"),
@@ -1841,6 +1843,215 @@ def _search_fits(page, base):
 
 
 # ===========================================================================
+# V4 — the Test property: one Layers ▾, Services, the full indicator list
+# (audit rows LAY6, LAY7, TP3, TP10, TP11, TP12, TP13, TP14, TP17, TP18, MM6, PICK11)
+# ===========================================================================
+
+
+def mini_markers(page, kind):
+    """how many markers of `kind` ("pub" / "srv") the mini map is drawing.
+
+    Both layers are canvas markers — they have no DOM node of their own — so the count is read off
+    the Leaflet map itself, walking the layer groups the overlays add. Each marker carries `_pub` /
+    `_srv`, which is also what the popup handlers key on."""
+    return page.evaluate("""k => {
+        const m = window.__maps && window.__maps[0]; if (!m) return -1;
+        let n = 0;
+        const hit = l => { if (l['_' + k]) n++; };
+        m.eachLayer(l => { hit(l); if (l.eachLayer) l.eachLayer(hit); });
+        return n;
+    }""", kind)
+
+
+def legend_live(page, testid):
+    return page.evaluate("""s => { const e = document.querySelector(s);
+        return !!(e && e.offsetHeight > 0 && e.textContent.trim()); }""",
+                         f"[data-testid=minimap] [data-testid={testid}]")
+
+
+def open_layers(page):
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(250)
+
+
+@check("V4-property-layers-menu", phase="V4")
+def _tp_layers_menu(page, base):
+    """every layer the property map draws has exactly one switch in Layers ▾ (audit LAY6/TP12)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    # the chip row beside the map is gone: the toolbar is the only place a layer is switched
+    assert not page.query_selector("[data-anlay]"), "the v2.0 chip row is still on the property"
+    assert not page.query_selector(".tpmaptools"), "the v2.0 map-tools bar is still on the property"
+    loose = page.eval_on_selector_all(
+        "[data-tprad]", "els => els.filter(e => !e.closest('.lypop')).length")
+    assert loose == 0, "the radius control is still a second control beside the map (audit TP10)"
+
+    open_layers(page)
+    rows = page.eval_on_selector_all("[data-testid=layers-pop] [data-layer]",
+                                     "els => els.map(e => e.dataset.layer)")
+    for want in ["infra", "public", "services", "buildings", "rings"]:
+        assert want in rows, (want, rows)
+    assert len(rows) == len(set(rows)), f"a layer has two switches: {rows}"
+    # the radius rows moved in here too, with the same five distances the map offers
+    rads = page.eval_on_selector_all("[data-testid=layers-pop] [data-tprad]",
+                                     "els => els.map(e => e.dataset.tprad)")
+    assert rads == ["0", "500", "1000", "2000", "5000"], rads
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-services", phase="V4")
+def _tp_services(page, base):
+    """Services draw on the property mini map with their own legend, and go away again (audit TP11)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    assert not legend_live(page, "legend-services"), "services are on by default"
+
+    open_layers(page)
+    page.click("[data-testid=layers-pop] [data-layer=services]")
+    page.wait_for_timeout(3500)
+    h = hash_of(page)
+    assert "services" in h.split("lay=")[1].split("&")[0], h
+    assert "srv=" in h, f"the category filter does not ride in the property hash: {h}"
+    assert legend_live(page, "legend-services"), "no services legend inside the mini map"
+    assert mini_markers(page, "srv") > 0, (
+        "the services layer drew nothing around the pin",
+        page.eval_on_selector("[data-testid=legend-services]", "e => e.textContent"), ERRORS[:3])
+
+    # …and off means gone: markers and legend at once
+    page.click("[data-testid=layers-pop] [data-layer=services]")
+    page.wait_for_timeout(1200)
+    assert not legend_live(page, "legend-services"), "the legend outlived its layer"
+    assert mini_markers(page, "srv") == 0, "the markers outlived their switch"
+    assert "services" not in hash_of(page), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-layer-off-sticks", phase="V4")
+def _tp_layer_off(page, base):
+    """switching a layer off removes markers and legend, and it stays off over a reload (audit LAY7)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3500)
+    assert mini_markers(page, "pub") > 0, "public buildings are not drawn by default at this pin"
+    assert legend_live(page, "legend-public")
+
+    open_layers(page)
+    page.click("[data-testid=layers-pop] [data-layer=public]")
+    page.wait_for_timeout(1500)
+    assert mini_markers(page, "pub") == 0, "the public markers cannot be clicked away"
+    assert not legend_live(page, "legend-public"), "the public legend outlived its layer"
+    off = hash_of(page)
+    assert "public" not in off.split("lay=")[1].split("&")[0], off
+
+    # the async loader must not put it back, and neither must a reload of the link
+    page.wait_for_timeout(2500)
+    assert mini_markers(page, "pub") == 0, "an async file landing re-added a layer that is off"
+    goto(page, base, off)
+    page.wait_for_timeout(3500)
+    assert mini_markers(page, "pub") == 0, "the reloaded link switched the layer back on"
+    assert not legend_live(page, "legend-public")
+    open_layers(page)
+    assert page.eval_on_selector("[data-testid=layers-pop] [data-layer=public]",
+                                 "e => e.getAttribute('aria-checked')") == "false"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-picker-groups", phase="V4")
+def _tp_picker_groups(page, base):
+    """the property picker is the area picker of the place the pin fell in (audit TP13/PICK11)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    page.click("[data-testid=ind-picker-btn]")
+    page.wait_for_timeout(400)
+    groups = texts(page, "[data-testid=ind-picker-pop] [data-group]")
+    assert any(g.startswith("Climate") for g in groups), groups
+    assert any(g.startswith("From the municipality") for g in groups), groups
+    rows = page.eval_on_selector_all("[data-testid=ind-picker-pop] [data-ind]",
+                                     "els => els.map(e => e.dataset.ind)")
+    assert len(rows) >= 45, f"{len(rows)} indicators offered on the property"
+    assert len(rows) == len(set(rows)), "an indicator is listed twice"
+    # the inherited ones carry the same `muni` tag an area page gives them
+    tags = texts(page, "[data-testid=ind-picker-pop] .ipkr em.tag-muni")
+    assert tags and set(tags) == {"muni"}, tags
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-climate", phase="V4")
+def _tp_climate(page, base):
+    """a Climate indicator brings the return period, the bars and the SYKE zones (audit TP14/MM6)"""
+    goto(page, base, PROP + "&ind=flood_sea_100")
+    page.wait_for_timeout(3500)
+    rp = page.query_selector("[data-testid=period-rp]")
+    assert rp, "no return-period control on a Climate indicator"
+    assert texts(page, "[data-testid=period-rp] button") == ["1/100a", "1/1000a"]
+    assert page.query_selector("[data-testid=chart-panel] [data-testid=clim-bars]"), "no climate bars"
+    assert legend_live(page, "legend-zones"), "no flood-zone legend inside the mini map"
+    assert page.evaluate("!!(window.__maps[0] && window.__maps[0]._am)")
+    # the zones are the indicator's own measurement: choose anything else and they go
+    open_layers(page)
+    assert page.query_selector("[data-testid=layers-pop] [data-layer=zones]")
+    page.click("[data-testid=layers-pop] [data-layer=zones]")
+    page.wait_for_timeout(900)
+    assert "zones=0" in hash_of(page), hash_of(page)
+    assert not legend_live(page, "legend-zones")
+
+    goto(page, base, PROP + "&ind=growth")
+    page.wait_for_timeout(3000)
+    assert not legend_live(page, "legend-zones")
+    open_layers(page)
+    assert not page.query_selector("[data-testid=layers-pop] [data-layer=zones]")
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-export", phase="V4")
+def _tp_export(page, base):
+    """the property header carries Export ▾, with the pin's own file in it (audit TP3)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    assert page.query_selector(".anhead [data-testid=export-btn]"), "no Export ▾ in the property header"
+    acts = texts(page, ".anhead .tools > *")
+    assert acts[0].startswith("Open on map"), acts
+    page.click(".anhead [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    items = page.eval_on_selector_all(".anhead [data-testid=export-menu] [data-export]",
+                                      "els => els.map(e => e.dataset.export)")
+    assert "property" in items, items
+    box = boxes(page, ".anhead [data-testid=export-menu]")[0]
+    assert box["w"] > 10 and box["right"] <= page.evaluate("window.innerWidth") + 1, box
+    txt = download_text(page, lambda: page.click(".anhead [data-testid=export-menu] [data-export=property]"))
+    assert txt.splitlines()[0].startswith("property_label;lat;lon;"), txt.splitlines()[0]
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-radius", phase="V4")
+def _tp_radius(page, base):
+    """the radius really filters the property's overlays, not just the URL (audit TP10)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3500)
+    wide = mini_markers(page, "pub")
+    assert wide > 0, "no public markers to filter"
+    open_layers(page)
+    page.click("[data-testid=layers-pop] [data-tprad='500']")
+    page.wait_for_timeout(1500)
+    assert "rad=500" in hash_of(page), hash_of(page)
+    tight = mini_markers(page, "pub")
+    assert tight < wide, f"the 500 m radius drew the same {tight} markers as no radius at all"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V4-property-head-one-line", phase="V4", viewport="1536x864")
+def _tp_head_one_line(page, base):
+    """at 1536 the identity block still owns its own line (audit TP18, DK Q2)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3000)
+    rid = boxes(page, ".anhead .arid")[0]
+    tools = boxes(page, ".anhead .tools")[0]
+    assert tools["y"] >= rid["bottom"] - 2, ("the header split into two columns", rid, tools)
+    tiles = boxes(page, ".anhead [data-testid=tiles]")[0]
+    assert abs(tiles["x"] - rid["x"]) <= 2, ("the tiles start at a different left edge", rid, tiles)
+    assert no_overflow(page)
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
@@ -1916,5 +2127,11 @@ def run(phase_upto="P10", shots=False, only=None):
 
 
 if __name__ == "__main__":
-    ph = os.environ.get("PHASE", "P10")
-    sys.exit(run(ph, shots=bool(os.environ.get("SHOTS")), only=os.environ.get("ONLY")))
+    # `make ui` passes PHASE / ONLY / SHOTS in the environment; the same three may be given as
+    # positional arguments (`tests/ui_v2.spec.py V4 V4-`) so one phase can be driven from a shell
+    # that is only allowed to run this file by name.
+    argv = [a for a in sys.argv[1:] if not a.startswith("-")]
+    ph = (argv[0] if argv else None) or os.environ.get("PHASE", "P10")
+    only = (argv[1] if len(argv) > 1 else None) or os.environ.get("ONLY")
+    shots = bool(os.environ.get("SHOTS")) or "--shots" in sys.argv
+    sys.exit(run(ph, shots=shots, only=only))

@@ -92,6 +92,9 @@ const IND_Q = IND_OSA.concat(SAFETY.filter(i => !osaOwn(i.key)));
    selectable in osa-alue mode too — it is simply inherited, and the picker says so. v1.1 offered
    the short list instead, which is why clicking "Unemp." on the Helsinki card did nothing. */
 const IND_Q_ALL = IND_OSA.concat(IND.filter(i => !osaOwn(i.key)));
+/* every key any level publishes, once. Not a list any page *offers* — it is what a link may name
+   while the page still does not know which level its pin is on (see `curInds()` for the property). */
+const IND_ANY = IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key)));
 /* registry `direction`: for lower_better indicators rank #1 is the lowest value and a fall is the good change */
 /* quarter-layer indicators that are published per district (peruspiiri), not per quarter: the KK survey's crime and
    safety shares, and unemployment — their values carry ^ instead of the ° of a municipality value */
@@ -330,16 +333,21 @@ const pubAllOff = () => !!(PF.cats && !PF.cats.size);
 const PF_SHORT = { education: "edu", institutions: "inst", health: "health", culture: "culture" };
 const PF_LONG = Object.fromEntries(Object.entries(PF_SHORT).map(([k, v]) => [v, k]));
 const PIPE = { type: "", status: "" };                                            /* pipeline filters */
-const AN = { a: "", label: "", show: [], showSet: false };   /* Test property: the pinned coordinates, their label (one pin — the URL codec takes a list) and the open sections */
-/* Analysis sheet: which overlays the "Where it is" map draws — the same three the Macro map offers.
-   Defaults: infra on, public buildings on where the building pull reaches the pin, buildings off (its
-   micro/<kunta>.json is fetched only once the pill is switched on). The set lives in the hash as lay=. */
-const ANL = { infra: true, pub: true, micro: false };
-const anLayerList = () => [ANL.infra ? "infra" : "", ANL.pub ? "public" : "", ANL.micro ? "buildings" : ""].filter(Boolean);
+const AN = { a: "", label: "", show: [], showSet: false, zonesOff: false };   /* Test property: the pinned coordinates, their label (one pin — the URL codec takes a list), the open sections and whether the reader hid the flood zones */
+/* Analysis sheet: which overlays the "Where it is" map draws — the same layers the Macro map offers,
+   switched from the same `Layers ▾` menu (DK P10 §2/§3, audit LAY6/LAY7/TP11/TP12). Every layer the
+   property map draws is in this set, so "switched off" and "not drawn" are the same statement.
+   Defaults: infra on, public buildings on where the building pull reaches the pin, the radius rings
+   on, services and buildings off (their per-kunta files are fetched only once the switch goes on).
+   The set lives in the hash as `lay=`, the one key the map route writes too. */
+const ANL = { infra: true, pub: true, srv: false, micro: false, rings: true };
+const anLayerList = () => [ANL.infra ? "infra" : "", ANL.pub ? "public" : "", ANL.srv ? "services" : "",
+  ANL.micro ? "buildings" : "", ANL.rings ? "rings" : ""].filter(Boolean);
 function anParseLayers(q) {
-  if (q.lay == null) { ANL.infra = true; ANL.pub = true; ANL.micro = false; return; }
+  if (q.lay == null) { ANL.infra = true; ANL.pub = true; ANL.srv = false; ANL.micro = false; ANL.rings = true; return; }
   const set = new Set(q.lay.split(",").filter(Boolean));
-  ANL.infra = set.has("infra"); ANL.pub = set.has("public"); ANL.micro = set.has("buildings");
+  ANL.infra = set.has("infra"); ANL.pub = set.has("public"); ANL.srv = set.has("services");
+  ANL.micro = set.has("buildings"); ANL.rings = set.has("rings");
 }
 /* the macro map's half of the same key, in the order the Layers ▾ menu lists the rows. The names
    are the menu's own `data-layer` values, so the URL, the menu and the switch cannot drift apart. */
@@ -388,7 +396,7 @@ const LF_MAPS = {
   map:   ["areaG", "labG", "microG", "infraG", "infraHitG", "infraStG", "infraLabG",
           "pubG", "pubLabG", "srvG", "srvStG", "climL", "tpG"],
   amap:  [],
-  anmap: ["anInfraG", "anInfraHitG", "anPubG", "anMicroG", "anPinG"],
+  anmap: ["anInfraG", "anInfraHitG", "anPubG", "anSrvG", "anSrvStG", "anMicroG", "anRingG", "anPinG", "anClimL"],
   pmap:  [],
 };
 function syncMaps() { window.__maps = Object.keys(LF_MAPS).map(k => LF[k]).filter(Boolean); }
@@ -488,7 +496,12 @@ const yearsForPool = (k, pool) => yearsOf(k).filter(y => y >= mapFrom(k));
 const histYears = (k, pool) => yearsOf(k);
 function curPool() { if (S.view === "area") { const e = areaEntity(); return e ? e.peers : MUNI; } if (S.view === "table" && T.level === "osa_alue") return OSA ? OSA.areas : MUNI; return osaMode() ? OSA.areas : MUNI; }
 const yearsFor = k => projOf(k) ? [] : yearsForPool(k, curPool());
-const curInds = () => { if (S.view === "area") { const e = areaEntity(); return e ? e.inds : IND; } if (S.view === "table") return T.level === "osa_alue" ? IND_Q : IND; return osaMode() ? IND_Q_ALL : IND; };
+const curInds = () => { if (S.view === "area") { const e = areaEntity(); return e ? e.inds : IND; }
+  /* the Test property reads an area, so it offers that area's list — the same one an area page of
+     the same place offers (DK P10 §4, audit TP13/PICK11). Until the kunta rings land nobody knows
+     which level the pin is on, so the superset stands in: a link's `ind=` must survive the wait. */
+  if (S.view === "property") { const e = anEntity(); return e ? e.inds : IND_ANY; }
+  if (S.view === "table") return T.level === "osa_alue" ? IND_Q : IND; return osaMode() ? IND_Q_ALL : IND; };
 const curInd = () => { const L = curInds(); return L.find(i => i.key === MK.ind) || L[0] || { key: "", label: "", fmt: "pct1" }; };
 
 /* ---------- routing (hash) ----------
@@ -529,6 +542,10 @@ function hashFor() {
     /* the mini map rides in the link too: the headline tile that colours it, the overlays, the public filter */
     q.push(`ind=${encodeURIComponent(MK.ind || "")}`); if (MK.year && MK.year !== LATEST) q.push(`y=${MK.year}`);
     q.push(`lay=${anLayerList().join(",") || "none"}`); if (ANL.pub) q.push(...pubHashParts());
+    if (ANL.srv) q.push(...srvHashParts());
+    /* the zones follow `ind=` here exactly as they do on the map: derived, never written — `zones=0`
+       is the reader having hidden the ones the active Climate indicator brought with it (LAY3) */
+    if (climFor(MK.ind) && !MK.clim) q.push("zones=0");
     if (TP.rad) q.push(`rad=${TP.rad}`); if (AN.showSet) q.push(`show=${AN.show.join(",")}`); }
   else if (S.view === "project") { p = `project/${PR.id}`; }
   else if (S.view === "public") { p = `public/${PB.kom}/${PB.id}`; }
@@ -566,7 +583,10 @@ function parseHash() {
     const pins = RC.propParse(q.p || ""); const pin = pins[0] || null;      /* v2.0 reads one; the codec keeps a list */
     AN.a = pin ? `${pin.lat},${pin.lon}` : ""; AN.label = (pin && pin.label) || "";
     AN.showSet = Object.prototype.hasOwnProperty.call(q, "show"); AN.show = showList(q.show); TP.rad = TP_RADII.includes(Number(q.rad)) ? Number(q.rad) : 0;
-    anParseLayers(q); pubParseFilter(q);
+    /* the pin IS the test property here, so `TP` carries it: that is what makes the radius filter
+       (`tpWithin`) real on this page — before v2.1 the control wrote `rad=` and nothing moved */
+    TP.lat = pin ? pin.lat : null; TP.lon = pin ? pin.lon : null; TP.res = null; TP.label = AN.label || TP_LABEL;
+    anParseLayers(q); pubParseFilter(q); srvParseFilter(q); AN.zonesOff = q.zones === "0";
     /* the sheet cannot say which kunta the point is in until the rings are there — chain once, not on every hashchange */
     if (!KOM.list && !KOM.err) komLoad().then(() => { if (S.view === "property") renderKeep(); }); }
   else if (v === "charts") { S.view = "charts"; CH.ind = q.ind || CH.ind; CH.areas = q.a ? q.a.split(",").filter(Boolean) : CH.areas; CH.y0 = q.y0 || CH.y0; CH.y1 = q.y1 || CH.y1; CH.median = q.med !== "0"; CH.mode = q.mode || "auto"; CH.dist = q.dist || "size";
@@ -590,6 +610,8 @@ function parseHash() {
          MK.focus = q.focus || null; if (MK.focus) MK.infra = true; tpParse(q); }
   if (!curInds().some(i => i.key === MK.ind)) MK.ind = (curInds()[0] || {}).key;
   if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST;
+  /* derived after the guard above, so the zones always belong to the indicator that survived it */
+  if (S.view === "property") MK.clim = AN.zonesOff ? "" : climFor(MK.ind);
   if (S.view === "makro") {
     /* zoom to a municipality the first time it is shown; back to the national frame when it is cleared */
     if (MK.muni && MK.muni !== LF.shownMuni) LF.pendingFit = MK.muni;
@@ -753,12 +775,13 @@ document.addEventListener("click", e => {
   if ((el = g("[data-msi]"))) { msPick(Number(el.dataset.msi)); return; }
   if (g("[data-pinrm]")) { tpAction("remove"); return; }
   if ((el = g("[data-tprad]"))) { TP.rad = TP_RADII.includes(Number(el.dataset.tprad)) ? Number(el.dataset.tprad) : 0;
-    syncHash(); mkRefreshTools();
+    syncHash();
+    /* on the property the radius really filters the overlays (`tpWithin`), so it redraws them there
+       too — v2.0 wrote `rad=` on this page and nothing moved (audit TP10) */
+    if (S.view === "property") { anMapOverlays(); anFill(); layersRefresh(); return; }
+    mkRefreshTools();
     if (LF.map) { layersRefresh(); lfInfraLayers(); if (MK.pub) { lfPublicLayers(true); lfPublicLabels(); } if (MK.srv) lfServicesLayers(true); climLayers(); tpLayers(); }
     return; }
-  if ((el = g("[data-anlay]"))) { if (el.disabled) return; const k = el.dataset.anlay;
-    if (k === "infra") ANL.infra = !ANL.infra; else if (k === "public") ANL.pub = !ANL.pub; else ANL.micro = !ANL.micro;
-    syncHash(); renderKeep(); return; }
   if ((el = g("[data-srvcat]"))) { const k = el.dataset.srvcat;
     const cur = new Set(SF.cats); cur.has(k) ? cur.delete(k) : cur.add(k);
     srvSetFilter(cur); layersRefresh(); return; }
@@ -1069,13 +1092,22 @@ function optLabel(i) {
 function pickCtx(target) {
   if (target === "chind") return { list: IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))),
                                    key: CH.ind, level: "kunta", inherits: () => false };
-  const e = S.view === "area" ? areaEntity() : null;
-  const tpE = S.view === "property" ? (TP.res || null) : null;
-  const list = e ? e.inds : (S.view === "property" ? IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key))) : curInds());
+  /* The Test property picker is the area picker of the place the pin fell in (DK P10 §4, TP13/PICK11):
+     the pin's finest level's own indicators first, then "From the municipality" with the `muni` tag.
+     v2.0 handed it the flat superset with `inherits: () => false`, so Climate and every kunta figure
+     were listed as if the osa-alue published them. */
+  const e = S.view === "area" ? areaEntity() : S.view === "property" ? anEntity() : null;
+  const list = e ? e.inds : (S.view === "property" ? IND_ANY : curInds());
   const level = e ? e.type : (S.view === "table" ? T.level : osaMode() ? "osa_alue" : "kunta");
-  return { list, key: MK.ind, level, entity: e || tpE,
+  return { list, key: MK.ind, level, entity: e,
            inherits: i => e ? !!(inherits(e, i.key) && V(e.o, i.key) == null)
                             : !!(S.view === "makro" && osaMode() && !osaOwn(i.key)) };
+}
+/* the pin's area, dressed as an area-page entity — null until the kunta rings have landed */
+function anEntity() {
+  const pt = anLoc(); if (!pt || (!KOM.list && !KOM.err)) return null;
+  const r = locate(pt.lat, pt.lon);
+  return (r && !r.error) ? tpEntity(r) : null;
 }
 const pickYearsCache = {};
 function pickYears(key, level) {
@@ -1514,8 +1546,10 @@ function upcomingLine(level, code) {
    Zoning · 1 km grid) and the Climate-risk segment with its four return-period pills. The
    sub-filters that used to live *inside* the floating legend cards move here too, so a legend is a
    legend: colour keys and a source line, nothing to click. */
-const layerCount = () => mapLayerList().length + (MK.wms ? 1 : 0) + (MK.clim ? 1 : 0)
-  + (TP.lat != null && TP.rad ? 1 : 0);   /* the radius filters every feature layer, so it counts as one */
+const layerCount = () => S.view === "property"
+  ? anLayerList().length + (MK.clim ? 1 : 0) + (TP.rad ? 1 : 0)
+  : mapLayerList().length + (MK.wms ? 1 : 0) + (MK.clim ? 1 : 0)
+    + (TP.lat != null && TP.rad ? 1 : 0);   /* the radius filters every feature layer, so it counts as one */
 function layersBtn() {
   const n = layerCount();
   return `<div class="lywrap">
@@ -1527,7 +1561,22 @@ const lyRow = (key, on, label, sub, dis, tip) => `<div class="lyrow ${dis ? "dis
   <button class="lychk ${on ? "on" : ""}" role="switch" aria-checked="${on}" data-layer="${key}" ${dis ? "disabled" : ""}
     title="${esc(tip || "")}"><i></i><b>${esc(label)}</b><em>${esc(sub || "")}</em></button></div>`;
 const lyChips = rows => `<div class="lychips">${rows}</div>`;
+/* the category filters, written once: the same chips switch the same layer on either map */
+const pubCatChips = () => lyChips(Object.entries(PUB_CAT).map(([k, c]) =>
+  `<button class="lychip ${pubCatOn(k) ? "on" : ""}" data-pubcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
+  + (PUB_HAS_CASES() ? ["existing", "open"].map(k =>
+    `<button class="lychip ${pubKindOn(k === "open" ? "case" : "existing") ? "on" : ""}" data-pubkind="${k}">${k === "open" ? "open case" : "existing"}</button>`).join("") : "")
+  + `<button class="lychip alt" data-puball>All</button>`);
+const srvCatChips = () => lyChips(Object.entries(SRV_CAT).map(([k, c]) =>
+  `<button class="lychip ${srvCatOn(k) ? "on" : ""}" data-srvcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
+  + Object.entries(SRV_TGROUP).map(([g, t]) =>
+    `<button class="lychip ${SF.cats.has("transport") && SF.tmodes.has(g) ? "on" : ""}" data-srvmode="${g}">${esc(t.label)}</button>`).join("")
+  + `<button class="lychip alt" data-srvall>All</button>`);
+/* the radius chips (TP10): one row, both maps, `rad=` in the hash */
+const tpRadChips = () => lyChips(TP_RADII.map(m => `<button class="lychip ${TP.rad === m ? "on" : ""}" data-tprad="${m}"
+  title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of the pin` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join(""));
 function layersMenu() {
+  if (S.view === "property") return anLayersMenu();
   const muni = MK.muni ? byCode[MK.muni] : null;
   const hasMicro = !!(muni && microAvail(muni.code));
   const pubOk = !MK.muni || pubAvail(MK.muni);
@@ -1537,20 +1586,12 @@ function layersMenu() {
   if (PUB) {
     h += lyRow("public", MK.pub, "Public buildings", `${PUB_SRC_SHORT} · ${PUB.kunnat.length} kunnat`, !pubOk,
       pubOk ? "Schools, daycare, health and culture" : "Not covered yet for this kunta");
-    if (MK.pub && pubOk) h += lyChips(Object.entries(PUB_CAT).map(([k, c]) =>
-      `<button class="lychip ${pubCatOn(k) ? "on" : ""}" data-pubcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
-      + (PUB_HAS_CASES() ? ["existing", "open"].map(k =>
-        `<button class="lychip ${pubKindOn(k === "open" ? "case" : "existing") ? "on" : ""}" data-pubkind="${k}">${k === "open" ? "open case" : "existing"}</button>`).join("") : "")
-      + `<button class="lychip alt" data-puball>All</button>`);
+    if (MK.pub && pubOk) h += pubCatChips();
   }
   if (SRV) {
     h += lyRow("services", MK.srv, "Services", `${SRV_SRC_SHORT}${SRV.asof ? " · " + SRV.asof : ""}`, false,
       "Shops, places to eat, pharmacies and public-transport stops");
-    if (MK.srv) h += lyChips(Object.entries(SRV_CAT).map(([k, c]) =>
-      `<button class="lychip ${srvCatOn(k) ? "on" : ""}" data-srvcat="${k}"><i style="background:${c.color}"></i>${esc(c.label)}</button>`).join("")
-      + Object.entries(SRV_TGROUP).map(([g, t]) =>
-        `<button class="lychip ${SF.cats.has("transport") && SF.tmodes.has(g) ? "on" : ""}" data-srvmode="${g}">${esc(t.label)}</button>`).join("")
-      + `<button class="lychip alt" data-srvall>All</button>`);
+    if (MK.srv) h += srvCatChips();
   }
   h += lyRow("buildings", MK.micro, "Buildings", hasMicro ? `${nf(MICRO_IDX[kcode(muni.code)].n, 0)} in ${muni.name} · Ryhti register` : "drill into a kunta that has a building file", !hasMicro,
     hasMicro ? "Every register building with at least two dwellings" : "No building file for this area");
@@ -1570,9 +1611,48 @@ function layersMenu() {
   if (TP.lat != null) {
     h += `<div class="lyhead">Test property</div>`;
     h += `<p class="lynote">Rings around <b>${esc(TP.label || TP_LABEL)}</b>, and the distance the infra, public-building and services layers are filtered to. The pin itself is removed from its card above the map.</p>`;
-    h += lyChips(TP_RADII.map(m => `<button class="lychip ${TP.rad === m ? "on" : ""}" data-tprad="${m}"
-      title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of the pin` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join(""));
+    h += tpRadChips();
   }
+  return h;
+}
+/* ---------- the same menu on the Test property (DK P10 §2/§3, audit LAY6/LAY7/TP11/TP12) ----------
+   One switch per layer the property mini map actually draws, its filters underneath it, and nothing
+   drawn that has no switch. v2.0 had a chip row beside the map for three of the five layers, a
+   segmented radius control next to it, and two legends floating in the map corner that answered to
+   neither. Every row here writes the one `lay=` key the map route writes. */
+function anLayersMenu() {
+  const pt = anLoc(), r = pt ? anRes() : null;
+  const kom = r && r.kunta ? r.kunta.code : null, name = r && r.kunta ? r.kunta.name : "this municipality";
+  const koms = pt && r ? anPubKoms(pt, r) : [], srvKoms = pt && r ? anSrvKoms(pt, r) : [];
+  const hasMicro = microAvail(kom);
+  let h = `<div class="lyhead">Feature layers</div>`;
+  if (INFRA.length) h += lyRow("infra", ANL.infra, "Infra projects", `every project within ${nf((AN_INFRA_M + 1500) / 1000, 1)} km of the pin`, false,
+    "Planned, decided, under construction and opened projects drawn in their status tones");
+  if (PUB) {
+    h += lyRow("public", ANL.pub && koms.length > 0, "Public buildings", koms.length ? `${PUB_SRC_SHORT} · within ${nf(AN_PUB_MAP_M, 0)} m of the pin` : "not covered yet here", !koms.length,
+      koms.length ? "Schools, daycare, health and culture" : "Not covered yet: Helsinki region metro area only");
+    if (ANL.pub && koms.length) h += pubCatChips();
+  }
+  if (SRV) {
+    h += lyRow("services", ANL.srv && srvKoms.length > 0, "Services", srvKoms.length ? `${SRV_SRC_SHORT} · within ${nf(AN_SRV_M, 0)} m of the pin` : "not covered yet here", !srvKoms.length,
+      srvKoms.length ? "Shops, places to eat, pharmacies and public-transport stops" : `Not covered yet: no services file for ${name}`);
+    if (ANL.srv && srvKoms.length) h += srvCatChips();
+  }
+  h += lyRow("buildings", ANL.micro && hasMicro, "Buildings", hasMicro ? `${nf(MICRO_IDX[kcode(kom)].n, 0)} in ${name} · Ryhti register` : `no building file for ${name}`, !hasMicro,
+    hasMicro ? "Every register building with at least two dwellings" : `Not covered yet: no building file for ${name}`);
+  /* the zones are the active Climate indicator's own measurement drawn geometrically, so the row is
+     the reader's hide toggle and exists only while such an indicator is selected (LAY3) */
+  if (climFor(MK.ind)) { const c = CLIM_LAYERS.find(x => x.key === climFor(MK.ind));
+    h += `<div class="lyhead">Context</div>`;
+    h += lyRow("zones", !!MK.clim, c.label + " — zones", "shown because a Climate indicator is active", false,
+      "A return period is a probability, not a date: a 1-in-100 chance in any given year");
+    h += `<p class="lynote">Suomen ympäristökeskus's own flood-hazard map, drawn live from its WMS — never redrawn here.</p>`;
+  }
+  h += `<div class="lyhead">Test property</div>`;
+  h += lyRow("rings", ANL.rings, "Radius rings", `dashed at ${TP_RINGS.map(m => nf(m, 0) + " m").join(" · ")}`, false,
+    "The walk and bike rings around the pin — the scale every distance on this page is read against");
+  h += `<p class="lynote">The distance the infra, public-building and services layers are filtered to. "Any" draws everything within each layer's own reach.</p>`;
+  h += tpRadChips();
   return h;
 }
 function layersToggle() { UI.lyOpen = !UI.lyOpen;
@@ -1586,6 +1666,7 @@ function layersRefresh() { const el = document.querySelector(".lypop"); if (el) 
     b.classList.toggle("on", !!n); b.innerHTML = `Layers ▾${n ? `<span class="tbn">${n}</span>` : ""}`; } }
 /* one switch does one thing, and the menu redraws itself rather than the page */
 function layerToggle(key) {
+  if (S.view === "property") return anLayerToggle(key);
   if (key === "infra") MK.infra = !MK.infra;
   else if (key === "public") MK.pub = !MK.pub;
   else if (key === "services") MK.srv = !MK.srv;
@@ -1599,6 +1680,20 @@ function layerToggle(key) {
                 climLayers(); setInfraLegend(); setPublicLegend(); setServicesLegend(); }
   layersRefresh();
   const cl = document.getElementById("climlegend"); if (cl) cl.innerHTML = climLegendHtml() + wmsLegendHtml();
+}
+/* The property's half of the same switch. It never re-renders the page: `anMapOverlays()` redraws
+   every overlay from `ANL`, which is what makes "off removes the markers *and* the legend at once"
+   true, and what stops an async loader landing later from re-adding a layer the reader switched off
+   (DK P10 §3). The reader's own zoom and any open popup survive. */
+function anLayerToggle(key) {
+  if (key === "infra") ANL.infra = !ANL.infra;
+  else if (key === "public") ANL.pub = !ANL.pub;
+  else if (key === "services") ANL.srv = !ANL.srv;
+  else if (key === "buildings") ANL.micro = !ANL.micro;
+  else if (key === "rings") ANL.rings = !ANL.rings;
+  else if (key === "zones") { MK.clim = MK.clim ? "" : climFor(MK.ind); AN.zonesOff = !MK.clim; }
+  else return;
+  syncHash(); anMapOverlays(); layersRefresh();
 }
 
 /* the one segmented level switch, on row 1, when a kunta is drilled into */
@@ -2347,7 +2442,7 @@ function studyRow(e, ind, mapId, mapHint, extraLegends) {
 /* The feature-layer legends on the Test property map, in one flex column so they stack instead of
    piling on top of each other — v1.1 drew the public-buildings card and the infra card at the same
    corner and they overlapped whenever both layers were on. */
-const TP_LEGENDS = `<div class="maplegend small publiclegend" data-testid="legend-public" id="anpublegend"></div><div class="maplegend small infralegend" data-testid="legend-infra" id="aninfralegend"></div><div class="maplegend small" data-testid="legend-buildings" id="anmicrolegend"></div>`;
+const TP_LEGENDS = `<div class="maplegend small climlegend" data-testid="legend-zones" id="anclimlegend"></div><div class="maplegend small publiclegend" data-testid="legend-public" id="anpublegend"></div><div class="maplegend small serviceslegend" data-testid="legend-services" id="ansrvlegend"></div><div class="maplegend small infralegend" data-testid="legend-infra" id="aninfralegend"></div><div class="maplegend small" data-testid="legend-buildings" id="anmicrolegend"></div>`;
 
 function vArea() {
   const e = areaEntity();
@@ -2538,17 +2633,22 @@ function climLayers() {
     attribution: 'Flood zones © Suomen ympäristökeskus (CC BY 4.0)',
   }).addTo(LF.map);
 }
-function climLegendHtml() {
+/* `compact` is the property mini map's half: a feature legend there starts folded to its title,
+   the way `mmFoldable()` folds every other one, and the two long captions stay on the macro map —
+   the sheet's own Climate section says the same sentences at length a screen below. */
+function climLegendHtml(compact) {
   const c = climLayer(); if (!c) return "";
-  return `<details class="ollegend" ${UI.climLegOpen ? "open" : ""} data-climleg>
+  return `<details class="ollegend" ${!compact && UI.climLegOpen ? "open" : ""} data-climleg>
     <summary><b>Flood zones</b> <span class="dim">${esc(c.label)}</span></summary>
     <div class="ollbody">${CLIM_LEGEND.map(([col, lab]) =>
       `<span class="olrow"><i style="background:${col}"></i>${esc(lab)}</span>`).join("")}
-      <p class="cap">Suomen ympäristökeskus's own flood-hazard map, drawn live from its WMS.
+      ${compact ? `<p class="cap"><b>${esc(c.label.split(" · ").pop())} is a probability, not a date.</b>
+        Blank does not mean safe — SYKE maps designated areas only.</p>`
+      : `<p class="cap">Suomen ympäristökeskus's own flood-hazard map, drawn live from its WMS.
         <b>1/100a is a probability, not a date</b> — a 1-in-100 chance in any given year.
         Blank does not mean safe: SYKE maps designated areas only, and the
         <b>Flood-mapped</b> indicator says how much of an area has been assessed.</p>
-      <p class="cap">${esc(CLIM_DISCLAIMER)}</p></div></details>`;
+      <p class="cap">${esc(CLIM_DISCLAIMER)}</p>`}</div></details>`;
 }
 const CLIM_DISCLAIMER = "Screening indicators for comparing areas, not a property-level risk assessment.";
 /* ---------- Infrastructure projects overlay (data/geo/infra_projects.geojson, see docs/INFRA.md) ---------- */
@@ -3301,7 +3401,21 @@ const AN_PUB_MAP_M = 2000;         /* public buildings drawn around the pin — 
 const anPubKoms = (pt, r) => anKomsNear(pt, r && r.kunta && r.kunta.code, AN_RING_M).filter(pubAvail);
 const anPubRows = (pt, koms) => koms.flatMap(k => ((PUB_FILES[k] || {}).buildings || []))
   .filter(b => pubCatOn(b.cat) && pubKindOn(b.kind) && (b.kind === "existing" || b.recent)
-    && havM(pt.lat, pt.lon, b.lat, b.lon) <= AN_PUB_MAP_M);
+    && havM(pt.lat, pt.lon, b.lat, b.lon) <= AN_PUB_MAP_M && tpWithin(b.lat, b.lon));
+/* --- Services on the property map (DK P10 §2, audit TP11) ---
+   The same four categories, the same filters and the same colours as the macro map. What differs is
+   the bound: here the set is everything within `AN_SRV_M` of the pin, not everything in the
+   viewport, so the per-category zoom floors — which exist only to stop a national view drawing
+   95 000 bus stops — do not apply. Two kilometres around one address is a few hundred points. */
+const AN_SRV_M = 2000;
+const srvAvail = code => !!(SRV && code && SRV.kunnat[kcode(code)]);
+const anSrvKoms = (pt, r) => anKomsNear(pt, r && r.kunta && r.kunta.code, AN_SRV_M).filter(srvAvail);
+const anSrvRows = (pt, koms) => koms.flatMap(k => SRV_FILES[kcode(k)] || [])
+  .filter(p => srvCatOn(p.cat) && (p.cat !== "transport" || srvModeOn(p.sub))
+    && havM(pt.lat, pt.lon, p.lat, p.lon) <= AN_SRV_M && tpWithin(p.lat, p.lon));
+/* the located pin, for the menu and the overlays — `locate()` is cheap and already run per render */
+function anRes() { const pt = anLoc(); if (!pt || (!KOM.list && !KOM.err)) return null;
+  const r = locate(pt.lat, pt.lon); return r && !r.error ? r : null; }
 /* Leaflet swallows clicks inside a popup, so the page links are wired when one opens — the same set the
    Macro map rewires, which is what makes "Open … sheet ›" work from a popup on this map too. */
 function anPopupWire(popup) {
@@ -3314,13 +3428,15 @@ function anPopupWire(popup) {
   el.querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => {
     if (popup._updateLayout) { popup._updateLayout(); popup._updatePosition(); popup._adjustPan(); } }));
 }
-/* The three overlays on the mini map, redrawn in place (never a full re-render, so an open popup and the
-   reader's zoom survive a file landing). Each one fills or hides its own legend box. */
+/* Every overlay on the mini map, redrawn in place (never a full re-render, so an open popup and the
+   reader's zoom survive a file landing). Each one fills or hides its own legend box, and each one is
+   drawn from `ANL` alone — which is what makes an async loader landing after the reader switched a
+   layer off unable to put it back (DK P10 §3, audit LAY7/TP12). */
 function anMapOverlays() {
   const map = LF.anmap, pt = LF.anPt, r = LF.anR;
   if (!map || !pt || !document.getElementById("anmap")) return;
   if (ANL.infra && !INFRA_GEO.done) { infraLoad(() => anMapOverlays()); }
-  ["anInfraG", "anInfraHitG", "anPubG", "anMicroG"].forEach(k => { if (LF[k]) { try { map.removeLayer(LF[k]); } catch (e) {} LF[k] = null; } });
+  ["anInfraG", "anInfraHitG", "anPubG", "anSrvG", "anSrvStG", "anMicroG"].forEach(k => { if (LF[k]) { try { map.removeLayer(LF[k]); } catch (e) {} LF[k] = null; } });
 
   /* --- a. infrastructure, in its status tones, with the project popup the Macro map opens --- */
   const inf = ANL.infra ? INFRA.map(f => ({ f, d: featDistM(f, pt.lat, pt.lon) })).filter(x => x.d != null && x.d <= AN_INFRA_M + 1500) : [];
@@ -3364,7 +3480,35 @@ function anMapOverlays() {
     `${koms.length} municipality file${koms.length === 1 ? "" : "s"}`,
     waiting ? ` · loading ${waiting} more…` : ` · within ${nf(AN_PUB_MAP_M, 0)} m of the pin`, gradeMode(true));
 
-  /* --- c. buildings, lazy: the micro file is only fetched once the pill is on --- */
+  /* --- c. services, the macro map's four categories cut to the ring around the pin (TP11) --- */
+  const srvKoms = anSrvKoms(pt, r), srvOn = ANL.srv && !!SRV && srvKoms.length > 0;
+  let srvRowsN = [];
+  if (srvOn) {
+    srvKoms.forEach(srvLoad);
+    srvRowsN = anSrvRows(pt, srvKoms);
+    const [dots, stations] = srvMarkers(srvRowsN, map);
+    LF.anSrvG = L.layerGroup(dots).addTo(map);
+    LF.anSrvStG = L.layerGroup(stations).addTo(map);
+  }
+  const srvLeg = document.getElementById("ansrvlegend");
+  if (srvLeg) {
+    srvLeg.style.display = srvOn ? "" : "none";
+    srvLeg.innerHTML = srvOn ? srvLegendHtml({ floors: false, n: srvRowsN.length,
+      note: `within ${nf(AN_SRV_M, 0)} m of the pin`,
+      waiting: srvKoms.filter(k => !SRV_FILES[kcode(k)] && !SRV_FILES["_error_" + kcode(k)]).length }) : "";
+    if (srvOn) mmFoldable("ansrvlegend");
+  }
+
+  /* --- d. the publisher's flood zones, when a Climate indicator is the one on screen (TP14/MM6) --- */
+  const cz = MK.clim ? climLayer() : null;
+  if (LF.anClimL) { try { map.removeLayer(LF.anClimL); } catch (e) {} LF.anClimL = null; }
+  if (cz) LF.anClimL = L.tileLayer.wms(CLIM_WMS, { layers: cz.layer, format: "image/png", transparent: true,
+    version: "1.3.0", opacity: .75, pane: "climPane", crossOrigin: true,
+    attribution: "Flood zones © Suomen ympäristökeskus (CC BY 4.0)" }).addTo(map);
+  const czLeg = document.getElementById("anclimlegend");
+  if (czLeg) { czLeg.style.display = cz ? "" : "none"; czLeg.innerHTML = cz ? climLegendHtml(true) : ""; }
+
+  /* --- e. buildings, lazy: the micro file is only fetched once the switch is on --- */
   const kom = r && r.kunta ? r.kunta.code : null;
   const microOn = ANL.micro && microAvail(kom);
   const mLeg = document.getElementById("anmicrolegend");
@@ -3383,8 +3527,28 @@ function anMapOverlays() {
     mLeg.style.display = loading ? "" : "none";
     mLeg.innerHTML = loading ? `<div class="lgtitle">Buildings<span>loading ${esc((byCode[kom] || {}).name || "")}…</span></div>` : "";
   }
+  /* --- f. the radius rings: a drawn layer, so it has a switch of its own (DK P10 §3) --- */
+  anRings();
   /* the pin and its rings stay on top of every overlay */
+  if (LF.anRingG) LF.anRingG.eachLayer(l => { if (l.bringToFront) l.bringToFront(); });
   if (LF.anPinG) LF.anPinG.eachLayer(l => { if (l.bringToFront) l.bringToFront(); });
+}
+/* The dashed walk/bike rings around the pin, plus a solid one for the active radius filter. Drawn
+   from `ANL.rings` on every overlay pass, so the switch and the radius chips both land at once. */
+function anRings() {
+  const map = LF.anmap, pt = LF.anPt; if (!map || !pt) return;
+  if (LF.anRingG) { try { map.removeLayer(LF.anRingG); } catch (e) {} LF.anRingG = null; }
+  if (!ANL.rings) return;
+  const col = cssVar("--pin", "#33372C"), ll = [pt.lat, pt.lon];
+  const rings = TP_RINGS.map(m => L.circle(ll, { radius: m, color: col, weight: 1, opacity: .8, dashArray: "5 6", fill: false, interactive: false }));
+  if (TP.rad) rings.push(L.circle(ll, { radius: TP.rad, color: col, weight: 1.6, opacity: .9, fill: true, fillOpacity: .05, interactive: false }));
+  LF.anRingG = L.layerGroup(rings).addTo(map);
+}
+/* the frame the map opens on — the outermost dashed ring, computed rather than measured off a
+   Leaflet circle, so it is the same box whether or not the rings are switched on */
+function anRingBounds(pt, m) {
+  const dLat = m / 110540, dLon = m / (111320 * Math.cos(pt.lat * Math.PI / 180));
+  return [[pt.lat - dLat, pt.lon - dLon], [pt.lat + dLat, pt.lon + dLon]];
 }
 function anMapInit() {
   const el = document.getElementById("anmap"); if (!el || typeof L === "undefined") return;
@@ -3410,18 +3574,18 @@ function anMapInit() {
     const t = sc.t(useQ ? own : micro && own != null ? own : V(byCode[a.muni], ind.key));
     L.polygon(a.rings, { color: "#FFFFFF", weight: .8, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .5, interactive: false }).addTo(map);
   });
-  const col = cssVar("--pin", "#33372C"), ll = [pt.lat, pt.lon];
-  const rings = TP_RINGS.map(m => L.circle(ll, { radius: m, color: col, weight: 1, opacity: .8, dashArray: "5 6", fill: false, interactive: false }));
-  LF.anPinG = L.layerGroup(rings.concat([
-    L.marker(ll, { icon: L.divIcon({ className: "tp-pin", iconSize: [22, 22], iconAnchor: [11, 11], html: "<i></i>" }), zIndexOffset: 1200, interactive: false })])).addTo(map);
+  const ll = [pt.lat, pt.lon];
+  /* the pin is the page, so it is never a switchable layer; the rings around it are (`anRings`) */
+  LF.anPinG = L.layerGroup([
+    L.marker(ll, { icon: L.divIcon({ className: "tp-pin", iconSize: [22, 22], iconAnchor: [11, 11], html: "<i></i>" }), zIndexOffset: 1200, interactive: false })]).addTo(map);
   map.on("popupopen", ev => anPopupWire(ev.popup));
   /* the public zoom rule and the building dot size both follow the zoom, as on the Macro map */
   map.on("zoomend", () => { LF.anZoom = map.getZoom(); anMapOverlays(); });
   anMapOverlays();
-  /* a pill toggle re-renders the sheet, so the reader's own zoom is kept rather than re-fitted */
+  /* a layer switch redraws in place, so the reader's own zoom is kept rather than re-fitted */
   const key = `${pt.lat},${pt.lon}`;
   if (LF.anKey === key && LF.anZoom) map.setView(ll, LF.anZoom);
-  else { map.fitBounds(rings[rings.length - 1].getBounds(), { padding: [14, 14] }); LF.anKey = key; LF.anZoom = map.getZoom(); }
+  else { map.fitBounds(anRingBounds(pt, TP_RINGS[TP_RINGS.length - 1]), { padding: [14, 14] }); LF.anKey = key; LF.anZoom = map.getZoom(); }
   setLegend("anmaplegend", sc, ind, ind.key, useQ ? "osa-alueet" : micro ? "postal codes" : "kunnat");
 }
 /* --- e. infrastructure nearby --- */
@@ -3587,26 +3751,10 @@ function tpHead(pt, r, e) {
     <div class="tools"><button class="lk primary" data-go="${esc(back)}">Open on map ›</button>
       ${e ? `<button class="lk" data-go="${withQ(pageOf(e.o))}">${esc(e.name)} ›</button>` : ""}
       <a class="lk" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${pt.lat}&mlon=${pt.lon}#map=17/${pt.lat}/${pt.lon}">OpenStreetMap ↗</a>
-      <button class="lk" data-ancopy>Copy link</button></div>
+      <button class="lk" data-ancopy>Copy link</button>${exportBtn("prop")}</div>
     ${e ? headlineHtml(e) : ""}
     ${e ? `<p class="cap">Figures are read on the pin's finest published area — ${esc(e.typeLabel.toLowerCase())} <b>${esc(e.name)}</b>. A figure that area does not publish is its kunta's, and says so.</p>` : ""}
   </div>`;
-}
-/* the mini map's own controls: the radius rings and the three feature layers */
-function tpMapTools(pt, r) {
-  const koms = anPubKoms(pt, r);
-  const kom = r && r.kunta ? r.kunta.code : null, name = r && r.kunta ? r.kunta.name : "this municipality";
-  const hasMicro = microAvail(kom);
-  const chip = (k, label, on, dis, tip) => `<button class="lychip ${on ? "on" : ""}" data-anlay="${k}" ${dis ? "disabled" : ""} title="${esc(tip)}"><i></i>${esc(label)}</button>`;
-  return `<div class="tpmaptools">
-    <span class="seg tprad" role="group" aria-label="Radius rings">${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}">${m ? esc(tpRadLabel(m)) : "Rings"}</button>`).join("")}</span>
-    <span class="lychips">
-      ${INFRA.length ? chip("infra", "Infra", ANL.infra, false, `Every project within ${nf((AN_INFRA_M + 1500) / 1000, 1)} km of the pin`) : ""}
-      ${PUB ? chip("public", "Public buildings", ANL.pub && koms.length > 0, !koms.length,
-          koms.length ? `Schools, daycare, health and culture within ${nf(AN_PUB_MAP_M, 0)} m` : "Not covered yet: Helsinki region metro area only") : ""}
-      ${chip("buildings", "Buildings", ANL.micro && hasMicro, !hasMicro,
-          hasMicro ? `Register buildings with ≥ 2 dwellings in ${name}` : `Not covered yet: no building file for ${name}`)}
-    </span></div>`;
 }
 function vAnalysis() {
   const pt = anLoc();
@@ -3638,10 +3786,9 @@ function vAnalysis() {
   return `
   ${tpHead(pt, r, e)}
   <div class="card accent">
-    <div class="card-head tools-only"><div class="tools" data-row="1">${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
+    <div class="card-head tools-only"><div class="tools" data-row="1">${layersBtn()}${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
   </div>
-  ${studyRow(e, ind, "anmap", `${esc(e.typeLabel.toLowerCase())} ${esc(e.name)} · rings at ${TP_RINGS.map(m => nf(m, 0) + " m").join(" · ")}`, TP_LEGENDS)}
-  ${tpMapTools(pt, r)}
+  ${studyRow(e, ind, "anmap", `${esc(e.typeLabel.toLowerCase())} ${esc(e.name)} · rings out to ${nf(TP_RINGS[TP_RINGS.length - 1] / 1000, 1)} km`, TP_LEGENDS)}
   <div class="seclist">
     ${showSec(show, "infra", "Infrastructure nearby", `<span class="dim">within ${nf(AN_INFRA_M / 1000, 0)} km</span>`, anInfraCard(pt), "tp-sec-infra")}
     ${showSec(show, "public", `Public buildings within ${nf(AN_RING_M, 0)} m`, "", `<div id="anpub">${anPubCard(pt, r)}</div>`, "tp-sec-public")}
@@ -4303,7 +4450,10 @@ function pubSetFilter({ cats, kind }) {
   if (cats !== undefined) PF.cats = cats;
   if (kind !== undefined) PF.kind = kind;
   LF.pubDrawn = null;              /* the view did not move, but what belongs on it changed */
-  syncHash(); renderKeep();
+  syncHash();
+  /* the property map redraws in place: a filter chip must not cost the reader their zoom */
+  if (S.view === "property") { anMapOverlays(); anFill(); return; }
+  renderKeep();
 }
 /* every loaded building that passes the filter, before the zoom rule */
 function pubAll() {
@@ -4641,7 +4791,9 @@ function srvSetFilter(cats, tmodes) {
   if (SF.cats.has("transport") && !SF.tmodes.size) SF.tmodes = new Set(SRV_DEFAULT_MODES);
   LF.srvDrawn = null;                     /* the viewport did not move, but what belongs on it changed */
   lfDrop("srvG", "srvStG");               /* drop before the rebuild, never leave a group behind */
-  syncHash(); renderKeep();
+  syncHash();
+  if (S.view === "property") { anMapOverlays(); return; }
+  renderKeep();
 }
 /* the zoom a category needs before it is drawn at all */
 function srvCatZoom(cat) {
@@ -4665,8 +4817,10 @@ function srvLoad(code) {
         name: p[4] || "", extra: p[5] || null, src: p[6] || "osm", kom: k }));
       delete SRV_FILES["_loading_" + k];
       if (MK.srv && LF.map) lfServicesLayers(true);
+      if (ANL.srv && LF.anmap) anMapOverlays();
     })
-    .catch(() => { delete SRV_FILES["_loading_" + k]; SRV_FILES["_error_" + k] = true; });
+    .catch(() => { delete SRV_FILES["_loading_" + k]; SRV_FILES["_error_" + k] = true;
+      if (ANL.srv && LF.anmap) anMapOverlays(); });
 }
 /* The lowest zoom at which *anything* enabled would be drawn. Below it nothing is
    fetched: the national view intersects all 99 bounding boxes, and loading 2,6 MB to
@@ -4765,6 +4919,14 @@ function lfServicesLayers(force) {
   LF.srvDrawn = { zoom: LF.map.getZoom(), bounds: LF.map.getBounds().pad(0.15) };
   const rows = srvRows();
   LF.srvN = rows.length;
+  const [dots, stations] = srvMarkers(rows, LF.map);
+  LF.srvG = L.layerGroup(dots).addTo(LF.map);
+  LF.srvStG = L.layerGroup(stations).addTo(LF.map);
+  setServicesLegend();
+}
+/* the markers themselves, for whichever map asked: [dots, stations]. Every renderer and pane comes
+   from `amOf(map)`, so the property mini map never draws through the macro map's layers (TP16). */
+function srvMarkers(rows, map) {
   const touch = srvCoarse(), rDot = touch ? 6.5 : 4.5, rSt = touch ? 9 : 7;
   const dots = [], stations = [];
   rows.forEach(p => {
@@ -4775,24 +4937,29 @@ function lfServicesLayers(force) {
       const m = L.circleMarker([p.lat, p.lon], { pane: "srvpane", radius: rSt, color: col, weight: 2.2, opacity: .95,
         fillColor: col, fillOpacity: .9, className: "infra-shape srv-station" });
       m.on("mouseover", () => { m.setRadius(rSt + 2); halo.setRadius(rSt + 4); }).on("mouseout", () => { m.setRadius(rSt); halo.setRadius(rSt + 2); });
-      m.on("click", e => L.popup({ maxWidth: 420, autoPanPadding: [24, 24] }).setLatLng(e.latlng || [p.lat, p.lon]).setContent(srvPopup(p)).openOn(LF.map));
+      m.on("click", e => L.popup({ maxWidth: 420, autoPanPadding: [24, 24] }).setLatLng(e.latlng || [p.lat, p.lon]).setContent(srvPopup(p)).openOn(map));
+      m._srv = p;
       stations.push(halo, m);
     } else {
       /* the dense categories go on the canvas renderer — thousands of SVG paths would stall the pan */
-      const m = L.circleMarker([p.lat, p.lon], { renderer: amOf(LF.map).srv, pane: "srvpane", radius: rDot,
+      const m = L.circleMarker([p.lat, p.lon], { renderer: amOf(map).srv, pane: "srvpane", radius: rDot,
         color: "#FFFFFF", weight: 1.4, opacity: .95, fillColor: col, fillOpacity: 1 });
-      m.on("click", e => L.popup({ maxWidth: 420, autoPanPadding: [24, 24] }).setLatLng(e.latlng || [p.lat, p.lon]).setContent(srvPopup(p)).openOn(LF.map));
+      m.on("click", e => L.popup({ maxWidth: 420, autoPanPadding: [24, 24] }).setLatLng(e.latlng || [p.lat, p.lon]).setContent(srvPopup(p)).openOn(map));
+      m._srv = p;
       dots.push(m);
     }
   });
-  LF.srvG = L.layerGroup(dots).addTo(LF.map);
-  LF.srvStG = L.layerGroup(stations).addTo(LF.map);
-  setServicesLegend();
+  return [dots, stations];
 }
 
 /* ---- legend, which is also the filter ---- */
-function srvLegendHtml() {
-  const z = srvZoom(), n = LF.srvN || 0;
+/* `opts` is the property map's half: there the set is bounded by the ring around the pin rather
+   than by the viewport, so the zoom floors that exist to cap a national marker count do not apply
+   (`floors: false`) and the counts line says what the ring holds, not what is in view. */
+function srvLegendHtml(opts) {
+  opts = opts || {};
+  const floors = opts.floors !== false;
+  const z = floors ? srvZoom() : Infinity, n = opts.n != null ? opts.n : (LF.srvN || 0);
   /* keys only — the category and transport-mode switches live in Layers ▾ */
   const catRow = (k, c) => {
     if (!srvCatOn(k)) return "";
@@ -4818,8 +4985,10 @@ function srvLegendHtml() {
     ${modeRow}
     ${!SF.cats.size ? `<div class="lgrow gk allhidden">All categories hidden — switch one back on in Layers ▾</div>` : ""}
     ${hints.length ? `<div class="lgnote srvhint">Zoom in to see ${esc(hints.join(", ").toLowerCase())}</div>` : ""}
+    ${opts.waiting ? `<div class="lgrow pubload"><i class="skel"></i>loading ${opts.waiting} municipalit${opts.waiting === 1 ? "y" : "ies"}…</div>` : ""}
     <div class="lgnote">${!SF.cats.size ? "nothing drawn"
-      : `${nf(LF.srvN || 0, 0)} drawn in view${n >= SRV_MAX_MARKERS ? " · at the drawing ceiling — zoom in" : ""}`}</div>`;
+      : opts.note ? `${nf(n, 0)} ${opts.note}`
+      : `${nf(n, 0)} drawn in view${n >= SRV_MAX_MARKERS ? " · at the drawing ceiling — zoom in" : ""}`}</div>`;
 }
 function setServicesLegend() {
   mmFoldLater("serviceslegend");

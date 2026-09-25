@@ -234,3 +234,97 @@ the old spellings are still readable, and `V3-map-lay-key` is the check that say
   every time the widths are checked (SRCH7 passed at 1440, 1366 and 390 without a single offset).
 - Seen in the V3 screenshots and still **not** fixed: the 390 `Legend ▾` pill over the attribution
   line and the clipped RENT tile — both still V6 (TILE5).
+
+---
+
+## V4 — the Test property: one `Layers ▾`, Services, the full indicator list ☑
+
+Audit rows closed: **LAY6, LAY7, LAY8, TP3, TP10, TP11, TP12, TP13, TP14, TP17, TP18, PICK11** and
+**MM6's property half** — every MUST the audit assigned to V4, plus its one "if there is room" row
+(TP17). Gate: `./overnight.sh gate V4` green — build ✓, **70 node tests** ✓, **95 ui checks** ✓
+(86 + 8 new, and one new sweep route), budgets `src/app.js` 419 KB / 460, `src/style.css` 140 KB / 165.
+The python unit suite is still red on the one pre-existing false positive (GLOB5) and is still
+informational.
+
+**Built**
+
+1. **One `Layers ▾` on the Test property** (DK P10 §3; LAY6, LAY7, LAY8, TP12). `tpMapTools()` — the
+   chip row and the segmented radius control beside the map — is **deleted**, with its CSS.
+   `layersBtn()` now sits on the property toolbar (`Layers ▾ · Indicator ▾ · Period`, the map's own
+   row 1 order) and `layersMenu()` branches to **`anLayersMenu()`**: one `lyRow()` switch per layer
+   the map actually draws — **infra · public buildings · services · buildings · flood zones ·
+   radius rings** — each with its filters underneath it, and the radius chips at the bottom. The
+   category chips are written once now (`pubCatChips()`, `srvCatChips()`, `tpRadChips()`) and used
+   by both menus, so the two cannot drift apart.
+   `anLayerToggle()` never re-renders the page: it writes `lay=` and calls `anMapOverlays()`, which
+   redraws **every** overlay from `ANL`/`MK.clim`. That one fact is what closes LAY7 — `pubLoad`,
+   `srvLoad`, `loadMicro` and `infraLoad` all land back in the same function, so a file arriving
+   after the reader switched a layer off cannot put it back.
+2. **Services on the property mini map** (DK P10 §2; TP11). `ANL.srv`, `anSrvKoms()` / `anSrvRows()`,
+   and `srvMarkers(rows, map)` extracted out of `lfServicesLayers()` so both maps build their
+   markers through `amOf(map)` — per-map panes and renderers, never the macro map's (TP16). Same
+   four categories, same colours, same popup, same `srv=` filter key, now written on the property
+   route too. Default **off**. The set is bounded by a 2 000 m ring around the pin rather than by
+   the viewport, so the zoom floors do not apply and the legend counts "within 2 000 m of the pin"
+   (DECISIONS V4). `legend-services` joined `TP_LEGENDS`.
+3. **The SYKE zones in the property mini map** (TP14, MM6's property half). `anMapOverlays()` adds
+   the publisher's own WMS in the map's own `climPane` (`LF.anClimL`) whenever a Climate indicator
+   is active, with a **folded** `legend-zones` card — `climLegendHtml(compact)` drops the two long
+   captions there, because the sheet's Climate section says them at length one screen below. The
+   `zones` row and `zones=0` now work identically on both routes.
+4. **The property picker is the area picker of the place the pin fell in** (DK P10 §4; TP13,
+   PICK11). `pickCtx()` takes `anEntity()` — `tpEntity()` dressed as an area-page entity — so the
+   list is `e.inds` and the rule is the area page's own `inherits()`: the pin's finest level's
+   indicators first, everything else under **From the municipality** with the `muni` tag. Climate
+   appears as its own group (the osa-alue layer publishes the four flood shares itself).
+   `curInds()` got the same branch, or `parseHash()`'s "is this indicator selectable here" guard
+   would reset an `ind=` the picker had just offered; both fall back to `IND_ANY` while the kunta
+   rings are still in flight.
+5. **`Export ▾` in the property header** (TP3) — the last action in `tpHead()`'s `.tools`, the same
+   component as the sidebar footer and the Data header, third and last place it is allowed to be.
+6. **The radius filter made real** (TP10). `parseHash()`'s property branch now fills `TP.lat/lon`
+   from `p=`, which arms `tpWithin()`; before tonight the control wrote `rad=` and nothing moved.
+   `anPubRows()` and `anSrvRows()` both honour it, and `anRings()` draws the solid filter ring.
+7. **TP18** — `.anhead .arid{flex:1 1 420px}` → `flex:1 1 100%`: at 1536 the header no longer splits
+   into two columns with the tiles starting at a different left edge than the title.
+   **TP17** — the mini-map note reads `… · rings out to 1,2 km` instead of spelling all three radii
+   and wrapping; the three are named once, in the `Radius rings` row of `Layers ▾`.
+
+**Checks added** (phase V4, eight): `V4-property-layers-menu`, `V4-property-services`,
+`V4-property-layer-off-sticks`, `V4-property-picker-groups`, `V4-property-climate`,
+`V4-property-export`, `V4-property-radius`, `V4-property-head-one-line` (1536×864). Plus one sweep
+route, `property_all_layers` (`…&ind=flood_sea_100&lay=infra,public,services,rings`), so the P10
+sweeps and the screenshot set cover a property with every layer on.
+No earlier check was deleted or weakened.
+
+**Deviations** (all in DECISIONS.md V4, with the reasoning)
+
+- **`rings` is a member of `lay=`**, so a property link written before tonight (`lay=infra,public`)
+  opens with the dashed rings off. DK P10 §3 lists the rings among the layers that must each have
+  exactly one switch, and `lay=` is the only place a property layer switch is written; a second
+  opt-out key would have put two spellings of one idea back into the serialiser.
+- **The services zoom floors are off on this map** — they exist to stop a national viewport asking
+  for 95 000 bus stops, and 2 km around one address is 39 points at the test pin.
+- **`TP` now carries the pin on `#property` too.** Harmless elsewhere: a map link with no `pin=`
+  clears it in `tpParse()`, and `pinCard()` still renders on `#map` only.
+- **`tests/ui_v2.spec.py` also reads `PHASE` / `ONLY` from `argv`** (`tests/ui_v2.spec.py V4 V4-`),
+  so a single phase can be driven from a shell that may run the file only by name.
+
+**What the next phase must know**
+
+- **`anMapOverlays()` is the pattern V5 needs for MM6's area half.** Everything the property map
+  draws goes through it, which is why "off means gone" and "an async file cannot re-add it" are one
+  statement rather than two. `arMapInit()` still has no zones at all and `climLayers()` still starts
+  `if (!LF.map) return` — give the area mini map its own tile layer the way `LF.anClimL` does, do
+  **not** widen `climLayers()`.
+- **`pickCtx()` and `curInds()` must agree, on every view.** They now do on three (area, property,
+  map). If V5's in-place refresh (PICK8) changes where the list comes from, change both.
+- **The property no longer re-renders on a layer, filter or radius click**, so V5's `tpRefresh()`
+  has less to do than the audit assumed: what is left is the *indicator* change (`indSet()` still
+  ends in `go(hashFor())`). `pubSetFilter()` and `srvSetFilter()` already branch on
+  `S.view === "property"` — that is the shape `tpRefresh()` should take.
+- **`srvMarkers(rows, map)` and `pubMarkers(rows, map, gm)` are the two per-map marker builders.**
+  A third map (V5's area mini map) uses those, never `lfServicesLayers()` / `lfPublicLayers()`,
+  which are the macro map's own and read `LF.map` throughout.
+- Seen in the V4 screenshots and still **not** fixed: the clipped RENT tile at 390
+  (`21,3 EUR/m²/mont`) and the 390 `Legend ▾` pill over the attribution line — both V6 (TILE5).

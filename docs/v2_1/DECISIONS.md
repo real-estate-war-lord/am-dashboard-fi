@@ -115,3 +115,55 @@ replaces one.
   behaviour outright, so the check now asserts the pin and the map. `P2-layers-menu` asserted
   `infra=1` in the hash — NAV6 replaces that spelling, so it asserts `lay=infra`. Both old spellings
   are still *readable* (the alias table), and `V3-map-lay-key` asserts that they are.
+- **V4** — **The radius rings are a member of `lay=`, so an old property link opens without them.**
+  DK P10 §3 lists "radius rings" among the layers that must each have exactly one switch, and the
+  property's `lay=` key is the only place a layer switch is written. `rings` therefore joins
+  `infra · public · services · buildings` there and is **on by default** — but a link written before
+  tonight (`…&lay=infra,public`) names the layers it wants, and `rings` is not among them, so it
+  opens with the rings off. Nothing is lost and no link breaks: the pin, the fill, the tiles and
+  every section are what they were, and one click in `Layers ▾` puts the rings back. The
+  alternative — a second opt-out key of the `zones=0` kind — would have put two spellings of one
+  idea back into the serialiser, which is exactly what NAV6/LAY4 existed to end.
+- **V4** — **The property map's services are bounded by the ring, not by the zoom.** The macro
+  map's per-category zoom floors (`SRV_CAT[k].zoom`, `SRV_TGROUP[g].zoom`) exist for one reason: a
+  national viewport would otherwise ask for ~95 000 bus stops. Two kilometres around one address is
+  a few hundred points at most — 39 at the test pin with the default filter — so the floors are
+  switched off on this map (`srvLegendHtml({floors: false})`) and the legend says "N within 2 000 m
+  of the pin" instead of "N drawn in view". A reader who zooms the mini map out therefore keeps
+  their services rather than watching them vanish at zoom 12.
+- **V4** — **`AN_SRV_M` is 2 000 m, the same reach as the public buildings on this map.** The cards
+  below count public buildings and schools inside 1 000 m (`AN_RING_M`); the *map* draws twice that
+  (`AN_PUB_MAP_M`) so the ring has a context to sit in. Services follow the map's rule, not the
+  card's, because there is no services card to disagree with.
+- **V4** — **The pin is not a switchable layer; its rings are.** `anMapInit()` used to put the
+  marker and the three dashed rings in one group. They are now separate (`LF.anPinG` /
+  `LF.anRingG`): the marker is the page and cannot be switched off, the rings are a drawn layer and
+  must be (DK P10 §3). The opening frame is computed from the outermost ring's radius
+  (`anRingBounds`) rather than measured off a Leaflet circle, so the map opens on the same box
+  whether the rings are on or off.
+- **V4** — **`TP` now carries the pin on the property route too.** Before tonight `TP.lat` was set
+  only by the map's `pin=`, so on `#property` the radius control wrote `rad=` into the URL and
+  `tpWithin()` — which is what the radius actually filters with — was never armed. `parseHash()`'s
+  property branch now fills `TP.lat/lon/label` from `p=`, which makes TP10 a real filter on this
+  page and costs nothing elsewhere: the map's own `tpParse(q)` clears `TP` when a map link carries
+  no `pin=`, and `pinCard()` still renders on `#map` only.
+- **V4** — **The property picker is the area picker of the place the pin fell in, not a flat
+  superset.** `pickCtx()` handed the property `IND ∪ IND_OSA` with `inherits: () => false`, which
+  listed every kunta figure as if the osa-alue published it. It now takes `tpEntity()`'s `inds` and
+  the area page's own `inherits()`, so the pin's finest level's indicators come first and the rest
+  land under **From the municipality** with the `muni` tag (DK P10 §4). `curInds()` got the same
+  branch — otherwise `parseHash()`'s "is this indicator selectable here" guard would have reset an
+  osa-alue-only `ind=` the picker had just offered. While the kunta rings are still loading nobody
+  knows the pin's level, so both fall back to `IND_ANY`, the union — a link's `ind=` must survive
+  the wait.
+- **V4** — **The flood zones on the property mini map are the same WMS the macro map draws, not a
+  second rendering.** `climLayers()` stays the macro map's; the property adds its own tile layer in
+  its own `climPane` inside `anMapOverlays()` (`LF.anClimL`), because every layer on this map is
+  redrawn from `ANL`/`MK.clim` in that one function and a layer that bypassed it would be exactly
+  the "async loader re-adds a layer that is off" bug DK P10 §3 is about. `zones=0` works on both
+  routes now and means the same thing on both.
+- **V4** — **`tests/ui_v2.spec.py` now also reads its phase and filter from `argv`.** It took
+  `PHASE` / `ONLY` / `SHOTS` from the environment only, and the night's tool allowlist admits the
+  file by name, not with a variable in front of it — so a phase could run the whole suite or
+  nothing. `tests/ui_v2.spec.py V4 V4-` is the same two settings as positional arguments; the
+  environment still wins nothing and loses nothing, and `make ui` is untouched.
