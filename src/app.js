@@ -341,16 +341,22 @@ function anParseLayers(q) {
   const set = new Set(q.lay.split(",").filter(Boolean));
   ANL.infra = set.has("infra"); ANL.pub = set.has("public"); ANL.micro = set.has("buildings");
 }
+/* the macro map's half of the same key, in the order the Layers ▾ menu lists the rows. The names
+   are the menu's own `data-layer` values, so the URL, the menu and the switch cannot drift apart. */
+const mapLayerList = () => [MK.infra ? "infra" : "", MK.pub ? "public" : "", MK.srv ? "services" : "",
+  MK.micro ? "buildings" : ""].filter(Boolean);
 /* Test property: one pin dropped from a pasted Google Maps link or a "lat, lon" pair (parseLocation, src/testprop.js).
    It lives in the map hash (pin=, pl=), so it survives a reload and every level change. */
 const TP_LABEL = "Test property";
 const TP_RINGS = [500, 1000, 1200];                                               /* metres — the dashed walk/bike rings */
-const TP = { lat: null, lon: null, label: TP_LABEL, res: null, msg: "", fit: false, rad: 0, toProp: false };
+const TP = { lat: null, lon: null, label: TP_LABEL, res: null, msg: "", fit: false, rad: 0 };
 /* Radius filter for a selected test property: the overlay layers (infra, public buildings,
    services) are cut to what lies within `rad` metres of the pin. It is plain great-circle
    arithmetic on published coordinates, and it lives in the hash (rad=), so it survives a
    reload, a zoom and every rung of the area ladder. 0 means off. */
 const TP_RADII = [0, 500, 1000, 2000, 5000];
+const TP_PIN_RAD = 1000;          /* metres — the radius a pin dropped from the search starts with */
+const TP_PIN_ZOOM = 13;           /* the zoom the map takes when a pin is dropped (DK P10 §1) */
 /* the address disambiguation list, when a typed street exists in more than one kunta.
    Declared here with the rest of the pin state: the map toolbar renders it, and a render
    during boot would otherwise hit the temporal dead zone. */
@@ -497,11 +503,12 @@ const isData = () => ["table", "pipeline", "sources"].includes(S.view);
 const dataTab = () => (DATA_TABS.find(t => t[2] === S.view) || DATA_TABS[0])[0];
 function hashFor() {
   const q = [`ind=${encodeURIComponent(MK.ind || "")}`]; if (MK.year && MK.year !== LATEST) q.push(`y=${MK.year}`);
-  if (S.view === "makro" && MK.micro) { q.push("micro=1"); q.push(`mind=${MK.mind}`); }
-  if (S.view === "makro" && MK.infra) q.push("infra=1");   /* the overlay survives every level change */
-  if (S.view === "makro" && MK.pub) q.push("public=1");
+  if (S.view === "makro" && MK.micro) q.push(`mind=${MK.mind}`);   /* which building figure, not a switch */
+  /* one key for the feature layers, the same `lay=` the property route writes (spec §4.4, NAV6/LAY4).
+     The v1.1 flags `infra=1&public=1&services=1&micro=1` are converted by the alias table, never here. */
+  if (S.view === "makro") { const lay = mapLayerList(); if (lay.length) q.push(`lay=${lay.join(",")}`); }
   if (MK.pub || S.view === "publist") q.push(...pubHashParts());
-  if (S.view === "makro" && MK.srv) { q.push("services=1"); q.push(...srvHashParts()); }
+  if (S.view === "makro" && MK.srv) q.push(...srvHashParts());
   /* `clim=` is derived from `ind=` and is never written; `zones=0` is the reader hiding them */
   if (S.view === "makro" && climFor(MK.ind) && !MK.clim) q.push("zones=0");
   if (S.view === "makro" && MK.wms) q.push(`wms=${MK.wms}`);
@@ -566,8 +573,11 @@ function parseHash() {
     CH.fq = q.fq === "q" ? "q" : "year"; CH.ov = q.ov ? q.ov.split(",").filter(Boolean) : []; CH.nat = q.nat !== "0"; }
   else { S.view = "makro"; MK.muni = parts[0] && byCode[parts[0]] ? parts[0] : null;
          MK.osaView = parts[1] === "postinumero" ? "postinumero" : "osa_alue";
-         MK.micro = q.micro === "1" && microAvail(MK.muni); if (q.mind && MICRO_INDS.some(i => i.key === q.mind)) MK.mind = q.mind;
-         MK.infra = q.infra === "1"; MK.pub = q.public === "1"; MK.srv = q.services === "1";
+         /* one key for the four feature layers; the v1.1 flags were converted by the alias table */
+         const lay = new Set((q.lay || "").split(",").filter(Boolean));
+         MK.infra = lay.has("infra"); MK.pub = lay.has("public"); MK.srv = lay.has("services");
+         MK.micro = lay.has("buildings") && microAvail(MK.muni);
+         if (q.mind && MICRO_INDS.some(i => i.key === q.mind)) MK.mind = q.mind;
          /* the SYKE zones are not a layer the reader switches on: they are the indicator's own
             measurement drawn geometrically, so they follow `ind=`. A v1.1 `clim=` link still works —
             it selects the matching Climate indicator instead. */
@@ -713,7 +723,7 @@ document.addEventListener("click", e => {
   if (g("[data-back]")) { history.back(); return; }
   if ((el = g("[data-ancopy]"))) { tpAction("copy", el); return; }
   if ((el = g("[data-pipe]"))) { const f = INFRA_BY[el.dataset.pipe];
-    go(f && f.properties.map !== false ? `map?ind=${encodeURIComponent(MK.ind)}&infra=1&focus=${encodeURIComponent(el.dataset.pipe)}` : `project/${el.dataset.pipe}`); return; }
+    go(f && f.properties.map !== false ? `map?ind=${encodeURIComponent(MK.ind)}&lay=infra&focus=${encodeURIComponent(el.dataset.pipe)}` : `project/${el.dataset.pipe}`); return; }
   if ((el = g("[data-project]"))) { go(`project/${el.dataset.project}`); return; }
   if (g("[data-exopen]")) { exportToggle(); return; }
   if ((el = g("[data-export]"))) { exportRun(el.dataset.export); return; }
@@ -722,7 +732,7 @@ document.addEventListener("click", e => {
     MK.micro = k === "buildings"; MK.osaView = k === "osa_alue" ? "osa_alue" : "postinumero";
     go(hashFor()); return; }
   if ((el = g("[data-tpexample]"))) { const i = document.getElementById("tpq");
-    if (i) { i.value = el.dataset.tpexample; i.focus(); } TP.toProp = true; tpGo(el.dataset.tpexample); return; }
+    if (i) { i.value = el.dataset.tpexample; i.focus(); } tpGo(el.dataset.tpexample); return; }
   if ((el = g("[data-legpill]"))) { const w = el.closest(".mapwrap");
     const on = w.classList.toggle("legs-open"); el.setAttribute("aria-expanded", on ? "true" : "false");
     el.textContent = on ? "Legend ▴" : "Legend ▾"; return; }
@@ -741,9 +751,10 @@ document.addEventListener("click", e => {
   if (g("[data-chcsv]")) { chartCsv(); return; }
   if (g("[data-chclear]")) { CH.areas = []; syncHash(); renderKeep(); return; }
   if ((el = g("[data-msi]"))) { msPick(Number(el.dataset.msi)); return; }
+  if (g("[data-pinrm]")) { tpAction("remove"); return; }
   if ((el = g("[data-tprad]"))) { TP.rad = TP_RADII.includes(Number(el.dataset.tprad)) ? Number(el.dataset.tprad) : 0;
     syncHash(); mkRefreshTools();
-    if (LF.map) { lfInfraLayers(); if (MK.pub) { lfPublicLayers(true); lfPublicLabels(); } if (MK.srv) lfServicesLayers(true); climLayers(); tpLayers(); }
+    if (LF.map) { layersRefresh(); lfInfraLayers(); if (MK.pub) { lfPublicLayers(true); lfPublicLabels(); } if (MK.srv) lfServicesLayers(true); climLayers(); tpLayers(); }
     return; }
   if ((el = g("[data-anlay]"))) { if (el.disabled) return; const k = el.dataset.anlay;
     if (k === "infra") ANL.infra = !ANL.infra; else if (k === "public") ANL.pub = !ANL.pub; else ANL.micro = !ANL.micro;
@@ -1225,8 +1236,10 @@ function msRows(q) {
   const out = [];
   /* a coordinate or a Google Maps link is answered before any name match: it is unambiguous */
   const loc = typeof parseLocation === "function" ? parseLocation(t) : { error: true };
+  /* the pin lands on this map and the reader stays here — the sheet is one click further, from
+     the pin card (DK P10 §1). The coordinates are the sub-line so the row still shows what it read. */
   if (!loc.error && !loc.address) out.push({ type: "coord", lat: loc.lat, lon: loc.lon,
-    name: `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}`, sub: "Open as a test property" });
+    name: "Drop a pin here", sub: `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}` });
   const tl = t.toLowerCase();
   const starts = [], has = [];
   for (const o of AREA_OPTS) {
@@ -1238,7 +1251,7 @@ function msRows(q) {
   /* a street address is the last resort: it costs a register lookup, so it is never the default */
   if (!loc.error && loc.address) out.push({ type: "addr", text: t,
     name: `${loc.address.street}${loc.address.house ? " " + loc.address.house + (loc.address.letter || "") : ""}`,
-    sub: `Address${loc.address.place ? " · " + loc.address.place : ""} — open as a test property` });
+    sub: `Address${loc.address.place ? " · " + loc.address.place : ""} — drop a pin here` });
   if (!out.length) out.push({ type: "none", name: `No area matches "${t}"`,
     sub: "try a kunta, a postinumero, an address or a Google Maps link" });
   out.push(...msJumpRows().filter(() => t.length < 3));
@@ -1252,13 +1265,13 @@ function mapSearch() {
   return `<div class="msearch" data-testid="search">
     <input id="mq" class="mqi" type="search" role="combobox" aria-expanded="false" aria-controls="mqpop"
       aria-autocomplete="list" autocomplete="off" aria-label="Search area, address, link or coordinates"
-      placeholder="${m ? esc(m.name) + " — search…" : "Search kunta, postinumero, osa-alue, address or lat, lon"}">
+      placeholder="${m ? esc(m.name) + " — search…" : "Search kunta, postinumero, address or coords…"}">
     <span class="mqtip" tabindex="0" role="note" title="${esc(msTip())}" aria-label="What this box accepts, and what happens to a location">?</span>
     <div class="mqpop" id="mqpop" role="listbox" hidden></div></div>`;
 }
 function msHtml() {
   return MS.rows.map((r, n) => `<div class="mqrow ${n === MS.i ? "on" : ""} mq-${r.type}" role="option"
-      aria-selected="${n === MS.i}" data-msi="${n}"><b>${esc(r.name)}</b><em>${esc(r.sub || "")}</em></div>`).join("");
+      aria-selected="${n === MS.i}" data-msi="${n}"${r.type === "coord" ? ' data-testid="search-coord"' : ""}><b>${esc(r.name)}</b><em>${esc(r.sub || "")}</em></div>`).join("");
 }
 function msRender() {
   const pop = document.getElementById("mqpop"), inp = document.getElementById("mq");
@@ -1276,8 +1289,10 @@ function msPick(n) {
   const inp = document.getElementById("mq"); if (inp) inp.blur();
   if (r.type === "jump") { mapJump(r.id); return; }
   if (r.type === "area") { go(withQ(r.h)); return; }
-  if (r.type === "coord") { TP.toProp = true; TP.label = ""; komLoad().then(() => tpDrop(r.lat, r.lon)); return; }
-  if (r.type === "addr") { TP.toProp = true; tpGo(r.text); return; }
+  /* a coordinate, a Google Maps link and an address all drop a pin on this map and leave the
+     reader on it (DK P10 §1); the sheet is one click further, from the pin card */
+  if (r.type === "coord") { TP.label = ""; komLoad().then(() => tpDrop(r.lat, r.lon)); return; }
+  if (r.type === "addr") { tpGo(r.text); return; }
 }
 function asofText(i) {
   const asofSrc = (MK.year !== LATEST && i.hist_asof && i.hist_asof[MK.year]) ? i.hist_asof[MK.year] : i.asof;
@@ -1499,8 +1514,8 @@ function upcomingLine(level, code) {
    Zoning · 1 km grid) and the Climate-risk segment with its four return-period pills. The
    sub-filters that used to live *inside* the floating legend cards move here too, so a legend is a
    legend: colour keys and a source line, nothing to click. */
-const layerCount = () => (MK.infra ? 1 : 0) + (MK.pub ? 1 : 0) + (MK.srv ? 1 : 0) + (MK.micro ? 1 : 0)
-  + (MK.wms ? 1 : 0) + (MK.clim ? 1 : 0);
+const layerCount = () => mapLayerList().length + (MK.wms ? 1 : 0) + (MK.clim ? 1 : 0)
+  + (TP.lat != null && TP.rad ? 1 : 0);   /* the radius filters every feature layer, so it counts as one */
 function layersBtn() {
   const n = layerCount();
   return `<div class="lywrap">
@@ -1550,6 +1565,14 @@ function layersMenu() {
     h += lyRow("zones", !!MK.clim, c.label + " — zones", "shown because a Climate indicator is active", false,
       "A return period is a probability, not a date: a 1-in-100 chance in any given year"); }
   h += `<p class="lynote">A context layer is the publisher's own map, drawn live from its WMS — never redrawn here.</p>`;
+  /* The test-property radius belongs here, not on row 1: row 1 is search · Layers ▾ · Indicator ▾ ·
+     Period and nothing else (AC-M1), and the radius is a filter on the layers this menu switches. */
+  if (TP.lat != null) {
+    h += `<div class="lyhead">Test property</div>`;
+    h += `<p class="lynote">Rings around <b>${esc(TP.label || TP_LABEL)}</b>, and the distance the infra, public-building and services layers are filtered to. The pin itself is removed from its card above the map.</p>`;
+    h += lyChips(TP_RADII.map(m => `<button class="lychip ${TP.rad === m ? "on" : ""}" data-tprad="${m}"
+      title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of the pin` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join(""));
+  }
   return h;
 }
 function layersToggle() { UI.lyOpen = !UI.lyOpen;
@@ -1596,8 +1619,7 @@ function levelSeg() {
    would re-run lfInit and tear the live map down in the middle of a zoom gesture.
    Row 1 is the whole toolbar: search · Layers ▾ · Indicator ▾ · Period (+ the level switch). */
 function mkTools() {
-  return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indPicker("ind") + periodControl("ind")}`
-    + `${TP.lat != null ? `<div class="seg tprad" role="group" aria-label="Filter overlays by distance from the test property"><span class="segl">Within</span>${TP_RADII.map(m => `<button class="sg ${TP.rad === m ? "on" : ""}" data-tprad="${m}" title="${m ? `Infra projects, public buildings and services within ${esc(tpRadLabel(m))} of ${esc(TP.label || TP_LABEL)}` : "No distance filter"}">${m ? esc(tpRadLabel(m)) : "Any"}</button>`).join("")}</div>` : ""}`;
+  return `${mapSearch()}${levelSeg()}${layersBtn()}${microMode() ? mindSelect() : indPicker("ind") + periodControl("ind")}`;
 }
 function mkRefreshStrip() {
   const st = document.getElementById("mkstrip"), mu = MK.muni ? byCode[MK.muni] : null;
@@ -1611,6 +1633,7 @@ function mkRefreshTools() {
   if (ex) ex.innerHTML = microMode() ? microExplain() : indExplain(curInd());
   const st = document.getElementById("mkstrip"), mu = MK.muni ? byCode[MK.muni] : null;
   if (st) st.innerHTML = mu && !microMode() ? muniStrip(mu) : "";
+  mkRefreshPin();
 }
 function vMakro() {
   if (!AREAS.length || !MUNI.length) return `<div class="card"><p class="empty">No macro data built yet — run <code>make fetch</code>, <code>make geo</code> and <code>make build</code>.</p></div>`;
@@ -1624,6 +1647,7 @@ function vMakro() {
       <div id="mkquick">${microMode() ? "" : indQuick()}</div><div class="tperr" id="tperr" role="status" ${TP.msg ? "" : 'style="display:none"'}>${esc(TP.msg)}</div><div class="tpchoices" id="tpchoices" ${TP_CHOICES ? "" : 'style="display:none"'}>${tpChoicesHtml()}</div></div>
     <div id="mkexplain">${microMode() ? microExplain() : indExplain(ind)}</div>
     <div id="mkstrip">${muni && !microMode() ? muniStrip(muni) : ""}</div>
+    <div id="mkpin">${pinCard()}</div>
     <div class="mapwrap" data-testid="map"><div id="lfmap"></div>${legendPill()}<div class="maplegs mklegs"><div class="maplegend climlegend" data-testid="legend-zones" id="climlegend">${climLegendHtml()}${wmsLegendHtml()}</div><div class="maplegend publiclegend" data-testid="legend-public" id="publiclegend"></div><div class="maplegend serviceslegend" data-testid="legend-services" id="serviceslegend"></div><div class="maplegend infralegend" data-testid="legend-infra" id="infralegend"></div><div class="maplegend" data-testid="legend" id="maplegend"></div></div></div>
     ${srcNote(`<p class="cap">${muni ? "Click a polygon for its figures and a link to its page." : "Click a polygon for its figures; open a municipality with the search box above or from the popup. Table view lists everything side by side."} Colour classes: quintiles of the visible areas. Boundaries: Tilastokeskus (simplified, CC BY 4.0); basemap OpenStreetMap.${MK.srv ? ` <b>Services:</b> ${esc(srvAttribLine())}.` : ""}</p>`)}
   </div>`;
@@ -3050,14 +3074,20 @@ function tpDrop(lat, lon) {
   const res = locate(lat, lon);
   if (res.error) { tpErr(`${lat.toFixed(5)}, ${lon.toFixed(5)} is ${res.error} — no municipality or postal code covers it.`); return; }
   if (!TP.label) TP.label = TP_LABEL;
-  /* already on the Test property page, or sent here by the unified search: straight to the sheet,
-     with the pin kept so the map picks it up later */
-  if (S.view === "property" || TP.toProp) { TP.toProp = false; TP.lat = lat; TP.lon = lon; TP.res = null; go(propLink(lat, lon, TP.label)); return; }
-  TP.fit = true;   /* the layer builder fits the map to the outer ring instead of the municipality */
-  /* drill to the pin's municipality at postal-code level with the ordinary navigation */
+  /* already on the Test property page: the box there replaces the pin in place (DK P10 §1, SRCH6).
+     Everywhere else the pin lands on the macro map and the reader stays there. */
+  if (S.view === "property") { TP.lat = lat; TP.lon = lon; TP.res = null; go(propLink(lat, lon, TP.label)); return; }
+  TP.fit = true;   /* the layer builder centres the map on the pin instead of the municipality */
+  /* a pin dropped from the search arrives with its rings already drawn — 1 km is the radius the
+     owner reads an area at, and it is what the rings and the overlay filter both use (DK P10 §1) */
+  if (!TP.rad) TP.rad = TP_PIN_RAD;
+  /* drill to the pin's municipality at postal-code level with the ordinary navigation. The feature
+     layers ride along in the one `lay=` key; `buildings` does not, it belongs to a level. */
+  const lay = mapLayerList().filter(k => k !== "buildings");
   go(`map/${res.kunta.code}${isOsaMuni(res.kunta.code) ? "/postinumero" : ""}?ind=${encodeURIComponent(MK.ind)}`
-     + (MK.year !== LATEST ? `&y=${MK.year}` : "") + (MK.infra ? "&infra=1" : "") + (MK.pub ? "&public=1" : "")
-     + `&pin=${lat.toFixed(5)},${lon.toFixed(5)}` + (TP.label !== TP_LABEL ? `&pl=${encodeURIComponent(TP.label)}` : ""));
+     + (MK.year !== LATEST ? `&y=${MK.year}` : "") + (lay.length ? `&lay=${lay.join(",")}` : "")
+     + `&pin=${lat.toFixed(5)},${lon.toFixed(5)}` + (TP.label !== TP_LABEL ? `&pl=${encodeURIComponent(TP.label)}` : "")
+     + `&rad=${TP.rad}`);
 }
 function tpParse(q) {
   const m = (q.pin || "").match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
@@ -3065,7 +3095,7 @@ function tpParse(q) {
   TP.lat = Number(m[1]); TP.lon = Number(m[2]); TP.label = q.pl || TP_LABEL;
   TP.rad = TP_RADII.includes(Number(q.rad)) ? Number(q.rad) : 0;
   /* the exact kunta needs the ring file; until it lands the popup says "approx." and then corrects itself */
-  if (!KOM.list && !KOM.err) komLoad().then(() => { if (S.view === "makro" && LF.map) tpLayers(); });
+  if (!KOM.list && !KOM.err) komLoad().then(() => { if (S.view === "makro" && LF.map) { tpLayers(); mkRefreshPin(); } });
 }
 function tpLayers() {
   if (!LF.map) return;
@@ -3080,8 +3110,37 @@ function tpLayers() {
   mark.bindPopup(() => tpPopup(), { maxWidth: 520, maxHeight: 520, autoPanPadding: [24, 24] });
   LF.tpG = L.layerGroup(rings.concat([mark])).addTo(LF.map);
   LF.tpMark = mark;
-  if (TP.fit) { TP.fit = false; LF.pendingFit = null; LF.map.fitBounds(rings[rings.length - 1].getBounds(), { padding: [18, 18] }); setTimeout(() => mark.openPopup(), 320); }
+  /* the map goes to the pin at a fixed, readable zoom rather than to the bounds of whichever ring
+     happens to be outermost — the radius is the reader's to change and must not move the camera.
+     No popup is opened: the pin card above the map already says what the popup would. */
+  if (TP.fit) { TP.fit = false; LF.pendingFit = null; LF.map.setView(ll, TP_PIN_ZOOM); }
 }
+/* ---------- the pin card (DK P10 §1, audit SRCH4) ----------
+   A pasted link, a `lat, lon` pair or an address picked in the unified search drops a pin and keeps
+   the reader on the macro map. This card is what the pin says on the page: its name, the coordinates
+   the app actually read, the three area names it fell in (finest first), and the two things there
+   are to do with it. It sits **in the flow** between the map area card and the map rather than
+   floating over the map, so it cannot cover the toolbar or the legend stack at any width (SRCH7) —
+   and the kunta's identity card and the pin's identity card end up next to each other. */
+function pinCard() {
+  if (S.view !== "makro" || TP.lat == null) return "";
+  const r = tpRes();
+  const names = r && !r.error
+    ? [r.osa_alue ? r.osa_alue.name : "", r.postinumero ? `${r.postinumero.nr} ${r.postinumero.name}` : "",
+       r.kunta ? r.kunta.name : ""].filter(Boolean).join(" › ")
+    : "";
+  const where = names || (r && r.error ? r.error : "locating…");
+  return `<div class="pincard" data-testid="pin-card" role="group" aria-label="The pin on the map">
+    <span class="pcmark" aria-hidden="true"></span>
+    <span class="pcbody"><b class="pclab">${esc(TP.label || TP_LABEL)}</b>
+      <em class="pcll">${TP.lat.toFixed(5)}, ${TP.lon.toFixed(5)}</em>
+      <span class="pcwhere">${esc(where)}${r && r.approx ? ` <span class="tag">approx.</span>` : ""}</span></span>
+    <span class="pcact">
+      <button class="lk mini primary" data-testid="pin-open" data-go="${propLink(TP.lat, TP.lon, TP.label)}"
+        title="Open this pin as a test property — every layer read against it">View test property ›</button>
+      <button class="lk mini pcx" data-pinrm aria-label="Remove the pin" title="Remove the pin">×</button></span></div>`;
+}
+function mkRefreshPin() { const el = document.getElementById("mkpin"); if (el) el.innerHTML = pinCard(); }
 function tpPopup() {
   const r = tpRes(); if (!r) return "";
   if (r.error) return `<div class="lfpop tppop"><b>${esc(TP.label || TP_LABEL)}</b><span class="dim">${TP.lat.toFixed(5)}, ${TP.lon.toFixed(5)} — ${esc(r.error)}</span>
@@ -3506,7 +3565,7 @@ function anEmpty() {
     <p class="anlead">Paste a Google Maps link, a <code>lat, lon</code> pair or a street address.
       <button class="lk mini" data-tpexample="${esc(ex)}">Try ${esc(ex)}</button></p>
     ${tpNote()}
-    <p class="cap">The page reads the pin's area statistics, the safety figures, every infrastructure project within ${nf(AN_INFRA_M / 1000, 0)} km and the public buildings and schools within ${nf(AN_RING_M, 0)} m. The same box sits on the map toolbar; a pin dropped there carries over.</p></div>`;
+    <p class="cap">The page reads the pin's area statistics, the safety figures, every infrastructure project within ${nf(AN_INFRA_M / 1000, 0)} km and the public buildings and schools within ${nf(AN_RING_M, 0)} m. The map's search box takes the same three things: a pin dropped there stays on the map, and its card opens this page.</p></div>`;
 }
 /* ---------- Test property (v2.0 P6) ----------
    One pin, read against every layer, on the same study row as the area page. The header says where

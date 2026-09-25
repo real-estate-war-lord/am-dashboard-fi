@@ -1624,6 +1624,33 @@ th .thn{display:inline}
 
 .tp-pin i{display:block;width:16px;height:16px;border-radius:50%;background:var(--pin);
   border:3px solid #fff;box-shadow:0 0 0 1px var(--pin),0 1px 5px rgba(0,0,0,.4)}
+
+/* --- the pin card (DK P10 §1) ---
+   The pin a pasted link drops on the macro map, said in words. It is a block in the page flow
+   between the map area card and the map — never a floating card — so there is no width at which
+   it can cover the toolbar above it or the legend stack inside the map below it. */
+.pincard{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  margin:9px 0 0;padding:8px 11px;border:1px solid var(--line);border-left:3px solid var(--pin);
+  border-radius:9px;background:var(--panel2)}
+.pincard .pcmark{flex:0 0 auto;width:11px;height:11px;border-radius:50%;background:var(--pin);
+  border:2px solid #fff;box-shadow:0 0 0 1px var(--pin)}
+.pincard .pcbody{flex:1 1 240px;min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 10px}
+.pincard .pclab{font-family:var(--disp);font-size:14.5px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.pincard .pcll{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.pincard .pcwhere{font-family:var(--mono);font-size:10.5px;color:var(--ink2);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pincard .pcact{flex:0 0 auto;display:flex;align-items:center;gap:6px;margin-left:auto}
+.pincard .pcx{font-size:13px;line-height:1;padding:2px 7px}
+@media (max-width:640px){
+  .pincard{gap:8px}
+  /* the dot would claim a line of its own once the body wraps; the pin-coloured left border
+     already says the same thing, and it is aria-hidden either way */
+  .pincard .pcmark{display:none}
+  .pincard .pcbody{flex:1 1 100%}
+  .pincard .pcwhere{white-space:normal}
+  .pincard .pcact{margin-left:0;flex:1 1 100%}
+  .pincard .pcact .primary{flex:1 1 auto;text-align:center}
+}
 .lfpop .tplab{font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:-.02em;color:var(--ink);
   width:100%;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 5px;margin:0 0 4px -5px}
 .lfpop .tplab:hover{border-color:var(--line)}
@@ -1778,6 +1805,13 @@ th .thn{display:inline}
 #mapcard .card-head.tools-only{padding:var(--s3) var(--s4) var(--s2)}
 #mapcard .tools{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;row-gap:var(--s2)}
 #mapcard .tools>*{flex:0 0 auto}
+/* …except the search, which takes the room the other four controls leave. Without this the blanket
+   rule above wins on specificity, `.msearch`'s own `flex` never applies and the box collapses to an
+   input's intrinsic width — clamped to its 200 px minimum, the clipped "Search kunta, postinum" of
+   the v2.0 screenshots (audit SRCH8). The basis is that same 200 px **on purpose**: a larger one
+   counts towards the line and wrapped the 1366 toolbar onto two rows, pushing the map 37 px below
+   the 200 px AC-S3 allows. Growing only spends free space, so the row count cannot change. */
+#mapcard .tools>.msearch{flex:1 1 200px}
 .tbtn{height:var(--ctrl-h);display:inline-flex;align-items:center;gap:6px;background:var(--panel);
   border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-size:13px;
   padding:0 11px;cursor:pointer;white-space:nowrap}
@@ -1788,7 +1822,9 @@ th .thn{display:inline}
 #hdact{display:flex;align-items:flex-start;gap:var(--s2)}
 
 /* --- unified search --- */
-.msearch{position:relative;flex:1 1 300px;min-width:200px;max-width:460px;display:flex;align-items:center}
+/* the cap is what the placeholder needs at 13px plus room to type into: a clipped
+   "Search kunta, postinum" tells the reader less than the box is worth (audit SRCH8) */
+.msearch{position:relative;flex:1 1 200px;min-width:200px;max-width:470px;display:flex;align-items:center}
 .mqi{width:100%;height:var(--ctrl-h);border:1px solid var(--line);border-radius:8px;background:var(--panel);
   font:inherit;font-size:13px;padding:0 30px 0 11px;color:var(--ink)}
 .mqi:focus{border-color:var(--good)}

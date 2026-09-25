@@ -77,3 +77,41 @@ replaces one.
   the `.lgmid` / `.lgctr` legend markers) is **deleted**, not left beside the new one: no indicator in
   `config/indicators.json` carries `scale`, so it never ran here, and two diverging ramps in one file
   is how the next phase picks the wrong one.
+- **V3** — **What goes into the map's `lay=` key, and what does not.** Denmark puts three names there
+  (`infra`, `public`, `services`) and keeps `micro=1` as a flag of its own. Finland puts **four**: the
+  property route has written `lay=infra,public,buildings` since v2.0, so a map that spelled the same
+  layer `micro=1` would be exactly the two-spellings-of-one-idea NAV6/LAY4 exist to end. `mind=` stays
+  a key of its own — it names *which* building figure is drawn, the way `ind=` does, and is not a
+  switch. `wms=` stays too: it is a single-choice value ("which context map"), not an on/off flag, so
+  folding it into a comma list would make one key answer two questions. `zones=0` is unchanged (LAY3).
+  Every old flag keeps working through `ROUTE_CORE.layerFlags()`, which is idempotent and tested.
+- **V3** — **The pin card is a block in the page flow, not a card floating over the map.** DK P10 §1
+  says "a small pin card near the toolbar/info strip". Floating it would put a third element into the
+  space the toolbar and the legend stack already compete for at 1366 and 390 (SRCH7 asks for exactly
+  that not to happen). It therefore sits **between the map area card and the map**, full width, and
+  the no-overlap checks at all three widths are true by construction rather than by tuning. Directly
+  above the map rather than directly under the toolbar because that is where the thing it describes
+  is, and it keeps the kunta's identity card and the pin's identity card next to each other.
+- **V3** — **SRCH8 was a specificity bug, not a width choice.** `#mapcard .tools>*{flex:0 0 auto}`
+  outranks `.msearch{flex:1 1 330px}`, so the search never grew and collapsed to an input's intrinsic
+  ~200 px — the clipped "Search kunta, postinum" in every v2.0 screenshot. The fix is one rule,
+  `#mapcard .tools>.msearch{flex:1 1 200px}` with a 470 px cap. The **basis is deliberately the old
+  200 px**: a 330 px basis counts towards the flex line, wrapped the 1366 toolbar onto two rows and
+  pushed the map to 237 px, breaking AC-S3's 200 px (`P2-map-top-1366`). Growing only spends free
+  space, so the row count cannot change at any width. The check measures the placeholder in the
+  input's own font rather than asserting a pixel width, so it stays true if either one changes.
+- **V3** — **A pin dropped from the search takes the map to zoom 13, and opens no popup.** The old
+  code fitted the map to the outermost ring, which made the camera a function of the radius — change
+  the radius and the map jumps. `setView(pin, 13)` is the owner's own "sensible zoom, e.g. 13" and
+  does not move when the radius does. The marker popup is no longer auto-opened either: it says what
+  the pin card now says, and two copies of one answer is one too many.
+- **V3** — **The test-property radius moved from row 1 into `Layers ▾`.** With SRCH3 a pin can now be
+  dropped from the map itself, so the `Within 500 m · 1 km …` segment would have appeared on the
+  toolbar for the first time — a sixth control on a row the spec fixes at four (AC-M1). DK P10 §1 puts
+  it in `Layers ▾` ("keep the existing Test-property radius row"), which is also where it belongs: it
+  filters the layers that menu switches. It counts towards the `Layers ▾` badge when it is not "Any".
+- **V3** — **Two earlier checks were rewritten, not weakened, because the spec voids them.**
+  `P2-search-area` asserted that Enter on a coordinate lands on `#property` — DK P10 §1 replaces that
+  behaviour outright, so the check now asserts the pin and the map. `P2-layers-menu` asserted
+  `infra=1` in the hash — NAV6 replaces that spelling, so it asserts `lay=infra`. Both old spellings
+  are still *readable* (the alias table), and `V3-map-lay-key` asserts that they are.

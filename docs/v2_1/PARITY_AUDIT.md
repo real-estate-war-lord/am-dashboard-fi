@@ -46,8 +46,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | NAV3 | Compare deleted everywhere; `#compare?a=…&b=…` → area page of `a` (`#map` if unparsable) | done | `route_core.js` `toV2`; checks `P1-no-compare`, `P1-redirects` | — | MUST |
 | NAV4 | Redirects `#table/*`, `#pipeline`, `#sources`, `#data`, `#analysis?a=&la=` | done | `route_core.js` alias table; check `P1-redirects` | — | MUST |
 | NAV5 | `#market` → Data › National series | n/a | Finland has no national-series tab (UI_PLAN D5); `#data/national` → `#data/areas/kunta` | — | n/a |
-| NAV6 | `#map?…&infra=1&public=1&services=1` → canonical `lay=infra,public,services` | **partial** | the map still serialises `infra=1`, `public=1`, `services=1`, `micro=1`, `wms=` (`hashFor()` `src/app.js:501-509`); only the property route writes `lay=` (`:524`) | V3 | MUST |
-| NAV7 | `#area/…?t=bbr\|ind\|sub` (+ `g=`) → `show=figures\|sub` so v1.1 links still open the right section | **missing** | `t=`/`g=` were dropped in P5 and are not in `route_core.js`'s alias table — an old link loads the page with nothing open | V3 | SHOULD |
+| NAV6 | `#map?…&infra=1&public=1&services=1` → canonical `lay=infra,public,services` | **done (V3)** | `mapLayerList()` `src/app.js:344`; `hashFor()` writes one `lay=` key, `parseHash()` reads one; `ROUTE_CORE.layerFlags()` converts the four old flags (incl. `micro=1` → `buildings`); `wms=`/`zones=0` stay value keys — see DECISIONS V3; checks `V3-map-lay-key`, `route.test.js` | — | MUST |
+| NAV7 | `#area/…?t=bbr\|ind\|sub` (+ `g=`) → `show=figures\|sub` so v1.1 links still open the right section | **done (V3)** | `ROUTE_CORE.areaTabs()` in the alias table; check `V3-area-tab-alias` | — | SHOULD |
 | NAV8 | `hashFor()` the only serialiser, `parseHash()` the only parser, one canonical `replaceState`, idempotent (AC-U1) | done | `src/app.js:498`, `:537`; checks `P1-hash-roundtrip`, `P10-hash-stable-everywhere` | — | MUST |
 | NAV9 | Internal view ids unchanged; nav highlight for non-destination views (`NAV_OF`) | done | `src/app.js:609` | — | MUST |
 
@@ -85,7 +85,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | LAY1 | One `Layers ▾` button with a count badge replaces the per-layer toolbar buttons (AC-L1) | done | `layersBtn()` `src/app.js:1475`; check `P2-layers-menu`, `P2-one-row` | — | MUST |
 | LAY2 | Every feature layer has exactly one switch, with its sub-filters inside the menu | done (map) | `layersMenu()` `:1486`; check `P2-layers-menu`, `P2-legends-are-keys` | — | MUST |
 | LAY3 | Context section: flood zones row present only while a Climate indicator is active; hiding writes `zones=0` (AC-L3) | done | `layersMenu()`, `hashFor()` `:505`; check `P3-climate-zones` | — | MUST |
-| LAY4 | Menu state in `lay=` (AC-L2) | **partial** | the property route writes `lay=` (`:524`); the **map** writes `infra=1&public=1&services=1&micro=1` — two spellings of one idea. See NAV6 | V3 | MUST |
+| LAY4 | Menu state in `lay=` (AC-L2) | **done (V3)** | one key on both routes; the map's names are the menu's own `data-layer` values. See NAV6; check `V3-map-lay-key` | — | MUST |
 | LAY5 | Menu closes on Esc / outside click, `role=dialog`, `aria-expanded` | done | `layersClose()` `:1529`, keydown `:838`, `:1480` | — | MUST |
 | LAY6 | **Test property has the same menu** (`TP_LAYERS`, DK P10 §2/§3) | **missing** | the property map has a chip row instead (`tpMapTools()` `src/app.js:3502`: Infra · Public buildings · Buildings) — no `Layers ▾`, no Services, no zones row, and the radius is a separate segmented control | V4 | MUST |
 | LAY7 | Every drawn layer is switchable and the async loader never re-adds a layer that is off (DK P10 §3) | **partial** | `anMapOverlays()` `:3228` redraws from `ANL` on every load, but Services and the flood zones are not in `ANL` at all, so they cannot be switched — and the buildings/infra legends are folded cards inside the map with no matching switch in a menu (see `docs/ui_v2/property_1440.png`) | V4 | MUST |
@@ -97,12 +97,12 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 |---|---|---|---|---|---|
 | SRCH1 | One combobox: area names and codes, addresses, Google Maps links, `lat, lon`; quick jumps at the top of the dropdown | done | `mapSearch()` `src/app.js:1221`, `msRows()` `:1193`; checks `P2-search-jumps`, `P2-search-area` | — | MUST |
 | SRCH2 | Privacy sentence off the map, on the search tooltip and the Test property page | done | check `P2-privacy-off-map` | — | MUST |
-| SRCH3 | **A pasted link / coordinate drops a pin and stays on `#map`** (pan, zoom ≈ 13, radius rings) | **missing** | `msPick()` `:1250` sets `TP.toProp = true` → `tpDrop()` `:3014` → `go(propLink(...))`, i.e. it navigates away to `#property`. The pin infrastructure exists (`pin=`, `pl=`, `rad=` in `hashFor()` `:512`; `tpLayers()` `:3035` draws the marker and the rings on the macro map) — only the entry point and the card are missing | V3 | MUST |
-| SRCH4 | Pin card near the toolbar (`pin-card`): label, coordinates, osa-alue › postinumero › kunta, `View test property ›` (`pin-open`) and `×` | **missing** | no `pin-card` / `pin-open` in `src/app.js` | V3 | MUST |
-| SRCH5 | The coord row reads "Drop a pin here"; `data-testid=search-coord` kept | **missing** | `msRows()` has no `search-coord` test id at all — FI's coordinate row is untagged | V3 | MUST |
+| SRCH3 | **A pasted link / coordinate drops a pin and stays on `#map`** (pan, zoom ≈ 13, radius rings) | **done (V3)** | `msPick()` no longer sets `TP.toProp` (the flag is deleted); a coordinate, a Google Maps link and an address all reach `tpDrop()`'s macro branch, which drills to the pin's kunta with `pin=`/`pl=`/`rad=1000` and `tpLayers()` does `setView(pin, 13)`; check `V3-pin-stays-on-map` | — | MUST |
+| SRCH4 | Pin card near the toolbar (`pin-card`): label, coordinates, osa-alue › postinumero › kunta, `View test property ›` (`pin-open`) and `×` | **done (V3)** | `pinCard()` `src/app.js`, rendered into `#mkpin` between the info strip and the map; checks `V3-pin-stays-on-map`, `V3-pin-removable` | — | MUST |
+| SRCH5 | The coord row reads "Drop a pin here"; `data-testid=search-coord` kept | **done (V3)** | `msRows()` / `msHtml()`; check `V3-pin-stays-on-map` | — | MUST |
 | SRCH6 | The Test property's own paste box keeps replacing the pin in place | done | check `P6-paste-google-link` | — | MUST |
-| SRCH7 | The pin card never overlaps the toolbar or the legend stack at 1440 / 1366 / 390 | n/a until SRCH4 | — | V3 | MUST |
-| SRCH8 | The search input is wide enough for its placeholder | **partial** | `docs/ui_v2/map_1440.png`: reads "Search kunta, postinum" — clipped | V3 | SHOULD |
+| SRCH7 | The pin card never overlaps the toolbar or the legend stack at 1440 / 1366 / 390 | **done (V3)** | the card is a block in the flow, not a float (DECISIONS V3); checks `V3-pin-card-clear-1440` / `-1366` / `-390` | — | MUST |
+| SRCH8 | The search input is wide enough for its placeholder | **done (V3)** | the cause was specificity: `#mapcard .tools>*{flex:0 0 auto}` outranked `.msearch`'s own `flex`, so the box never grew past an input's intrinsic ~200 px. One rule, `#mapcard .tools>.msearch{flex:1 1 200px}` with a 470 px cap (the basis stays 200 px so the 1366 toolbar does not wrap and break `P2-map-top-1366`), plus a shorter placeholder; check `V3-search-fits` measures the placeholder in the input's own font | — | SHOULD |
 
 ## 6. Legends (spec §4.5, AC-LG1, DK Q1/Q10)
 
@@ -126,7 +126,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | MAP4 | Full screen is a top-bar action, not a toolbar button | done | `renderTop()` `:668`; check `P2-fullscreen-topbar` | — | MUST |
 | MAP5 | At 1366×768 the map starts ≤ 200 px down and is ≥ 480 px tall (AC-S3) | done | check `P2-map-top-1366` | — | MUST |
 | MAP6 | Projection indicator: purple legend + "Projection" in the info strip (AC-M4) | done | `FAMILY_HUE` `:909`; check `P3-family-ramps` | — | MUST |
-| MAP7 | **Zooming never changes the selection** (AC-M9) | done, untested | the macro map's `zoomend` (`src/app.js:3881`) rebuilds polygons only when the display level changes and never touches `MK.muni` or the hash path | V3 (add check) | MUST |
+| MAP7 | **Zooming never changes the selection** (AC-M9) | **done (V3)** | the macro map's `zoomend` rebuilds polygons only when the display level changes and never touches `MK.muni` or the hash path; check `V3-zoom-keeps-selection` drives `setZoom(12/9/11)` on `window.__maps[0]` | — | MUST |
 | MAP8 | Area card: identity, 5 clickable headline figures, two actions, two toggles, whole card folds | done | `vMakro()`/card code; checks `P4-card-contents`, `P4-card-toggles`, `P4-card-fold`, `P4-card-tiles-select` | — | MUST |
 | MAP9 | Clicking an area opens a popup with headline figures and "Open page ›" | done | `lfPopup()` `:2718` | — | MUST |
 
@@ -325,10 +325,11 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 **V2 — colour rule (fixed scope)** ☑ shipped
 RAMP4, RAMP5, LEG7 — all three `done (V2)` above, six checks registered under phase V2.
 
-**V3 — map**
-SRCH3 (pin stays on the map), SRCH4 (`pin-card` / `pin-open`), SRCH5 (`search-coord` + "Drop a pin here"),
-SRCH7 (no overlap at 1440 / 1366 / 390), NAV6 + LAY4 (one `lay=` key on the map, old keys as aliases),
-MAP7 (a check that zooming never selects). *Also if there is room:* NAV7 (`t=` / `g=` aliases), SRCH8.
+**V3 — map** ☑ shipped
+SRCH3, SRCH4, SRCH5, SRCH7, NAV6 + LAY4, MAP7 — and both of the "if there is room" rows, NAV7 and
+SRCH8. All eight are `done (V3)` above, nine checks registered under phase V3. TP10's map half moved
+with them: the test-property radius is now a row in `Layers ▾` instead of a sixth toolbar control
+(the property page's own copy is still V4's).
 
 **V4 — test property**
 LAY6 + LAY7 + TP12 (one `Layers ▾` with one switch per drawn layer, off means gone, state sticks),

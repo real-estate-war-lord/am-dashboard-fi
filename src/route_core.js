@@ -103,6 +103,45 @@ function propSerialise(list) {
 
 const RC_DATA_LEVELS = ["kunta", "postinumero", "osa_alue"];
 
+/* The map's four feature layers became one `Layers ▾` menu (spec §4.4), so their four flags
+   became one comma list: `infra=1&public=1&services=1&micro=1` → `lay=infra,public,services,buildings`.
+   `micro=1` is in the list because the same layer is spelled `buildings` in the menu and in the
+   property route's own `lay=` — two spellings of one idea is what this key exists to end.
+   A link that already spells `lay=` keeps what it names and the flags only add to it, which is
+   what makes the rewrite idempotent. `mind=` stays: it names *which* building figure is drawn,
+   the way `ind=` does, and is not a switch. */
+const RC_LAY_FLAGS = [["infra", "infra"], ["public", "public"], ["services", "services"], ["micro", "buildings"]];
+function layerFlags(query) {
+  const q = Object.assign({}, query);
+  const on = String(q.lay == null ? "" : q.lay).split(",").filter(Boolean);
+  let had = false;
+  RC_LAY_FLAGS.forEach(([flag, name]) => {
+    if (!Object.prototype.hasOwnProperty.call(q, flag)) return;
+    had = true;
+    if (q[flag] === "1" && on.indexOf(name) < 0) on.push(name);
+    delete q[flag];
+  });
+  if (!had) return q;
+  if (on.length) q.lay = on.join(",");
+  else delete q.lay;
+  return q;
+}
+
+/* The area page's lower tab bar became four `<details>` sections whose open state is one key
+   (spec §5.2, NAV7): `t=ind|bbr|sub` named the open tab, `g=<group>` the open tile group of a
+   "Key figures" block that v2.0 deleted. `t=` becomes the section it used to open, `g=` is
+   dropped. A link that already spells `show=` keeps it, so this too is idempotent. */
+const RC_AREA_TAB_SHOW = { ind: "figures", bbr: "figures", sub: "sub" };
+function areaTabs(query) {
+  const q = Object.assign({}, query);
+  const has = k => Object.prototype.hasOwnProperty.call(q, k);
+  if (!has("t") && !has("g")) return q;
+  const want = RC_AREA_TAB_SHOW[q.t];
+  delete q.t; delete q.g;
+  if (want && !q.show) q.show = want;
+  return q;
+}
+
 function toV2(hash) {
   const { path, parts, query } = splitHash(hash);
   const v = parts[0] || "map";
@@ -148,6 +187,10 @@ function toV2(hash) {
     if (RC_DATA_LEVELS.indexOf(type) < 0) return buildHash("map", q);
     return buildHash("area/" + type + "/" + m[2], q);
   }
+  /* the map's layer flags and the area page's old tab keys are rewritten in place — the path
+     itself has been canonical since v2.0 */
+  if (v === "map") return buildHash(path || "map", layerFlags(query));
+  if (v === "area") return buildHash(path, areaTabs(query));
   /* everything else is already canonical; an empty hash is the map */
   return buildHash(path || "map", query);
 }
@@ -181,8 +224,9 @@ function pathFor(view, tab) {
   return view;
 }
 
-return { splitHash, buildHash, parseLatLon, propParse, propSerialise, toV2, toInternal,
-           pathFor, enc, DATA_LEVELS: RC_DATA_LEVELS, PROP_MAX: RC_PROP_MAX, round: rcRound };
+return { splitHash, buildHash, parseLatLon, propParse, propSerialise, layerFlags, areaTabs,
+           toV2, toInternal, pathFor, enc, DATA_LEVELS: RC_DATA_LEVELS, PROP_MAX: RC_PROP_MAX,
+           LAY_KEYS: RC_LAY_FLAGS.map(f => f[1]), round: rcRound };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = ROUTE_CORE;

@@ -342,7 +342,9 @@ def _layers_menu(page, base):
     assert not [k for k in keys if k.startswith("clim:")], keys
     page.click("[data-testid=layers-pop] [data-layer=infra]")
     page.wait_for_timeout(400)
-    assert "infra=1" in hash_of(page), hash_of(page)
+    # v2.1 NAV6/LAY4 replaced `infra=1` with the one `lay=` key the property route already wrote;
+    # `#map?infra=1` still opens the same map through the alias table (check V3-map-lay-key)
+    assert "lay=infra" in hash_of(page), hash_of(page)
     assert page.eval_on_selector("[data-testid=legend-infra]", "e => e.offsetHeight > 0")
     page.keyboard.press("Escape")
     page.wait_for_timeout(120)
@@ -403,7 +405,10 @@ def _search_area(page, base):
     assert any("60.24480" in r for r in rows), rows[:3]
     page.keyboard.press("Enter")
     page.wait_for_timeout(2500)
-    assert hash_of(page).startswith("#property?p=60.2448,24.8665"), hash_of(page)
+    # v2.1 SRCH3 (DK P10 §1): a coordinate now drops a pin and keeps the reader on the macro map —
+    # the sheet is one click further, from the pin card (check V3-pin-stays-on-map)
+    h = hash_of(page)
+    assert h.startswith("#map") and "pin=60.24480,24.86650" in h, h
 
 
 @check("P2-privacy-off-map", phase="P2")
@@ -1333,7 +1338,8 @@ SHEET_ROUTES = [
     ("map_micro", "#map/091?micro=1"),
     ("map_pno", "#map/091/postinumero"),
     ("map_climate", "#map/091?ind=flood_sea_1000"),
-    ("map_layers", "#map/091?infra=1&public=1&services=1"),
+    ("map_layers", "#map/091?infra=1&public=1&services=1"),   # the v1.1 flags, still readable (NAV6)
+    ("map_pin", "#map/091/postinumero?pin=60.24480,24.86650&rad=1000"),
     ("property_layers", "#property?p=60.2448,24.8665&lay=infra,public,buildings"),
     ("area_show_all", "#area/kunta/091?show=outlook,figures,sub"),
     ("schoollist", "#schoollist/kunta:091"),
@@ -1612,6 +1618,226 @@ def _sequential_untouched(page, base):
     # one hue in five steps: each class is darker than the one below it, and never two hues
     lums = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in (rgb(c) for _, c in bins)]
     assert lums == sorted(lums), f"a sequential ramp must darken towards the top: {lums}"
+
+
+# ===========================================================================
+# V3 — the map: a pasted location stays on the map, and the map's one layer key
+# ===========================================================================
+
+PIN_TXT = "60.2448, 24.8665"          # the same point every other property check uses
+PIN_HASH = "pin=60.24480,24.86650"
+# the three areas that point falls in, finest first — what the pin card names
+PIN_WHERE = ("Malminkartano", "00410 Malminkartano", "Helsinki")
+# Helsinki publishes osa-alueet, so a pin dropped in it drills to the postal-code level
+PIN_MAP = "#map/091/postinumero"
+
+
+@check("V3-pin-stays-on-map", phase="V3")
+def _pin_stays(page, base):
+    """a pasted coordinate drops a pin and keeps the reader on the map (audit SRCH3/SRCH4/SRCH5)"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(600)
+    page.fill("#mq", PIN_TXT)
+    page.wait_for_timeout(350)
+    # the coordinate row is the one AC-M3 finds, and it now offers the pin, not the sheet
+    row = page.query_selector("[data-testid=search-coord]")
+    assert row, "no [data-testid=search-coord] row for a pasted coordinate"
+    assert "Drop a pin here" in row.inner_text(), row.inner_text()
+    assert "60.24480" in row.inner_text(), row.inner_text()
+    assert "test property" not in row.inner_text().lower(), row.inner_text()
+    row.click()
+    page.wait_for_timeout(3200)
+
+    h = hash_of(page)
+    assert h.startswith("#map"), f"the search navigated away from the map: {h}"
+    assert PIN_HASH in h, h
+    assert "rad=1000" in h, f"the pin arrives without its 1 km rings: {h}"
+
+    card = page.query_selector("[data-testid=pin-card]")
+    assert card, "no [data-testid=pin-card] after dropping a pin"
+    assert page.eval_on_selector("[data-testid=pin-card]", "e => e.offsetHeight > 0")
+    txt = card.inner_text()
+    assert "Test property" in txt, txt                  # the label
+    assert "60.24480, 24.86650" in txt, txt             # the coordinates exactly as they were read
+    # osa-alue › postinumero › kunta, finest first
+    assert " › ".join(PIN_WHERE) in txt, f"the pin card does not name its areas finest-first: {txt}"
+    # the map is on the pin, at a readable zoom, and the marker is drawn
+    z = page.evaluate("window.__maps[0].getZoom()")
+    assert 12 <= z <= 14, f"the map should land at ~13 on a dropped pin, not {z}"
+    c = page.evaluate("window.__maps[0].getCenter()")
+    assert abs(c["lat"] - 60.2448) < 0.02 and abs(c["lng"] - 24.8665) < 0.02, c
+    assert page.query_selector(".mapwrap .tp-pin"), "the pin itself is not on the map"
+
+    # and one click further is the sheet the row used to jump straight to
+    page.click("[data-testid=pin-open]")
+    page.wait_for_timeout(2500)
+    assert hash_of(page).startswith("#property?p=60.2448,24.8665"), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V3-pin-removable", phase="V3")
+def _pin_removable(page, base):
+    """× on the pin card takes the pin off the map and out of the link"""
+    goto(page, base, f"{PIN_MAP}?{PIN_HASH}&rad=1000")
+    page.wait_for_timeout(2600)
+    assert page.query_selector("[data-testid=pin-card]"), "a pin= link does not show its card"
+    page.click("[data-testid=pin-card] [data-pinrm]")
+    page.wait_for_timeout(1200)
+    assert "pin=" not in hash_of(page), hash_of(page)
+    assert "rad=" not in hash_of(page), hash_of(page)
+    assert not page.query_selector("[data-testid=pin-card]")
+    assert not page.query_selector(".mapwrap .tp-pin")
+    assert not ERRORS, ERRORS[:3]
+
+
+def pin_card_clear(page, base):
+    """the pin card never covers the toolbar or the legend stack (audit SRCH7)"""
+    goto(page, base, f"{PIN_MAP}?ind=growth&lay=infra,public&{PIN_HASH}&rad=1000")
+    page.wait_for_timeout(3000)
+    cards = boxes(page, "[data-testid=pin-card]")
+    assert cards and cards[0]["h"] > 10, "no pin card"
+    card = cards[0]
+    # the card is a block in the flow, so "does not overlap" is checked against everything it
+    # could plausibly have been floated over: the toolbar above it and the map below it
+    for sel in ("[data-testid=map-toolbar]", "[data-testid=ind-chips]", ".mapwrap .maplegs",
+                ".mapwrap .maplegend", "[data-testid=map]", ".legpill"):
+        for b in boxes(page, sel):
+            if b["w"] < 4 or b["h"] < 4:
+                continue
+            assert not overlap(card, b), (sel, card, b)
+    # …and it is not clipped by its own column either
+    assert page.eval_on_selector("[data-testid=pin-card]",
+                                 "e => e.scrollWidth <= e.clientWidth + 1"), "the pin card is clipped"
+    assert page.query_selector("[data-testid=pin-open]"), "the pin card lost its action"
+    assert no_overflow(page)
+
+
+@check("V3-pin-card-clear-1440", phase="V3", viewport="1440x900")
+def _pin_card_clear_1440(page, base):
+    """at 1440 the pin card clears the toolbar and the legend stack"""
+    pin_card_clear(page, base)
+
+
+@check("V3-pin-card-clear-1366", phase="V3", viewport="1366x768")
+def _pin_card_clear_1366(page, base):
+    """at 1366 the pin card clears the toolbar and the legend stack"""
+    pin_card_clear(page, base)
+
+
+@check("V3-pin-card-clear-390", phase="V3", viewport="390x844")
+def _pin_card_clear_390(page, base):
+    """at 390 the pin card stacks instead of overlapping anything"""
+    pin_card_clear(page, base)
+
+
+@check("V3-radius-in-layers", phase="V3")
+def _radius_in_layers(page, base):
+    """the test-property radius is a row in Layers ▾, never a sixth control on row 1"""
+    goto(page, base, f"{PIN_MAP}?{PIN_HASH}&rad=1000")
+    page.wait_for_timeout(2600)
+    loose = page.eval_on_selector_all(
+        "[data-testid=map-toolbar] [data-tprad]",
+        "els => els.filter(e => !e.closest('.lypop')).length")
+    assert loose == 0, "the radius is back on row 1 — row 1 is search · Layers ▾ · Indicator ▾ · Period"
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(200)
+    rads = page.eval_on_selector_all("[data-testid=layers-pop] [data-tprad]",
+                                     "els => els.map(e => e.dataset.tprad)")
+    assert rads == ["0", "500", "1000", "2000", "5000"], rads
+    page.click("[data-testid=layers-pop] [data-tprad='2000']")
+    page.wait_for_timeout(700)
+    assert "rad=2000" in hash_of(page), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V3-map-lay-key", phase="V3")
+def _map_lay_key(page, base):
+    """the map's feature layers are one `lay=` key, and every v1.1 flag still opens the same map"""
+    # an old link switches the same layers on and is rewritten once
+    goto(page, base, "#map/091?ind=growth&infra=1&public=1&services=1&micro=1")
+    page.wait_for_timeout(1500)
+    h = hash_of(page)
+    for dead in ("infra=1", "public=1", "services=1", "micro=1"):
+        assert dead not in h, (dead, h)
+    assert "lay=infra,public,services,buildings" in h, h
+    once = h
+    page.wait_for_timeout(600)
+    assert hash_of(page) == once, (once, hash_of(page))
+
+    # and the switch in the menu writes the same key (AC-L2)
+    goto(page, base, "#map")
+    page.click("[data-testid=layers-btn]")
+    page.wait_for_timeout(200)
+    page.click("[data-testid=layers-pop] [data-layer=infra]")
+    page.wait_for_timeout(600)
+    assert "lay=infra" in hash_of(page), hash_of(page)
+    assert page.eval_on_selector("[data-testid=legend-infra]", "e => e.offsetHeight > 0")
+    page.click("[data-testid=layers-pop] [data-layer=infra]")
+    page.wait_for_timeout(600)
+    assert "lay=" not in hash_of(page), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V3-area-tab-alias", phase="V3")
+def _area_tab_alias(page, base):
+    """a v1.1 `t=` / `g=` area link still opens the section it named (audit NAV7)"""
+    goto(page, base, "#area/kunta/091?t=bbr&g=Rents")
+    page.wait_for_timeout(900)
+    h = hash_of(page)
+    assert "show=figures" in h, h
+    assert "t=" not in h and "g=" not in h, h
+    assert page.eval_on_selector("[data-show=figures]", "e => e.open") is True
+    # `t=sub` named the sub-areas tab, which only a kunta page has (a postal code has no sub-areas)
+    goto(page, base, "#area/kunta/091?t=sub")
+    page.wait_for_timeout(900)
+    assert "show=sub" in hash_of(page), hash_of(page)
+    assert page.eval_on_selector("[data-show=sub]", "e => e.open") is True
+    assert page.eval_on_selector("[data-show=figures]", "e => e.open") is False
+
+
+@check("V3-zoom-keeps-selection", phase="V3")
+def _zoom_keeps_selection(page, base):
+    """zooming the macro map never changes the selection (AC-M9, audit MAP7)"""
+    goto(page, base, "#map/049?ind=growth")
+    page.wait_for_timeout(2600)
+    before = hash_of(page)
+    outline = page.evaluate("document.querySelectorAll('.mapwrap .leaflet-interactive').length")
+    for z in (12, 9, 11):
+        page.evaluate(f"window.__maps[0].setZoom({z})")
+        page.wait_for_timeout(1100)
+        assert hash_of(page).split("?")[0] == before.split("?")[0], (z, before, hash_of(page))
+        assert "pin=" not in hash_of(page), hash_of(page)
+    # the drilled municipality still owns the map: same path, same polygons, no popup opened
+    assert hash_of(page).split("?")[0] == "#map/049", hash_of(page)
+    assert page.evaluate("document.querySelectorAll('.mapwrap .leaflet-interactive').length") == outline
+    assert not page.query_selector(".mapwrap .leaflet-popup")
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V3-search-fits", phase="V3")
+def _search_fits(page, base):
+    """the search box is wide enough for its own placeholder (audit SRCH8)"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(600)
+    # measure the placeholder in the input's own font rather than trusting the pixel width
+    w = page.evaluate("""() => {
+        const i = document.getElementById('mq');
+        const cs = getComputedStyle(i);
+        const c = document.createElement('canvas').getContext('2d');
+        c.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const wide = e => e ? Math.round(e.getBoundingClientRect().width) : -1;
+        const tools = i.closest('.tools');
+        return {text: c.measureText(i.placeholder).width + pad, box: i.clientWidth,
+                ph: i.placeholder,
+                // the chain, so a failure says which box is the narrow one
+                chain: {search: wide(i.closest('.msearch')), tools: wide(tools),
+                        card: wide(i.closest('.card')), main: wide(document.getElementById('main'))},
+                siblings: [...(tools ? tools.children : [])].map(e => e.className + ':' + wide(e))};
+    }""")
+    assert w["text"] <= w["box"], (
+        f"the placeholder {w['ph']!r} needs {w['text']:.0f} px of {w['box']} px "
+        f"— {w['chain']} {w['siblings']}")
 
 
 # ===========================================================================

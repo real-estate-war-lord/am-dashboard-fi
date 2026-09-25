@@ -147,3 +147,90 @@ is still red on the one pre-existing false positive (GLOB5) and is still informa
 - Seen in the screenshots and **not** V2's to fix: at 390 the `Legend ▾` pill overlaps Leaflet's
   attribution line (`docs/ui_v2/map_390.png`), and the RENT tile still clips its unit
   (`21,3 EUR/m²/mont`, audit row TILE5). Both belong to V6.
+
+---
+
+## V3 — the map: the pin stays on the map, and one `lay=` key ☑
+
+Audit rows closed: **SRCH3, SRCH4, SRCH5, SRCH7, SRCH8, NAV6, NAV7, LAY4, MAP7** — every MUST the
+audit assigned to V3, plus both of its "if there is room" rows. Gate: `./overnight.sh gate V3`
+green — build ✓, **69 node tests** ✓ (67 + 2 new), **86 ui checks** ✓ (77 + 9 new), budgets
+`src/app.js` 405 KB / 460, `src/style.css` 138 KB / 165. The python unit suite is still red on the
+one pre-existing false positive (GLOB5) and is still informational.
+
+**Built**
+
+1. **A pasted location drops a pin and the reader stays on the map** (DK P10 §1; SRCH3, SRCH5).
+   `msPick()` no longer sets `TP.toProp` — the flag is **deleted**, and with it the "sent here by
+   the unified search" branch of `tpDrop()`, which now reads simply "on the Test property page the
+   box replaces the pin in place; everywhere else the pin lands on the macro map". A coordinate, a
+   Google Maps link and a picked address all take the same road. The dropped pin drills to its own
+   kunta (`map/<code>[/postinumero]`) carrying `pin=`, `pl=` and `rad=1000` — the 1 km rings the
+   owner reads an area at — and `tpLayers()` does `setView(pin, 13)` instead of fitting the
+   outermost ring, so the camera no longer moves when the radius does. The marker popup is not
+   auto-opened any more: the pin card says what it said.
+   The search dropdown's coordinate row is now **"Drop a pin here"** with the coordinates as its
+   sub-line and carries **`data-testid=search-coord`** (it had no test id at all); the address row
+   ends "— drop a pin here".
+2. **The pin card** (`pinCard()`, `data-testid=pin-card`; SRCH4, SRCH7). Label, the coordinates as
+   they were read, **osa-alue › postinumero › kunta** finest-first (with the `approx.` tag when the
+   kunta came from the postal code), `View test property ›` (`data-testid=pin-open` → `#property?p=…`)
+   and `×`. It renders into `#mkpin` **between the info strip and the map**, in the page flow — not
+   floating over the map — so there is no width at which it can cover the toolbar or the legend
+   stack. It re-renders from `mkRefreshTools()` and when the kunta ring file lands, so the area
+   names fill in rather than the card appearing late.
+3. **One `lay=` key on the map** (NAV6, LAY4). `hashFor()`/`parseHash()` write and read
+   `lay=infra,public,services,buildings` — the Layers ▾ menu's own `data-layer` names, and the same
+   key the property route has written since v2.0. `ROUTE_CORE.layerFlags()` converts every old flag
+   (`infra=1`, `public=1`, `services=1`, **`micro=1` → `buildings`**) and is idempotent. `mind=`,
+   `wms=` and `zones=0` stay keys of their own — see DECISIONS V3 for why. `layerCount()` now reads
+   off `mapLayerList()`, so the badge cannot disagree with the URL.
+4. **The v1.1 area tabs** (NAV7). `ROUTE_CORE.areaTabs()`: `t=ind|bbr` → `show=figures`,
+   `t=sub` → `show=sub`, `g=` dropped. An `#area/kunta/091?t=bbr&g=Rents` bookmark opens the All
+   figures section again instead of a page with nothing open.
+5. **The test-property radius moved into `Layers ▾`** under a "Test property" heading, and off the
+   toolbar. With SRCH3 a pin can be dropped from the map itself, so the old `Within 500 m · 1 km …`
+   segment would have appeared on row 1 for the first time — a sixth control on a row AC-M1 fixes at
+   four. It counts towards the Layers ▾ badge when it is not "Any".
+6. **SRCH8** — the clipped `Search kunta, postinum` was a CSS specificity bug, not a width choice:
+   `#mapcard .tools>*{flex:0 0 auto}` outranked `.msearch`'s own `flex`, so the box could never grow
+   past an input's intrinsic width however wide the toolbar was. One rule fixes it,
+   `#mapcard .tools>.msearch{flex:1 1 200px}` with a 470 px cap, and the placeholder is shorter:
+   `Search kunta, postinumero, address or coords…`. The **basis stays at the old 200 px on
+   purpose**: a 330 px basis counts towards the flex line and wrapped the 1366 toolbar onto two
+   rows, which pushed the map to 237 px and broke `P2-map-top-1366` (AC-S3 allows 200). Growing
+   only spends free space, so the row count cannot change at any width. The check measures the
+   placeholder in the input's own font rather than asserting a pixel width.
+
+**Checks added** (phase V3, nine): `V3-pin-stays-on-map` (the whole DK P10 §1 round trip, including
+`pin-open` landing on `#property?p=60.2448,24.8665`), `V3-pin-removable`, `V3-pin-card-clear-1440`
+/ `-1366` / `-390`, `V3-radius-in-layers`, `V3-map-lay-key`, `V3-area-tab-alias`,
+`V3-zoom-keeps-selection` (AC-M9 as written: `setZoom(12/9/11)` on `window.__maps[0]`),
+`V3-search-fits`. Plus two `node --test` cases in `tests/route.test.js` and 18 new alias-table rows,
+and a new `map_pin` route in `SHEET_ROUTES` so the P10 sweeps and the screenshot set cover a map
+that has a pin on it.
+
+**Two earlier checks were rewritten because the spec voids them** (logged in DECISIONS V3):
+`P2-search-area` asserted that Enter on a coordinate lands on `#property` — DK P10 §1 replaces that
+behaviour outright, so it now asserts the hash stays on `map` and carries `pin=`. `P2-layers-menu`
+asserted `infra=1` — NAV6 replaces that spelling, so it asserts `lay=infra`. Nothing was weakened:
+the old spellings are still readable, and `V3-map-lay-key` is the check that says so.
+
+**What the next phase must know**
+
+- **`lay=` is now one key across both routes.** V4 extends the *property* side of it with `services`
+  (TP11) — add the name to `anLayerList()`/`anParseLayers()`, and nowhere else. If V4 adds a map
+  layer, add it to `mapLayerList()` **and** to `RC_LAY_FLAGS` in `src/route_core.js` only if it ever
+  had a v1.1 flag; a new layer needs no alias.
+- **`TP.toProp` no longer exists.** Anything that wants to open the sheet from elsewhere navigates
+  to `propLink(...)` itself. `tpDrop()` has exactly two branches now, and `S.view` decides.
+- **V4 inherits the radius pattern.** The map's copy is a `lychips` row in `layersMenu()` driven by
+  the existing `data-tprad` delegation; TP10 asks for the same on the property, where `tpMapTools()`
+  still hand-rolls a `.seg.tprad` next to a `.lychips` row of `data-anlay` chips. Note a real bug
+  V3 did **not** fix because it is TP10's: on `#property` the `data-tprad` handler only calls
+  `syncHash()` + `mkRefreshTools()` (a no-op there) and `LF.map` is null, so the property radius
+  writes the URL without redrawing. Folding that control into the property's `Layers ▾` fixes it.
+- **The pin card is the model for V4's own cards**: a block in the flow beats a float over a map
+  every time the widths are checked (SRCH7 passed at 1440, 1366 and 390 without a single offset).
+- Seen in the V3 screenshots and still **not** fixed: the 390 `Legend ▾` pill over the attribution
+  line and the clipped RENT tile — both still V6 (TILE5).
