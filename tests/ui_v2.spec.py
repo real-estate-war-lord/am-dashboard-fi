@@ -1442,6 +1442,179 @@ def _v21_audit(page, base):
 
 
 # ===========================================================================
+# V2 — the colour rule for signed indicators (audit rows RAMP4, RAMP5, LEG7)
+# ===========================================================================
+
+# fi-FI writes a negative number with U+2212, so that is the character a bin label carries
+MINUS = "−"
+ELL = "…"
+
+
+def legend_bins(page, sel="[data-testid=legend]"):
+    """the indicator legend's class rows: (label, rgb) top-first, without the `no data` row."""
+    rows = page.eval_on_selector_all(
+        f"{sel} .lgrow",
+        "els => els.map(e => [e.textContent.trim(), e.querySelector('i')"
+        " ? getComputedStyle(e.querySelector('i')).backgroundColor : ''])")
+    return [(t, c) for t, c in rows if c and "no data" not in t]
+
+
+def rgb(c):
+    return tuple(int(x) for x in c[c.index("(") + 1:c.index(")")].split(",")[:3])
+
+
+@check("V2-signed-legend", phase="V2")
+def _signed_legend(page, base):
+    """a signed indicator's legend: fixed breaks on zero, greens above, reds below"""
+    goto(page, base, "#map?ind=growth")
+    page.wait_for_timeout(1200)
+    bins = legend_bins(page)
+    assert len(bins) in (4, 6), f"a signed legend has 4 or 6 bins, not {len(bins)}: {bins}"
+    labels = [t for t, _ in bins]
+    # the owner's own example string, on the class an exactly-flat year falls in
+    assert f"0 {ELL} +0,5 %" in labels, labels
+    # the bins are in value order, highest first, and zero is a boundary and not a class
+    assert labels[0].startswith("> +"), labels
+    assert labels[-1].startswith("< " + MINUS), labels
+    # at least one red swatch and one green one, and the red ones are below zero
+    zero = labels.index(f"0 {ELL} +0,5 %")
+    above = [rgb(c) for _, c in bins[:zero + 1]]
+    below = [rgb(c) for _, c in bins[zero + 1:]]
+    assert above and below, (labels, zero)
+    for r, g, b in above:
+        assert g > r, f"a bin above zero is not green: {(r, g, b)} in {labels}"
+    for r, g, b in below:
+        assert r > g, f"a bin below zero is not red: {(r, g, b)} in {labels}"
+    # the darker class of each side is the open-ended one
+    assert sum(above[0]) < sum(above[-1]), above
+    assert sum(below[-1]) < sum(below[0]), below
+    # and the legend says the breaks will not move
+    foot = page.eval_on_selector("[data-testid=legend-signed-footer]", "e => e.textContent")
+    assert "fixed breaks, centred on zero" in foot, foot
+    # the thin rule that marks the zero line sits under the lowest positive bin
+    marked = texts(page, "[data-testid=legend] .lgrow.lgzero")
+    assert marked == [f"0 {ELL} +0,5 %"], marked
+
+
+@check("V2-signed-lower-better", phase="V2")
+def _signed_lower_better(page, base):
+    """on the crime trend an increase is red and a fall is green, and the legend says so"""
+    goto(page, base, "#map?ind=crime_trend")
+    page.wait_for_timeout(1200)
+    bins = legend_bins(page)
+    assert len(bins) in (4, 6), bins
+    labels = [t for t, _ in bins]
+    assert labels[0].startswith("> +"), labels
+    # the top bin is the biggest increase, and on a lower-is-better indicator that is the red end
+    r, g, b = rgb(bins[0][1])
+    assert r > g, f"the increase side is not red: {(r, g, b)} — {labels}"
+    r, g, b = rgb(bins[-1][1])
+    assert g > r, f"the decrease side is not green: {(r, g, b)} — {labels}"
+    note = body_text(page)
+    assert "an increase is red, a fall is green" in note, "the legend does not say which way round"
+    assert "lower is better" in note
+    assert "fixed breaks, centred on zero" in note
+
+
+@check("V2-signed-not-quantiles", phase="V2")
+def _signed_not_quantiles(page, base):
+    """the breaks are the indicator's own thresholds, not quantiles that move with the level"""
+    def labels(h):
+        goto(page, base, h)
+        page.wait_for_timeout(1200)
+        return [t for t, _ in legend_bins(page)]
+    # the same indicator over 308 municipalities and over one municipality's postal codes
+    nat = labels("#map?ind=growth")
+    drilled = labels("#map/091?ind=growth")
+    assert nat and drilled
+    # every break is a multiple of the growth threshold (0.5) in both, and zero is one of them
+    for ls in (nat, drilled):
+        assert f"0 {ELL} +0,5 %" in ls, ls
+        assert f"{MINUS}0,5 {ELL} 0 %" in ls, ls
+    # a projection keeps purple above zero and takes the red below it, never green
+    goto(page, base, "#map?ind=fc_growth")
+    page.wait_for_timeout(1200)
+    bins = legend_bins(page)
+    assert len(bins) in (4, 6), bins
+    top = rgb(bins[0][1])
+    assert top[2] > top[1] and top[0] > top[1], f"an outlook top bin is not purple: {top}"
+    bot = rgb(bins[-1][1])
+    assert bot[0] > bot[1] and bot[0] > bot[2], f"an outlook bottom bin is not red: {bot}"
+    assert "purple above zero, red below" in body_text(page)
+
+
+@check("V2-same-ramp-everywhere", phase="V2")
+def _same_ramp_everywhere(page, base):
+    """the main map, both mini maps and the distribution strip draw one signed ramp"""
+    def bins_of(h, sel="[data-testid=legend]"):
+        goto(page, base, h)
+        page.wait_for_timeout(1400)
+        return legend_bins(page, sel)
+    ref = bins_of("#map?ind=growth")
+    for h in ("#area/kunta/091?ind=growth", "#property?p=60.2448,24.8665&ind=growth"):
+        got = bins_of(h)
+        assert [t for t, _ in got] == [t for t, _ in ref], (h, got, ref)
+        assert [c for _, c in got] == [c for _, c in ref], (h, got, ref)
+    # the map fills use the same colours as the legend it is under — no second palette
+    goto(page, base, "#map?ind=growth")
+    page.wait_for_timeout(1600)
+    swatches = {c for _, c in legend_bins(page)}
+    fills = set(page.eval_on_selector_all(
+        "#lfmap path.leaflet-interactive",
+        "els => els.map(e => e.getAttribute('fill')).filter(Boolean)"))
+    assert fills, "no polygons drawn"
+    stray = {f for f in fills if f.upper() != "#C4CBC4" and f not in _HEXES(swatches)}
+    assert not stray, f"map fills outside the legend's own classes: {sorted(stray)[:4]}"
+
+
+def _HEXES(colors):
+    """`rgb(a, b, c)` as the `#RRGGBB` Leaflet writes into the `fill` attribute."""
+    return {"#%02X%02X%02X" % rgb(c) for c in colors} | {"#%02x%02x%02x" % rgb(c) for c in colors}
+
+
+@check("V2-dist-strip-dot", phase="V2")
+def _dist_strip_dot(page, base):
+    """the distribution strip's dot is the class colour, not a fixed accent"""
+    # rent_yoy is published once and has no series for most kunnat, so its panel falls back to the
+    # strip — the one place a signed ramp has to colour something that is not a map
+    found = []
+    for h in ("#area/kunta/091?ind=rent_yoy", "#area/kunta/092?ind=rent_yoy",
+              "#area/kunta/837?ind=rent_yoy"):
+        goto(page, base, h)
+        page.wait_for_timeout(1200)
+        if not page.query_selector("[data-testid=dist-dot]"):
+            continue
+        fill = page.eval_on_selector("[data-testid=dist-dot]", "e => getComputedStyle(e).fill")
+        r, g, b = rgb(fill)
+        assert not (r == g == b), f"{h}: the dot is grey — {fill}"
+        # the mini map beside it is built over a different set of areas; the breaks are fixed, so
+        # the same value must still land on the very same swatch
+        swatches = {rgb(c) for _, c in legend_bins(page)}
+        assert (r, g, b) in swatches, f"{h}: {fill} is not a legend class — {sorted(swatches)}"
+        found.append(h)
+    assert found, "no signed indicator fell back to the distribution strip on any of these routes"
+
+
+@check("V2-sequential-untouched", phase="V2")
+def _sequential_untouched(page, base):
+    """a level indicator keeps its five sequential quantile classes"""
+    goto(page, base, "#map?ind=unemp")
+    page.wait_for_timeout(1200)
+    bins = legend_bins(page)
+    assert len(bins) == 5, f"unemp should keep 5 quantile classes, got {len(bins)}"
+    labels = [t for t, _ in bins]
+    assert labels[-1].startswith("≤"), labels
+    # none of the signed legend's furniture: no zero rule, no fixed-breaks footer, no signed labels
+    assert "fixed breaks, centred on zero" not in body_text(page)
+    assert not page.query_selector("[data-testid=legend-signed-footer]")
+    assert not page.query_selector("[data-testid=legend] .lgrow.lgzero")
+    assert not [t for t in labels if ELL in t], labels
+    # one hue in five steps: each class is darker than the one below it, and never two hues
+    lums = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in (rgb(c) for _, c in bins)]
+    assert lums == sorted(lums), f"a sequential ramp must darken towards the top: {lums}"
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

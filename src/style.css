@@ -1518,10 +1518,11 @@ th .thn{display:inline}
 .olboth .olrow{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:10.5px;padding:1px 0}
 .olboth .olsrc{font-weight:600}
 .olages{margin-top:10px}
-/* the centre of a diverging legend is a boundary, not just another class edge */
-.maplegend .lgrow.lgmid{position:relative}
-.maplegend .lgrow.lgmid i{box-shadow:0 0 0 1px var(--ink2)}
-.maplegend .lgctr{font-style:normal;margin-left:auto;font-family:var(--mono);font-size:8.5px;color:var(--muted)}
+/* Zero is a boundary on a signed legend, not just another class edge: a thin rule under the lowest
+   positive bin, so the reader sees which bins are green-side and which are red-side without reading
+   the numbers. The rule is the only decoration a legend row carries — everything else is a swatch
+   and a value (spec §4.5: legends are keys). */
+.maplegend .lgrow.lgzero{border-bottom:1px solid var(--ink2);padding-bottom:3px;margin-bottom:2px}
 /* the outlook tiles sit in a row like the headline row, not in a stacked column */
 .card.outlook .hl{margin-top:10px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
 @media (max-width:1250px){.card.outlook .hl{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1977,8 +1978,12 @@ body.has-full{overflow:hidden}
 /* --- the distribution strip and the return-period bars --- */
 .dist .dtick{stroke:#B9BDB2;stroke-width:1}
 .dist .dmed{stroke:#5C5F52;stroke-width:1.5;stroke-dasharray:3 3}
+/* the dot takes the choropleth's own class colour inline (src/app.js distStrip), so the strip and
+   the map of the same indicator cannot disagree; --k1 is the fallback when there is no scale */
 .dist .ddot{fill:var(--k1);stroke:#fff;stroke-width:1.5}
 .dist .dlab{font-weight:600;fill:var(--ink)}
+/* the zero line on a signed strip — the same boundary the legend's thin rule marks */
+.dist .dzero{stroke:var(--ink2);stroke-width:1}
 .cbar{fill:var(--clim)}
 .cmed{stroke:#5C5F52;stroke-width:1.6;stroke-dasharray:4 3}
 

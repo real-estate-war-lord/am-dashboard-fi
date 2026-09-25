@@ -900,6 +900,10 @@ function enableSort(root) {
 }
 
 /* ---------- choropleth colour model (identical to the Finnish edition) ---------- */
+/* The signed half of the model — which indicators straddle zero, where their breaks sit and what
+   colour each class is — lives in src/ramp_core.js so `node --test tests/ramp.test.js` can read it
+   without a browser. Everything below is the sequential half plus the glue. */
+const RMP = (typeof window !== "undefined" && window.RAMP_CORE) || {};
 const PAPER = [232, 237, 231];
 const rampTo = (hue, s, k) => { const c = PAPER.map((x, j) => Math.round((x + (hue[j] - x) * s) * k)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
 /* Three families, three hues, and a value is never drawn in a family it does not belong to:
@@ -911,41 +915,49 @@ function mkShade(t, key) {
   /* five steps from a light tint to the full hue, the top class deeper still — differences read at a glance */
   const i = key.startsWith("micro:") ? MICRO_INDS.find(x => x.key === key.slice(6)) : IND.concat(IND_OSA).find(x => x.key === key);
   const fam = FAMILY_HUE[PC.ramp(i)];
-  if (fam && !(i && i.scale === "diverging"))
-    return rampTo(fam, 0.1 + 0.9 * Math.pow(Math.max(0, Math.min(1, t)), .9), t >= .99 ? .72 : 1);
-  /* diverging (Outlook): hue_neg → paper → hue_pos about the centre. t is 0…1 with .5 at the centre,
-     so the same distance either side gets the same strength in the two hues. `hue` stays equal to
-     hue_pos, so a caller that does not know about `scale` still gets a plausible sequential ramp. */
-  if (i && i.scale === "diverging") {
-    const side = t < .5 ? (i.hue_neg || [166, 42, 22]) : (i.hue_pos || i.hue || [10, 88, 70]);
-    const d = Math.min(1, Math.abs(t - .5) * 2);
-    return rampTo(side, 0.08 + 0.92 * Math.pow(d, .9), d >= .99 ? .78 : 1);
-  }
+  if (fam) return rampTo(fam, 0.1 + 0.9 * Math.pow(Math.max(0, Math.min(1, t)), .9), t >= .99 ? .72 : 1);
   const hue = (i && i.hue) || [10, 88, 70];
   return rampTo(hue, 0.1 + 0.9 * Math.pow(Math.max(0, Math.min(1, t)), .9), t >= .99 ? .72 : 1);
 }
-/* quintile classes: each colour step holds a fifth of the areas, so a few outliers cannot flatten the map */
-/* Diverging scale: breaks mirrored about `center`, so the same shade means the same magnitude on
-   either side and the zero crossing is a class edge rather than the middle of a class. The three
-   magnitudes are quantiles of |v − centre|, which is also the clamp: fc_abs runs from −4 617 to
-   +52 670, and on a linear symmetric ramp every municipality but one would sit in the middle class. */
-function divergingScale(vals, center) {
-  const dev = vals.map(v => Math.abs(v - center)).sort((a, b) => a - b).filter(d => d > 0);
-  if (!dev.length) return null;
-  const dq = p => dev[Math.min(dev.length - 1, Math.floor(p * dev.length))];
-  const mags = [dq(.34), dq(.67), dq(.90)].filter((m, i, a) => m > 0 && (i === 0 || m > a[i - 1]));
-  if (!mags.length) return null;
-  const breaks = mags.slice().reverse().map(m => center - m).concat(mags.map(m => center + m));
-  const n = breaks.length + 1;
-  const t = v => { if (v == null || isNaN(v)) return null; let c = 0; while (c < breaks.length && v > breaks[c]) c++; return c / (n - 1); };
-  return { t, lo: vals[0], hi: vals[vals.length - 1], breaks, classes: n, n: vals.length, center, diverging: true,
-           clamped: dev[dev.length - 1] > mags[mags.length - 1] };
+/* One shader for every fill on every map. A **signed** indicator carries its own diverging shades
+   on the scale object (`sc.shade`, src/ramp_core.js): green above zero, brick red below, and the
+   other way round where an increase is the bad news. Everything else takes the family ramp above.
+   Going through one function is what makes the main map, the area mini map, the property mini map
+   and the distribution strip agree by construction rather than by three copies of the same idea. */
+const shadeOf = (sc, t, key) => (sc && sc.shade) ? sc.shade(t) : mkShade(t, key);
+/* Is the fill under a map label dark enough to need light text? On a sequential ramp that is the
+   top of the scale; on a signed one it is the open-ended class on *either* side, because the
+   darkest red sits at the bottom of the class list, not the top. */
+function darkFill(sc, t) {
+  if (t == null) return false;
+  if (!sc || !sc.signed) return t > .55;
+  const c = Math.round(t * (sc.classes - 1));
+  return (c >= sc.zero ? c - sc.zero : sc.zero - 1 - c) >= sc.zero - 1;
 }
+/* Does this signed indicator need the sixth pair of classes? Decided **once per indicator**, over
+   the latest published value of every kunta, postal code and osa-alue the build shipped — never
+   over the handful of polygons one map happens to draw. The answer is then the same on the
+   national map, in a kunta's mini map, on the property page and under the distribution strip,
+   which is what makes "one ramp everywhere" true rather than approximately true. */
+const SIGNED_WIDE = {};
+function signedWide(ind, t) {
+  if (!(ind.key in SIGNED_WIDE)) {
+    const of = list => list.map(o => o[ind.key]).filter(v => v != null && !isNaN(v));
+    SIGNED_WIDE[ind.key] = !!RMP.wideFor([of(MUNI), of(AREAS), OSA ? of(OSA.areas) : []], t);
+  }
+  return SIGNED_WIDE[ind.key];
+}
+/* quintile classes: each colour step holds a fifth of the areas, so a few outliers cannot flatten the map */
 function scaleOf(list, vk, fixed, ind) {
   const vals = list.map(vk).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
   if (!vals.length) return { t: () => null, lo: null, hi: null, breaks: [] };
-  if (ind && ind.scale === "diverging") {
-    const d = divergingScale(vals, ind.center || 0);
+  /* A signed indicator never gets quantiles: its breaks are fixed at ±t (and ±3t where the spread
+     asks for it) and centred on zero, so the same value is the same colour next year (owner,
+     2026-09-25 — docs/v2_1/DECISIONS.md V2). */
+  const st = ind && RMP.thresholdOf ? RMP.thresholdOf(ind.key) : null;
+  if (st) {
+    const d = RMP.signedScale(vals, st, { family: PC.ramp(ind), flip: lowerBetter(ind.key || ""),
+                                          wide: signedWide(ind, st) });
     if (d) return d;
   }
   const q = p => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
@@ -959,24 +971,41 @@ function scaleOf(list, vk, fixed, ind) {
 /* On a phone a legend card covers the map it explains, so every legend on a map hides behind one
    pill and the reader opens them when they want them (spec §6). */
 const legendPill = () => `<button class="legpill" data-legpill aria-expanded="false">Legend ▾</button>`;
+/* A legend bin on a signed ramp prints the number and nothing the title already says: no unit
+   suffix from the value formatter (the pct family carries one), and no grouping. `signpct1` etc.
+   would give "+0,5 %", which the unit is then appended to a second time. */
+const TIGHT_NUM = { signpct1: v => nf(v, 1), signdec1: v => nf(v, 1), pct0: v => nf(v, 0), pct1: v => nf(v, 1), pct2: v => nf(v, 2) };
+/* the sign is meaning, not decoration: a growth bin reads "> +0,5 %", never "> 0,5 %". Exactly 0 is
+   written "0" and not "0,0" — it is the line the classes are centred on, not a measurement. */
+function fmtSignedTight(ind) {
+  const raw = (ind && TIGHT_NUM[ind.fmt]) || fmtTight(ind);
+  return v => { if (v == null || isNaN(v)) return "–"; if (v === 0) return "0";
+                const s = String(raw(v)); return v > 0 && s[0] !== "+" ? "+" + s : s; };
+}
+/* the unit that belongs on a signed bin's number; the title above carries the full one */
+const legendUnit = ind => isPct(ind) ? "%" : (ind && ind.fmt === "signdec1") ? "pp" : "";
 function legendHtml(sc, ind, key, note) {
   /* class-break legend drawn on top of the map (bottom right) */
+  const signed = !!sc.signed;
   const f = fmtTight(ind); const b = sc.breaks || []; const n = sc.classes || 0;
-  const lab = c => n === 1 ? f(sc.lo) : c === 0 ? `≤ ${f(b[0])}` : c === n - 1 ? `> ${f(b[c - 1])}` : `${f(b[c - 1])} – ${f(b[c])}`;
+  const slab = signed ? RMP.labels(sc, fmtSignedTight(ind), legendUnit(ind)) : null;
+  const lab = c => signed ? slab[c] : n === 1 ? f(sc.lo) : c === 0 ? `≤ ${f(b[0])}` : c === n - 1 ? `> ${f(b[c - 1])}` : `${f(b[c - 1])} – ${f(b[c])}`;
   const rows = []; for (let c = n - 1; c >= 0; c--) {
-    /* the centre class of a diverging scale is marked, so the zero line is visible as a boundary
-       rather than read off the numbers */
-    const mid = sc.diverging && c === (n - 1) / 2;
-    rows.push(`<div class="lgrow${mid ? " lgmid" : ""}"><i style="background:${mkShade(n > 1 ? c / (n - 1) : .5, key)}"></i>${lab(c)}${mid ? `<em class="lgctr">${f(sc.center || 0)}</em>` : ""}</div>`);
+    /* a thin rule under the lowest positive class: the reader sees where the colours change sides
+       without having to read the numbers to find zero */
+    const zero = signed && c === sc.zero;
+    rows.push(`<div class="lgrow${zero ? " lgzero" : ""}"><i style="background:${shadeOf(sc, n > 1 ? c / (n - 1) : .5, key)}"></i>${lab(c)}</div>`);
   }
   return `<div class="lgtitle">${esc(ind.short || ind.label)}<span>${esc(unitLabel(ind))}</span></div>` +
     (n ? rows.join("") : `<div class="lgrow dim">no data</div>`) +
-    `<div class="lgrow"><i style="background:#C4CBC4"></i>no data</div>` +
-    /* same ramp for every direction: darkest = highest value, which is the worst end when lower is better */
-    (lowerBetter(ind.key || "") ? `<div class="lgnote">↓ lower is better · darkest = highest</div>` : "") +
+    `<div class="lgrow"><i style="background:${RMP.NODATA || "#C4CBC4"}"></i>no data</div>` +
+    /* same ramp for every direction: darkest = highest value, which is the worst end when lower is
+       better — except on a signed ramp, where the colours are flipped instead and say so */
+    (lowerBetter(ind.key || "") ? `<div class="lgnote">${signed ? "↓ " + esc(RMP.legendNote(sc)) : "↓ lower is better · darkest = highest"}</div>`
+      : signed ? `<div class="lgnote">${esc(RMP.legendNote(sc))}</div>` : "") +
     /* an Outlook legend says what it is and whose projection it is, in place of a good/bad note */
     (neutralDir(ind.key || "") && ind.proj ? `<div class="lgnote">${esc(projLegendNote(ind))}</div>` : "") +
-    (sc.diverging && sc.clamped ? `<div class="lgnote dim">top and bottom classes are open-ended</div>` : "") +
+    (signed ? `<div class="lgnote dim" data-testid="legend-signed-footer">${esc(RMP.LEGEND_FOOTER)}</div>` : "") +
     /* the ramp says which family this is; the three are never mixed in one legend */
     (PC.ramp(ind) === "climate" ? `<div class="lgnote">climate · Suomen ympäristökeskus / STUK</div>` : "") +
     `${note ? `<div class="lgnote">${note}</div>` : ""}`;
@@ -2213,12 +2242,18 @@ function distStrip(e, ind) {
   const x = v => L0 + (v - lo) / sp * (W - L0 - R);
   const med = median(vals);
   const f = fmtTight(ind);
+  /* the dot takes the map's colour for the class this value falls in, so a strip and a choropleth of
+     the same indicator never disagree — and on a signed indicator a zero line is drawn behind it */
+  const sc = scaleOf(vals.map(v => ({ v })), o => o.v, null, ind);
+  const dot = shadeOf(sc, sc.t(cur), ind.key);
+  const zero = sc.signed && lo < 0 && hi > 0 ? `<line class="dzero" x1="${x(0).toFixed(1)}" x2="${x(0).toFixed(1)}" y1="${Y - 19}" y2="${Y + 19}"/><text class="ax" x="${x(0).toFixed(1)}" y="${H - 4}" text-anchor="middle">0</text>` : "";
   return `<svg class="chart dist" data-testid="dist-strip" viewBox="0 0 ${W} ${H}">
     <line class="grid" x1="${L0}" x2="${W - R}" y1="${Y}" y2="${Y}"/>
+    ${zero}
     ${vals.map(v => `<line class="dtick" x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${Y - 9}" y2="${Y + 9}"/>`).join("")}
     <line class="dmed" x1="${x(med).toFixed(1)}" x2="${x(med).toFixed(1)}" y1="${Y - 15}" y2="${Y + 15}"/>
     <text class="ax" x="${x(med).toFixed(1)}" y="${Y + 28}" text-anchor="middle">median ${f(med)}</text>
-    <circle class="ddot" cx="${x(cur).toFixed(1)}" cy="${Y}" r="6"/>
+    <circle class="ddot" data-testid="dist-dot" cx="${x(cur).toFixed(1)}" cy="${Y}" r="6" style="fill:${dot}"/>
     <text class="ax dlab" x="${x(cur).toFixed(1)}" y="${Y - 21}" text-anchor="middle">${esc(e.name)} ${f(cur)}</text>
     <text class="ax" x="${L0}" y="${H - 4}">${f(lo)}</text><text class="ax" x="${W - R}" y="${H - 4}" text-anchor="end">${f(hi)}</text>
   </svg>
@@ -2373,7 +2408,7 @@ function arMapInit() {
     if (!hasRings(a)) return;
     const isOwn = own.includes(a); const t = sc.t(vk(a));
     const p = L.polygon(a.rings, { color: isOwn && (outline || kuntaLevel) ? "#141C18" : "#FFFFFF", weight: isOwn && outline ? 2.6 : isOwn && kuntaLevel ? 1.2 : kuntaLevel ? 0.6 : 1,
-      fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: isOwn ? .85 : kuntaLevel ? .35 : .45 });
+      fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: isOwn ? .85 : kuntaLevel ? .35 : .45 });
     const v = vk(a); const native = kuntaLevel || (sind && V(a, sind.key) != null);
     const label = kuntaLevel ? (byCode[a.muni] || {}).name : a.name;
     p.bindTooltip(`<b>${esc(label)}</b>${v != null ? `<br>${esc(sind.short || sind.label)}: ${fmtOf(sind)(v)}${native ? "" : " (kunta)"}` : ""}`);
@@ -3281,7 +3316,7 @@ function anMapOverlays() {
     const msc = scaleOf(rows, x => x[mind.col], mind.breaks);
     LF.anMicroG = L.layerGroup(rows.map(x => { const t = msc.t(x[mind.col]);
       const m = L.circleMarker([x[0], x[1]], { renderer: amOf(map).base, radius: microRadius(x[2], z), color: "#141C18", weight: .6, opacity: .7,
-        fillColor: t == null ? "#C4CBC4" : mkShade(t, "micro:" + mind.key), fillOpacity: .85 });
+        fillColor: t == null ? "#C4CBC4" : shadeOf(msc, t, "micro:" + mind.key), fillOpacity: .85 });
       m.bindPopup(() => microPopup(x, kom), { maxWidth: 440, autoPanPadding: [24, 24] }); return m; })).addTo(map);
     if (mLeg) { mLeg.style.display = ""; mLeg.innerHTML = legendHtml(msc, mind, "micro:" + mind.key, `${nf(rows.length, 0)} buildings · dot size = dwellings`); mmFoldable("anmicrolegend"); }
   } else if (mLeg) {
@@ -3314,7 +3349,7 @@ function anMapInit() {
     /* an area with no figure of its own takes its municipality's, exactly as the macro map does */
     const own = V(a, ind.key);
     const t = sc.t(useQ ? own : micro && own != null ? own : V(byCode[a.muni], ind.key));
-    L.polygon(a.rings, { color: "#FFFFFF", weight: .8, fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: .5, interactive: false }).addTo(map);
+    L.polygon(a.rings, { color: "#FFFFFF", weight: .8, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .5, interactive: false }).addTo(map);
   });
   const col = cssVar("--pin", "#33372C"), ll = [pt.lat, pt.lon];
   const rings = TP_RINGS.map(m => L.circle(ll, { radius: m, color: col, weight: 1, opacity: .8, dashArray: "5 6", fill: false, interactive: false }));
@@ -3612,7 +3647,7 @@ function lfLabels() {
         let la = 0, lo = 0, w_ = 0;
         list.forEach(a => { const c = centroid(mainRing(a)), ww = a.pop || 1; la += c[0] * ww; lo += c[1] * ww; w_ += ww; });
         const v = vk(list[0]); if (!w_ || v == null) return;
-        const t = sc.t(v), dark = t != null && t > .55;
+        const t = sc.t(v), dark = darkFill(sc, t);
         put([la / w_, lo / w_], `<b>${esc(name)}</b><br>${fmtTight(ind)(v)}`, dark);
       });
     } else {
@@ -3620,7 +3655,7 @@ function lfLabels() {
       areas.slice().sort((x, y) => (y.pop || 0) - (x.pop || 0)).slice(0, 40).forEach(a => {
         const [w, h] = px(mainRing(a)); if (w < 64 || h < 26) return;
         const m = byCode[a.muni]; const own = micro && vk(a) != null; const v = own ? vk(a) : (m ? vk(m) : null);
-        const t = sc.t(v), dark = t != null && t > .55; const val = v != null ? fmtTight(ind)(v) : "–";
+        const t = sc.t(v), dark = darkFill(sc, t); const val = v != null ? fmtTight(ind)(v) : "–";
         const name = w >= 120 && h >= 36 ? `<b>${esc(a.name)}</b><br>` : "";
         put(centroid(mainRing(a)), name + val, dark);
       });
@@ -3636,7 +3671,7 @@ function lfLabels() {
       const ll = [x / w, y / w], pt = LF.map.latLngToContainerPoint(ll);
       if (placed.some(q => Math.abs(q.x - pt.x) < 70 && Math.abs(q.y - pt.y) < 26)) return;
       placed.push(pt);
-      const t = sc.t(vk(m)), dark = t != null && t > .55;
+      const t = sc.t(vk(m)), dark = darkFill(sc, t);
       labs.push(L.marker(ll, { interactive: false, icon: L.divIcon({ className: "lflab" + (dark ? " lflab-dark" : ""), iconSize: null, html: `<b>${esc(m.name)}</b>${zoom >= 8 ? `<br>${vk(m) != null ? fmtTight(ind)(vk(m)) : "–"}` : ""}` }) }));
     });
   }
@@ -3740,7 +3775,7 @@ function lfMicroLayers() {
   /* same quintile classes as the area maps, computed on the buildings that pass the filters */
   const sc = scaleOf(rows, r => r[c], ind.breaks, ind); const t = sc.t;
   const marks = rows.map(r => { const tt = t(r[c]);
-    const m = L.circleMarker([r[0], r[1]], { renderer: amOf(LF.map).base, radius: microRadius(r[2]), color: "#141C18", weight: .6, opacity: .7, fillColor: tt == null ? "#C4CBC4" : mkShade(tt, "micro:" + ind.key), fillOpacity: .85 });
+    const m = L.circleMarker([r[0], r[1]], { renderer: amOf(LF.map).base, radius: microRadius(r[2]), color: "#141C18", weight: .6, opacity: .7, fillColor: tt == null ? "#C4CBC4" : shadeOf(sc, tt, "micro:" + ind.key), fillOpacity: .85 });
     m._dw = r[2]; m._row = r; m.bindPopup(() => microPopup(r, code), { maxWidth: 440, autoPanPadding: [24, 24] }); return m; });
   LF.microG = L.layerGroup(marks).addTo(LF.map); LF.microMarks = marks;
   tpLayers();
@@ -3779,7 +3814,7 @@ function lfLayers() {
     const src = micro && vk(a) != null ? a : m;
     const t = src ? sc.t(vk(src)) : null;
     const w = fine ? 1.4 : 0.8;
-    const p = L.polygon(a.rings, { color: "#FFFFFF", weight: w, fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: .72, smoothFactor: 1 });
+    const p = L.polygon(a.rings, { color: "#FFFFFF", weight: w, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .72, smoothFactor: 1 });
     p.bindPopup(() => lfPopup(a, m), { maxWidth: 560, maxHeight: 560, autoPanPadding: [24, 24] });
     p.on("mouseover", () => p.setStyle({ weight: 2.2, color: "#141C18" })); p.on("mouseout", () => p.setStyle({ weight: w, color: "#FFFFFF" }));
     polys.push(p);
@@ -5014,7 +5049,7 @@ function prMapInit() {
   MUNI.forEach(m => muniAreas(m.code).forEach(a => {
     if (!hasRings(a)) return;
     const t = sc.t(V(m, ind.key));
-    L.polygon(a.rings, { color: "#FFFFFF", weight: .5, fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: .55, interactive: false }).addTo(map);
+    L.polygon(a.rings, { color: "#FFFFFF", weight: .5, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .55, interactive: false }).addTo(map);
   }));
   const p = f.properties, style = infraStyle(p);
   const layer = f.geometry.type === "Point"
@@ -5119,7 +5154,7 @@ function pbMapInit(b) {
   (byCode[b.kom] ? muniAreas(b.kom) : []).forEach(a => {
     if (!hasRings(a)) return;
     const t = sc.t(V(byCode[b.kom], ind.key));
-    L.polygon(a.rings, { color: "#FFFFFF", weight: .6, fillColor: t == null ? "#C4CBC4" : mkShade(t, ind.key), fillOpacity: .45, interactive: false }).addTo(map);
+    L.polygon(a.rings, { color: "#FFFFFF", weight: .6, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .45, interactive: false }).addTo(map);
   });
   const c = pubCat(b);
   L.circleMarker([b.lat, b.lon], { radius: 9, color: c.color, weight: 3, fillColor: b.kind === "existing" ? c.color : "#FFFFFF",

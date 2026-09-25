@@ -114,7 +114,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | LEG4 | The stack must not cover Leaflet's attribution (licence condition — DK Q1) | done / n/a | FI's stack is anchored top-right (`src/style.css:1461`), DK's was bottom-right; `docs/ui_v2/map_1440.png` shows the credit clear | — | MUST |
 | LEG5 | On a phone the legends fold behind one `Legend ▾` pill | done | `legendPill()`, `src/style.css:2103`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
 | LEG6 | Indicator legend carries title, unit, 5 bins with values, `no data`, level footer, and the lower-is-better note | done | `legendHtml()` `src/app.js:962`; `docs/ui_v2/map_1440.png` | — | MUST |
-| LEG7 | Legend for a **signed** indicator shows fixed breaks centred on zero, red below / green above | **missing** | `docs/ui_v2/map_1440.png`: Growth bins are five greens — `> +0,3 %`, `−0,4 – +0,3 %`, `−1,0 – −0,4 %`, `−1,6 – −1,0 %`, `≤ −1,6 %`; zero is invisible and a shrinking municipality is green. `scaleOf()`/`divergingScale()` `src/app.js:932-961` use quantiles of \|v − centre\| | **V2** | MUST |
+| LEG7 | Legend for a **signed** indicator shows fixed breaks centred on zero, red below / green above | **done (V2)** | was five greens (`> +0,3 %` … `≤ −1,6 %`, zero invisible); now `legendHtml()` `src/app.js:975` renders `RAMP_CORE.labels()` with a `.lgzero` rule on the zero line and the footer "fixed breaks, centred on zero"; checks `V2-signed-legend`, `V2-signed-lower-better` | — | MUST |
 
 ## 7. Map view and the map area card (spec §5.1, AC-M1/M4/M9, task P4)
 
@@ -303,8 +303,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | RAMP1 | Observed = green, Outlook = purple, Climate = blue; never mixed in one legend | done | `FAMILY_HUE` `src/app.js:909`; check `P3-family-ramps` | — | MUST |
 | RAMP2 | Projections dashed and pilled, never bold green/red | done | `PROJ_COLOR` `:2052`; check `P5-panel-modes` | — | MUST |
 | RAMP3 | Lower-is-better keeps "darkest = highest" and says so in the legend footer | done | `legendHtml()` `:962` | — | MUST |
-| RAMP4 | **Signed indicators get a diverging ramp with fixed breaks centred on 0** (owner, 2026-09-25) | **missing** | `divergingScale()` `:932` centres on the median of \|v − centre\| — quantiles, so the breaks move each year and zero is invisible. See LEG7 | **V2** | MUST |
-| RAMP5 | The same ramp on map, area mini map, property mini map and the distribution strip | **missing** | one `scaleOf()` path exists (`:944`), so the fix lands everywhere at once — but it must be asserted | **V2** | MUST |
+| RAMP4 | **Signed indicators get a diverging ramp with fixed breaks centred on 0** (owner, 2026-09-25) | **done (V2)** | `src/ramp_core.js` — 13 signed keys with a threshold each, breaks at ±t (±3t where > 20 % of areas lie beyond), 0 in the positive-low class, `crime_trend` flipped; `scaleOf()` `src/app.js:952`; `tests/ramp.test.js` (20 tests), check `V2-signed-not-quantiles` | — | MUST |
+| RAMP5 | The same ramp on map, area mini map, property mini map and the distribution strip | **done (V2)** | one shader, `shadeOf(sc, t, key)` `src/app.js:927`, on every fill; the sixth-class decision is per indicator (`signedWide()` `:938`), not per map, so the four surfaces cannot disagree; check `V2-same-ramp-everywhere`, `V2-dist-strip-dot` | — | MUST |
 | RAMP6 | Housing-stock group's blue is close to the Climate blue | open (data) | DK's own O1: the hue is per-indicator in `config/indicators.json`, which this run may not touch | — | LATER |
 
 ## 21. Global acceptance and housekeeping
@@ -322,8 +322,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 
 ## MUST gaps, distributed
 
-**V2 — colour rule (fixed scope)**
-RAMP4, RAMP5, LEG7.
+**V2 — colour rule (fixed scope)** ☑ shipped
+RAMP4, RAMP5, LEG7 — all three `done (V2)` above, six checks registered under phase V2.
 
 **V3 — map**
 SRCH3 (pin stays on the map), SRCH4 (`pin-card` / `pin-open`), SRCH5 (`search-coord` + "Drop a pin here"),

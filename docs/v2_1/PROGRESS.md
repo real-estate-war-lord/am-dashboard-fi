@@ -70,3 +70,80 @@ pre-existing false positive; the gate treats it as informational — see DECISIO
   colliding top-level `const` blanks the page).
 - `docs/v2_1/ref/**` is read-only, and so are `data/`, `config/`, `.github/` and every `scripts/*` file
   except `build_dashboard.py`. Two audit rows (RAMP6, GLOB5) are daytime tasks for exactly that reason.
+
+---
+
+## V2 — the colour rule for signed indicators ☑
+
+Audit rows closed: **RAMP4, RAMP5, LEG7** (the whole of V2's fixed scope). Gate:
+`./overnight.sh gate V2` green — build ✓, **67 node tests** ✓ (48 + 19 new), **77 ui checks** ✓
+(71 + 6 new), budgets `src/app.js` 403 KB / 460, `src/style.css` 137 KB / 165. The python unit suite
+is still red on the one pre-existing false positive (GLOB5) and is still informational.
+
+**Built**
+
+1. **`src/ramp_core.js`** (new, 11 KB, IIFE → `window.RAMP_CORE`, wired into `src/index.html` and
+   `scripts/build_dashboard.py` as `{{RAMP_JS}}` in this commit). Everything about the signed ramp
+   that is a function of the registry and the numbers, and nothing about the DOM:
+   - `SIGNED` — **the one table**: 13 indicator keys, one threshold each. `growth` 0,5 %/yr ·
+     `migration` / `migration_dom` 5 per 1 000 · `rent_yoy` 2 % · `crime_trend` 5 % · `fc_growth` /
+     `fc_0_6` / `fc_7_15` / `fc_20_34` / `fc_pop_rate_5y` 5 · `fc_growth_5y` / `fc_20_34_rel` 2 ·
+     `fc_abs` 500 residents. `fc_80p` is deliberately **not** signed (every kunta is above zero).
+   - `signedScale(vals, t, {family, flip, wide})` → fixed breaks `[−t, 0, +t]`, or
+     `[−3t, −t, 0, +t, +3t]` when the sixth class is called for. Classification is `>=`, which is
+     what puts **exactly 0 in the `0 … +t` class** and makes the extreme classes open-ended.
+   - Colours: greens from the observed ramp's own hue, reds from the owner's brick red (taken
+     deeper at the extreme so the pair clears 3:1), purples for a projection's positive side.
+     `flip: true` (`crime_trend`) swaps the sides and nothing else.
+   - `labels()` / `legendNote()` / `LEGEND_FOOTER`, and `contrast()` / `lum()` / `chroma()` /
+     `warmth()` so the colour claims are asserted rather than asserted *in prose*.
+2. **`src/app.js`** — one shader for every fill, `shadeOf(sc, t, key)` (`:927`), replacing nine
+   direct `mkShade()` calls; `scaleOf()` takes the signed branch before quantiles; `darkFill()`
+   replaces `t > .55` for map-label contrast (on a signed ramp the darkest class is at the *bottom*
+   of the class list, so the old test put light text on a pale green); `legendHtml()` renders the
+   signed labels, the `.lgzero` rule on the zero line and the footer; `distStrip()` colours its dot
+   from the same scale and draws a zero line. **Deleted**: `divergingScale()`, `mkShade`'s
+   `scale === "diverging"` branch and the `.lgmid` / `.lgctr` CSS — dead Danish code, no FI
+   indicator carries `scale`.
+3. **`signedWide()`** (`src/app.js:938`) — the sixth-class decision, taken **once per indicator**
+   over every level the build ships and then reused by every surface. Six classes today:
+   `growth`, `crime_trend`, `fc_growth`, `fc_growth_5y`, `fc_7_15`, `fc_20_34_rel`; four for the
+   other seven. Numbers per level in DECISIONS V2.
+4. **Tests.** `tests/ramp.test.js` — 20 `node --test` cases: the registry, the breaks, the class
+   edges, zero, the flip, the ±3t rule (including that exactly 20 % is not "more than 20 %"), the
+   `t()` round trip, the labels, and four contrast assertions, two of which run against
+   `data/processed/*.json`. Six ui checks under phase V2: `V2-signed-legend`,
+   `V2-signed-lower-better`, `V2-signed-not-quantiles`, `V2-same-ramp-everywhere`,
+   `V2-dist-strip-dot`, `V2-sequential-untouched`.
+
+**Deviations** (all in DECISIONS.md V2, with the reasoning)
+
+- The owner's "**3:1 against `no data` grey**" is unachievable and his own example colours fail it:
+  `#C4CBC4` sits at L = 0,58, so no colour reaches 3:1 from the light side. What is asserted instead:
+  3:1 within each side, 3:1 for the darkest class of each side against the grey, and chroma ≥ 24
+  against the grey's 7 for every swatch.
+- **`rent_yoy` at the owner's t = 2 % is nearly a two-class map** — 290 of 292 kunnat moved less than
+  2 %. Shipped as specified; flagged for a morning look (0,5 % would populate four classes).
+- Red/green now applies to indicators the registry calls `direction: neutral` (`migration`, the
+  Outlook family). The legend wording stays factual ("green above zero, red below"), and the ⓘ
+  details keep their "neither end is better" sentence.
+- **Charts' Distribution mode was left alone**: it draws `bbr.dist` donuts, shares no code with
+  `scaleOf()`, and `distAvail()` is false in this build, so the mode is not offered at all.
+
+**What the next phase must know**
+
+- `src/ramp_core.js` is the third `window.*` core beside `ROUTE_CORE` and `PICKER_CORE`. In
+  `src/app.js` it is `RMP`, **not** `RC` — `RC` was already the route core (`:493`), and a second
+  top-level `const RC` blanks the page. A new `src/*.js` still needs both `src/index.html` and
+  `scripts/build_dashboard.py` in the same commit.
+- **Never call `mkShade()` directly from a new fill.** `shadeOf(sc, t, key)` is the one shader; a
+  raw `mkShade()` silently draws a signed indicator in the sequential green ramp. Same for
+  `darkFill(sc, t)` instead of `t > .55` anywhere a map label sits on a fill. V4 (property layers)
+  and V5 (area mini map) will both add fills — use these two.
+- `legendHtml()` now has a signed branch. V4/V5 legends that go through `setLegend()` get it for
+  free; anything that hand-rolls a legend must not.
+- Nothing in the routing, the picker, the period control or the export changed, so V3's map work
+  starts from the same surface V1 audited.
+- Seen in the screenshots and **not** V2's to fix: at 390 the `Legend ▾` pill overlaps Leaflet's
+  attribution line (`docs/ui_v2/map_390.png`), and the RENT tile still clips its unit
+  (`21,3 EUR/m²/mont`, audit row TILE5). Both belong to V6.
