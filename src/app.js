@@ -319,7 +319,7 @@ const microAvail = code => !!(code && MICRO_IDX[kcode(code)]);
 const microMode = () => !!(MK.micro && MK.muni && microAvail(MK.muni));
 const curMind = () => MICRO_INDS.find(i => i.key === MK.mind) || MICRO_INDS[0];
 const AR = { type: null, code: null, sub: "osa_alue", show: [], showSet: false };   /* area page; `show` = which <details> are open (URL key show=) */
-const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false };   /* fold states that survive a re-render */
+const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false, mmFull: false };   /* fold states that survive a re-render */
 const CH = { ind: (IND[0] || {}).key, areas: [], y0: "", y1: "", median: true, title: "", mode: "auto", dist: "size", fq: "year", ov: [], nat: true };   /* chart generator; fq = year | q, ov = overlay indicators, nat = Finland line */
 const PR = { id: null };                                                          /* project datasheet */
 const PB = { kom: null, id: null };                                               /* public-building sheet */
@@ -395,8 +395,8 @@ const LF = { map: null, center: [64.8, 26.0], zoom: 5 };
 const LF_MAPS = {
   map:   ["areaG", "labG", "microG", "infraG", "infraHitG", "infraStG", "infraLabG",
           "pubG", "pubLabG", "srvG", "srvStG", "climL", "tpG"],
-  amap:  [],
-  anmap: ["anInfraG", "anInfraHitG", "anPubG", "anSrvG", "anSrvStG", "anMicroG", "anRingG", "anPinG", "anClimL"],
+  amap:  ["amAreaG", "amClimL"],
+  anmap: ["anAreaG", "anInfraG", "anInfraHitG", "anPubG", "anSrvG", "anSrvStG", "anMicroG", "anRingG", "anPinG", "anClimL"],
   pmap:  [],
 };
 function syncMaps() { window.__maps = Object.keys(LF_MAPS).map(k => LF[k]).filter(Boolean); }
@@ -612,6 +612,9 @@ function parseHash() {
   if (!yearsFor(MK.ind).includes(MK.year)) MK.year = LATEST;
   /* derived after the guard above, so the zones always belong to the indicator that survived it */
   if (S.view === "property") MK.clim = AN.zonesOff ? "" : climFor(MK.ind);
+  /* the area mini map draws the same zones (MM6). They follow `ind=` and have no switch here, so
+     there is no `zones=0` on this route — `climLegendHtml()` reads `MK.clim` and needs it set. */
+  if (S.view === "area") MK.clim = climFor(MK.ind);
   if (S.view === "makro") {
     /* zoom to a municipality the first time it is shown; back to the national frame when it is cleared */
     if (MK.muni && MK.muni !== LF.shownMuni) LF.pendingFit = MK.muni;
@@ -719,6 +722,9 @@ function render() {
     pnoLoad(byQ[AR.code].muni, () => renderKeep());
   /* the osa-alue map needs every osa-alue of the kunta, not just the one being looked at */
   if (S.view === "makro" && MK.muni && osaMode() && !pnoReady(MK.muni)) pnoWant(MK.muni);
+  /* a full-screen mini map is a class on a card that is about to be replaced, so the flag goes
+     with it — a stale `UI.mmFull` would otherwise fill a chips row nobody can see */
+  UI.mmFull = false; document.body.classList.remove("has-full");
   renderNav(); renderTop();
   /* Every live map goes before #body is replaced. A map that outlives its container keeps
      animating a node that is no longer in the document — that is the whole of the v1.1
@@ -806,7 +812,7 @@ document.addEventListener("click", e => {
   if ((el = g("[data-schoollist]"))) { go(`schoollist/${el.dataset.schoollist}`); return; }
   if ((el = g("[data-pubsheet]"))) { const row = el.closest("[data-pubkom]"); go(`public/${(row && row.dataset.pubkom) || MK.muni || ""}/${el.dataset.pubsheet}`); return; }
   if (g("[data-mcsv]")) { exportMicroCsv(); return; }
-  if ((el = g("[data-arsub]"))) { AR.sub = el.dataset.arsub; syncHash(); renderKeep(); return; }
+  if ((el = g("[data-arsub]"))) { AR.sub = el.dataset.arsub; syncHash(); if (!areaRefresh({ fit: true })) renderKeep(); return; }
   if ((el = g("[data-ipkopen]"))) { ipkToggle(el.dataset.ipkopen); return; }
   if ((el = g("[data-ind]"))) { indSet(el.dataset.pt || "ind", el.dataset.ind); return; }
   if (g("[data-mftoggle]")) { UI.mfOpen = !UI.mfOpen; const p = document.getElementById("mfpanel"), b = g("[data-mftoggle]"); if (p) p.style.display = UI.mfOpen ? "" : "none"; if (b) b.classList.toggle("on", UI.mfOpen); return; }
@@ -816,7 +822,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => {
   const el = e.target;
-  if (el.id === "yearsel") { MK.year = el.value; syncHash(); renderKeep(); }
+  if (el.id === "yearsel") { MK.year = el.value; syncHash(); if (!areaRefresh() && !tpRefresh()) renderKeep(); }
   if (el.id === "mindsel") { MK.mind = el.value; syncHash(); renderKeep(); }
   if (el.id === "chnat") { CH.nat = el.checked; syncHash(); renderKeep(); }
   if (el.id === "chy0") { CH.y0 = el.value; syncHash(); renderKeep(); }
@@ -864,6 +870,13 @@ document.addEventListener("toggle", e => {
     if (S.view === "area") AR.showSet = true;
     if (S.view === "property") AN.showSet = true;
     syncHash();
+    /* opening All figures brings the row the panel above is showing into view (AC-P6, audit AREA5).
+       `block: nearest` scrolls the least that makes the row visible, so a reader who opened the
+       section from the top of the page does not get thrown down it. */
+    if (k === "figures" && e.target.open) {
+      const row = e.target.querySelector("tr.hi");
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+    }
   }
 }, true);
 document.addEventListener("keydown", e => {
@@ -1181,6 +1194,13 @@ function indSet(target, key) {
   /* a Climate indicator brings the publisher's own flood zones with it, and any other takes them
      away again — the zones and the figure are the same measurement, seen two ways */
   MK.clim = climFor(key);
+  /* the area page and the Test property update in place: the mini map's pan and zoom, the reader's
+     scroll position and the ⤢ overlay all survive an indicator change (AC-P4, AC-TP3) */
+  if (S.view === "area" || S.view === "property") {
+    syncHash();
+    if (areaRefresh() || tpRefresh()) return;
+    renderKeep(); return;
+  }
   go(hashFor());
 }
 /* which SYKE layer belongs to this indicator, if any */
@@ -1814,9 +1834,9 @@ function vTable() {
       <span class="hint" id="tcount">${tableRows().length} rows</span>
     </div>
     <div class="scrollx"><table class="tbl compact wraphead" data-testid="areas-table" data-sortable><thead><tr>
-      <th>${T.level === "osa_alue" ? "Osa-alue" : T.level === "postinumero" ? "Area" : "Municipality"}</th><th>${T.level === "postinumero" ? "Postal code" : "Code"}</th><th>${T.level === "osa_alue" ? "District" : T.level === "postinumero" ? "Municipality" : "Region"}</th><th class="num">Population</th>
-      <th class="num hi" data-best="${best(ind)}">${esc(ind.label)}<br><span class="dim">${esc(unitLabel(ind))}</span></th>${y0 && y0 !== MK.year ? `<th class="num">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
-      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num" data-best="${best(i)}">${esc(i.label)}${lowerBetter(i.key) ? " ↓" : ""}<br><span class="dim">${esc(unitLabel(i))}</span></th>`).join("")}</tr></thead>
+      <th data-col="name">${T.level === "osa_alue" ? "Osa-alue" : T.level === "postinumero" ? "Area" : "Municipality"}</th><th data-col="code">${T.level === "postinumero" ? "Postal code" : "Code"}</th><th data-col="parent">${T.level === "osa_alue" ? "District" : T.level === "postinumero" ? "Municipality" : "Region"}</th><th class="num" data-col="population">Population</th>
+      <th class="num hi" data-col="${esc(ind.key)}" data-best="${best(ind)}">${esc(ind.label)}<br><span class="dim">${esc(unitLabel(ind))}</span></th>${y0 && y0 !== MK.year ? `<th class="num" data-col="${esc(ind.key)}_delta">Δ since ${y0}<br><span class="dim">${isPct(ind) ? "pp" : "%"}</span></th>` : ""}
+      ${cols.filter(i => i.key !== ind.key).map(i => `<th class="num" data-col="${esc(i.key)}" data-best="${best(i)}">${esc(i.label)}${lowerBetter(i.key) ? " ↓" : ""}<br><span class="dim">${esc(unitLabel(i))}</span></th>`).join("")}</tr></thead>
       <tbody id="tbody">${tableBodyHtml()}</tbody></table></div>
     <p class="cap">Sorted by the selected indicator, best first (↓ = lower is better); click a column header to re-sort, a row to open the area's page, ↗ to chart it. a <b>muni</b> tag = the kunta's figure, shown where the area publishes none · ^ = figure published for a coarser area than the row (a maakunta rent, a maakunta construction rate).${isSafety(curInd()) ? "" : " Safety columns appear when a Safety indicator is selected."} Rows: ${T.level === "postinumero" ? "postal codes (street-level codes merged by name)" : T.level === "osa_alue" ? "Helsinki-region osa-alueet (osa-alueet), source Aluesarjat" : "municipalities"}.</p>
     ${srcNote()}
@@ -1831,10 +1851,13 @@ const EXPORT_ITEMS = [
   ["areas", "All area data (long)", () => "every level, indicator and period, one row each"],
   ["projects", "Projects", () => `${INFRA_ALL.length} infrastructure projects, their own schema`],
   ["property", "Test property", () => (TP.lat != null || AN.a) ? "the pin's figures, plus what is around it" : "pin a property first"],
+  ["climate", "Climate exposure", () => `every area × return period over the ${CLIMATE_INDS.length} Climate indicators`],
   ["sources", "Sources catalogue", () => "one row per source: publisher, tables, as-of, licence"],
 ];
+const CLIMATE_INDS = IND_ANY.filter(i => (i.group || "") === "Climate");
 const exportAvail = id => (id !== "projects" || INFRA_ALL.length > 0)
-  && (id !== "property" || TP.lat != null || !!AN.a);
+  && (id !== "property" || TP.lat != null || !!AN.a)
+  && (id !== "climate" || CLIMATE_INDS.length > 0);
 function exportBtn(where) {
   return `<div class="exwrap ${where === "foot" ? "exfoot" : ""}">
     <button class="xbtn" data-testid="export-btn" data-exopen aria-haspopup="menu" aria-expanded="${UI.exOpen ? "true" : "false"}">⤓ Export ▾</button>
@@ -1855,6 +1878,7 @@ function exportRun(id) {
   if (id === "areas") return exportAll();
   if (id === "projects") return exportPipelineCsv();
   if (id === "property") return exportProperty();
+  if (id === "climate") return exportClimateCsv();
   if (id === "sources") return exportSourcesCsv();
 }
 
@@ -2067,19 +2091,60 @@ function exportProperty() {
   exportToast(`test_property.csv · ${nf(out.length - 1, 0)} rows · nearby ${nf(near.length - 1, 0)}`);
 }
 
-/* one row per source the build stamped, and what it is used for */
-function exportSourcesCsv() {
+/* The sources catalogue, once (EXP8). Data › Sources renders its table **from these records** and
+   the export writes the same ones, so the screen and the file cannot disagree about a publisher,
+   an as-of or a licence — which is exactly what a reader cross-checking the CSV against the page
+   is entitled to. `fetched` falls back to the build date on both sides, never to an empty cell. */
+function sourceRecords() {
   const usedFor = key => IND.concat(IND_OSA).filter(i => (i.tables || []).indexOf(key) >= 0)
     .map(i => i.short || i.label).slice(0, 10).join(", ");
-  const out = [SOURCE_COLS.join(";")];
-  ((D.meta && D.meta.sources) || []).forEach(x => out.push(csvRow(SOURCE_COLS, {
+  return ALL_SOURCES.map(x => ({
     key: x.key, label: x.label || x.key,
     publisher: x.publisher || SRC_PUB[String(x.key).split(/[:/]/)[0]] || "Tilastokeskus",
     tables: x.tables || x.key, as_of: x.asof || "",
-    fetched: x.fetched || (D.meta && D.meta.built) || "", licence: x.licence || "",
-    url: x.url || "", used_for: usedFor(x.key) })));
+    fetched: x.fetched || (D.meta && D.meta.built) || "",
+    /* true when the row is stamped with the build date rather than a fetch of its own — the table
+       marks it with a `build` tag instead of showing a date the publisher did not give */
+    fetched_is_build: !x.fetched,
+    licence: x.licence || "", url: x.url || "", used_for: usedFor(x.key) }));
+}
+/* one row per source the build stamped, and what it is used for */
+function exportSourcesCsv() {
+  const out = [SOURCE_COLS.join(";")];
+  sourceRecords().forEach(x => out.push(csvRow(SOURCE_COLS, x)));
   downloadCsv(out, `am-dashboard-fi_sources_${(D.meta && D.meta.built) || "data"}.csv`);
   exportToast(`sources.csv · ${nf(out.length - 1, 0)} sources`);
+}
+/* EXP10 — the climate exposure file: every area × every Climate indicator, with the hazard and the
+   return period spelled out in columns of their own so a reader can pivot on them. Finland's
+   equivalent of Denmark's level × horizon file: a return period is not a year (D13), so the
+   column says `1/100a`, never `2070`. */
+const CLIMATE_COLS = ["level", "code", "name", "parent_code", "parent_name", "indicator", "label",
+                      "hazard", "return_period", "unit", "value", "value_type", "as_of",
+                      "source", "table_id", "source_url", "licence"];
+const CLIM_HAZARD = { flood_sea: "sea flood", flood_river: "river flood" };
+function climateRows(out, level, o, code, name, parentCode, parentName, inds) {
+  inds.filter(i => (i.group || "") === "Climate").forEach(i => {
+    const v = V(o, i.key); if (v == null) return;
+    const rp = PC.rpParts(i.key);
+    const st = indStamp(i, level, null);
+    out.push(csvRow(CLIMATE_COLS, {
+      level, code, name, parent_code: parentCode, parent_name: parentName,
+      indicator: i.key, label: i.label, hazard: rp ? CLIM_HAZARD[rp.base] || rp.base : (i.key.indexOf("radon") === 0 ? "radon" : ""),
+      return_period: rp ? PC.rpLabel(rp.rp) : "", unit: i.unit || "", value: v,
+      value_type: "observed", as_of: st.as_of, source: st.source, table_id: st.table_id,
+      source_url: st.source_url, licence: st.licence }));
+  });
+}
+function exportClimateCsv() {
+  const out = [CLIMATE_COLS.join(";")];
+  MUNI.forEach(m => climateRows(out, "kunta", m, m.code, m.name, "FI", "Finland", IND));
+  AREAS.forEach(a => { const m = byCode[a.muni] || {};
+    climateRows(out, "postinumero", a, a.nr, a.name, m.code || "", m.name || "", IND); });
+  if (OSA) OSA.areas.forEach(q => { const m = osaParent(q) || {};
+    climateRows(out, "osa_alue", q, q.code, q.name, m.code || "", m.name || "", IND_Q_ALL); });
+  downloadCsv(out, `am-dashboard-fi_climate_exposure_${(D.meta && D.meta.built) || "data"}.csv`);
+  exportToast(`climate_exposure.csv · ${nf(out.length - 1, 0)} rows`);
 }
 
 /* one line, where the button is, naming the file and its size — never a modal */
@@ -2435,34 +2500,31 @@ function studyRow(e, ind, mapId, mapHint, extraLegends) {
     <div class="card panel minimap" data-testid="minimap">
       <div class="card-head"><h3>${esc(ind.short || ind.label)}</h3><span class="hint">${esc(mapHint || "")}</span>
         <button class="tbtn mmfull" data-testid="minimap-full" data-mmfull="${esc(mapId)}" title="Full screen (Esc closes)">⤢</button></div>
+      <div class="mm-chips"></div>
       <div class="mapwrap"><div id="${esc(mapId)}"></div>${legendPill()}
         <div class="maplegs mmlegs">${extraLegends || ""}<div class="maplegend small" data-testid="legend" id="${esc(mapId)}legend"></div></div></div>
     </div></div>`;
 }
+/* The area mini map has one feature legend of its own: the SYKE flood zones a Climate indicator
+   brings with it (MM6). It folds to its title like every other one and hides itself when the
+   active indicator is not a Climate one. */
+const AR_LEGENDS = `<div class="maplegend small climlegend" data-testid="legend-zones" id="armapclimlegend" style="display:none"></div>`;
 /* The feature-layer legends on the Test property map, in one flex column so they stack instead of
    piling on top of each other — v1.1 drew the public-buildings card and the infra card at the same
    corner and they overlapped whenever both layers were on. */
-const TP_LEGENDS = `<div class="maplegend small climlegend" data-testid="legend-zones" id="anclimlegend"></div><div class="maplegend small publiclegend" data-testid="legend-public" id="anpublegend"></div><div class="maplegend small serviceslegend" data-testid="legend-services" id="ansrvlegend"></div><div class="maplegend small infralegend" data-testid="legend-infra" id="aninfralegend"></div><div class="maplegend small" data-testid="legend-buildings" id="anmicrolegend"></div>`;
+const TP_LEGENDS =`<div class="maplegend small climlegend" data-testid="legend-zones" id="anclimlegend"></div><div class="maplegend small publiclegend" data-testid="legend-public" id="anpublegend"></div><div class="maplegend small serviceslegend" data-testid="legend-services" id="ansrvlegend"></div><div class="maplegend small infralegend" data-testid="legend-infra" id="aninfralegend"></div><div class="maplegend small" data-testid="legend-buildings" id="anmicrolegend"></div>`;
 
-function vArea() {
-  const e = areaEntity();
-  if (!e) return `<div class="back"><button data-go="map">‹ Map</button></div><div class="card"><p class="empty">Unknown area.</p></div>`;
-  const ind = curInd();
-  setTimeout(arMapInit, 0);
-  const mapHash = e.type === "kunta" ? `map/${e.code}` : e.type === "osa_alue" ? `map/${e.o.muni}` : `map/${e.o.muni}/postinumero`;
-  const microCode = e.type === "kunta" ? e.code : e.o.muni;
-  /* the kunta page opens on its outlook — it is the one chart that answers "is this place growing",
-     and the only place the projection is fully explained. Everything else is closed. */
-  /* the page's defaults ARE the state until the reader says otherwise: a <details> that renders
-     open must find its key already in the list, or the browser's insertion-time toggle event would
-     read as a click and start writing `show=` into every link */
-  if (!AR.showSet) AR.show = e.type === "kunta" ? ["outlook"] : [];
-  const show = AR.show;
+/* the mini map's one-line hint — what the small map is showing and what a click on it does */
+function arMapHint(e, ind) {
   const mm = arMapMode(e, ind);
-  const mapHint = mm.kuntaLevel ? `${e.peerLabel} · click a neighbour to open it`
+  return mm.kuntaLevel ? `${e.peerLabel} · click a neighbour to open it`
     : e.type === "kunta" ? `by ${mm.useQ ? "osa-alue" : "postal code"} · click one to open it`
     : "neighbours · click one to open it";
-  const figHint = `y/y = change from the previous year · "vs median" = the difference from the median of ${e.peerLabel}, in pp for shares and in the indicator's own unit otherwise · #n of N = rank among the ${e.peerLabel} that have a published figure${e.type === "osa_alue" ? " · ^ = figure published for the whole peruspiiri · n/c = not comparable (different definition at kunta level)" : ""}.`;
+}
+/* the identity card and the toolbar: everything above the study row */
+function areaTop(e) {
+  const mapHash = e.type === "kunta" ? `map/${e.code}` : e.type === "osa_alue" ? `map/${e.o.muni}` : `map/${e.o.muni}/postinumero`;
+  const microCode = e.type === "kunta" ? e.code : e.o.muni;
   return `
   <div class="card accent arhead">
     <div class="arid">
@@ -2474,8 +2536,13 @@ function vArea() {
   </div>
   <div class="card accent">
     <div class="card-head tools-only"><div class="tools" data-row="1">${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
-  </div>
-  ${studyRow(e, ind, "armap", mapHint)}
+  </div>`;
+}
+/* everything below the study row: the four toggles and the source note */
+function areaSections(e) {
+  const show = AR.show;
+  const figHint = `y/y = change from the previous year · "vs median" = the difference from the median of ${e.peerLabel}, in pp for shares and in the indicator's own unit otherwise · #n of N = rank among the ${e.peerLabel} that have a published figure${e.type === "osa_alue" ? " · ^ = figure published for the whole peruspiiri · n/c = not comparable (different definition at kunta level)" : ""}.`;
+  return `
   <div class="seclist">
     ${e.o.fc_pop ? showSec(show, "outlook", "Population outlook", `<span class="tag proj">Projection</span>`, outlookCard(e)) : ""}
     ${e.type === "osa_alue" && e.o.kk ? showSec(show, "safety", "Safety survey", "", kkCard(e)) : ""}
@@ -2485,6 +2552,42 @@ function vArea() {
     ${e.subs ? showSec(show, "sub", e.subs.osa_alue ? `Osa-alueet & postal codes` : `Postal codes (${(e.subs.postinumero || []).length})`, "", areaSubTable(e)) : ""}
   </div>
   ${srcNote()}`;
+}
+function vArea() {
+  const e = areaEntity();
+  if (!e) return `<div class="back"><button data-go="map">‹ Map</button></div><div class="card"><p class="empty">Unknown area.</p></div>`;
+  const ind = curInd();
+  setTimeout(arMapInit, 0);
+  /* the kunta page opens on its outlook — it is the one chart that answers "is this place growing",
+     and the only place the projection is fully explained. Everything else is closed. */
+  /* the page's defaults ARE the state until the reader says otherwise: a <details> that renders
+     open must find its key already in the list, or the browser's insertion-time toggle event would
+     read as a click and start writing `show=` into every link */
+  if (!AR.showSet) AR.show = e.type === "kunta" ? ["outlook"] : [];
+  return `<div id="artop">${areaTop(e)}</div>
+  ${studyRow(e, ind, "armap", arMapHint(e, ind), AR_LEGENDS)}
+  <div id="arsecs">${areaSections(e)}</div>`;
+}
+/* Choosing an indicator, a year or a sub-level on the area page updates the header, the tiles, the
+   panel, the sections and the mini map's colours **in place** (spec §4.2, AC-P4). A full render()
+   would tear the Leaflet map down and rebuild it, so the reader would lose the pan, the zoom and
+   the ⤢ full-screen overlay on every chip click. Returns false when this is not that page, so
+   every call site can still fall back to renderKeep(). */
+function areaRefresh(opts) {
+  if (S.view !== "area") return false;
+  const e = areaEntity(); if (!e) return false;
+  const row = document.querySelector("[data-testid=study-row]"); if (!row) return false;
+  const ind = curInd();
+  const top = document.getElementById("artop"); if (top) top.innerHTML = areaTop(e);
+  const panel = row.querySelector("[data-testid=chart-panel]");
+  if (panel) panel.outerHTML = chartPanel(e, ind);
+  const h = row.querySelector(".minimap .card-head h3"); if (h) h.textContent = ind.short || ind.label;
+  const hint = row.querySelector(".minimap .card-head .hint"); if (hint) hint.textContent = arMapHint(e, ind);
+  if (UI.mmFull) mmChipsFill(row.querySelector("[data-testid=minimap]"));
+  const secs = document.getElementById("arsecs");
+  if (secs) { secs.innerHTML = areaSections(e); enableSort(secs); }
+  arMapPaint((opts || {}).fit);
+  return true;
 }
 /* Helsinki-region osa-alueet: the figures the city's safety survey publishes for the whole peruspiiri */
 function kkCard(e) {
@@ -2517,6 +2620,17 @@ function arMapInit() {
   const map = L.map(el, { center: LF.center, zoom: LF.zoom, scrollWheelZoom: true, dragging: true, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 60, wheelDebounceTime: 20, attributionControl: false });
   LF.amap = map; mapPanes(map); syncMaps();
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, className: "basemap" }).addTo(map);
+  arMapPaint(true);
+  /* the ⤢ overlay survives a re-render, and a map built inside it has to be told its real size */
+  if (document.querySelector("[data-testid=minimap].is-full")) setTimeout(() => LF.amap && LF.amap.invalidateSize(), 60);
+}
+/* The mini map is built once per render of the page and then only ever re-painted: choosing another
+   indicator must not cost the reader the pan, the zoom or the full-screen overlay (AC-P4, MM5). */
+function arMapPaint(fit) {
+  const map = LF.amap; if (!map) return;
+  const e = areaEntity(); if (!e) return;
+  if (LF.amAreaG) { try { map.removeLayer(LF.amAreaG); } catch (err) {} LF.amAreaG = null; }
+  const gm = L.layerGroup().addTo(map); LF.amAreaG = gm;
   const ind = curInd(); const { useQ, sind, kuntaLevel } = arMapMode(e, ind);
   const ctx = e.type === "kunta" ? (useQ ? OSA.areas : kuntaLevel ? AREAS : e.ctx) : e.ctx;
   const vk = a => { if (!sind) return null; if (kuntaLevel) return V(byCode[a.muni], sind.key); return V(a, sind.key) ?? (useQ ? null : V(byCode[a.muni], sind.key)); };
@@ -2533,15 +2647,32 @@ function arMapInit() {
     p.bindTooltip(`<b>${esc(label)}</b>${v != null ? `<br>${esc(sind.short || sind.label)}: ${fmtOf(sind)(v)}${native ? "" : " (kunta)"}` : ""}`);
     if (!isOwn) { p.on("click", () => go(withQ(kuntaLevel ? pageOf(byCode[a.muni]) : pageOf(a)))); p.on("mouseover", () => p.setStyle({ weight: 2.2, color: "#141C18" })); p.on("mouseout", () => p.setStyle({ weight: kuntaLevel ? 0.6 : 1, color: "#FFFFFF" })); }
     else if (e.type === "kunta" && !kuntaLevel) { p.on("click", () => go(withQ(pageOf(a)))); }
-    p.addTo(map);
+    p.addTo(gm);
   });
   if (sind) setLegend("armaplegend", sc, sind, ind.key, kuntaLevel ? "kunnat" : useQ ? "osa-alueet" : "postal codes");
+  arMapZones();
+  if (!fit) return;
   /* fit to the area itself; its bounding box is inline even before its rings are fetched,
      so the mini-map never opens on the wrong country while a file is in flight */
   const b = boundsOf(own) || boundsOf(ctx);
   map.fitBounds(b && b.isValid() ? b : L.latLngBounds(FI_BOX),
                 { padding: kuntaLevel ? [90, 90] : e.type === "kunta" ? [10, 10] : [70, 70],
                   maxZoom: kuntaLevel ? 9 : 13 });
+}
+/* MM6 — the publisher's own flood zones under the area mini map whenever a Climate indicator is the
+   one on screen, exactly as the Test property's map draws them (V4, `LF.anClimL`). Its own tile
+   layer in its own `climPane`: `climLayers()` stays the macro map's, so an overlay here can never
+   be re-added by a loader that belongs to another map. The zones follow `ind=` and have no switch
+   on this page — the area toolbar is `Indicator ▾ · Period` and nothing else (AC-P1). */
+function arMapZones() {
+  const map = LF.amap; if (!map) return;
+  const cz = CLIM_LAYERS.find(x => x.ind === curInd().key) || null;
+  if (LF.amClimL) { try { map.removeLayer(LF.amClimL); } catch (e) {} LF.amClimL = null; }
+  if (cz) LF.amClimL = L.tileLayer.wms(CLIM_WMS, { layers: cz.layer, format: "image/png", transparent: true,
+    version: "1.3.0", opacity: .75, pane: "climPane", crossOrigin: true,
+    attribution: "Flood zones © Suomen ympäristökeskus (CC BY 4.0)" }).addTo(map);
+  const leg = document.getElementById("armapclimlegend");
+  if (leg) { leg.style.display = cz ? "" : "none"; leg.innerHTML = cz ? climLegendHtml(true) : ""; }
 }
 
 
@@ -3560,20 +3691,7 @@ function anMapInit() {
   LF.anmap = map; LF.anPt = pt; LF.anR = r; LF.anKom = r.kunta ? r.kunta.code : null;
   mapPanes(map); syncMaps();
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, className: "basemap" }).addTo(map);
-  /* the current choropleth underneath, at the finest level the indicator reaches */
-  const ind = curInd();
-  const useQ = !!(OSA && r.osa_alue && osaOwn(ind.key));
-  const areas = useQ ? OSA.areas : AREAS;
-  const micro = !useQ && AREAS.some(a => V(a, ind.key) != null);
-  const sc = useQ ? scaleOf(OSA.areas.filter(a => V(a, ind.key) != null), a => V(a, ind.key), null, ind)
-    : micro ? scaleOf(AREAS.filter(a => V(a, ind.key) != null), a => V(a, ind.key), null, ind) : scaleOf(MUNI, m => V(m, ind.key), null, ind);
-  areas.forEach(a => {
-    if (!hasRings(a)) return;
-    /* an area with no figure of its own takes its municipality's, exactly as the macro map does */
-    const own = V(a, ind.key);
-    const t = sc.t(useQ ? own : micro && own != null ? own : V(byCode[a.muni], ind.key));
-    L.polygon(a.rings, { color: "#FFFFFF", weight: .8, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .5, interactive: false }).addTo(map);
-  });
+  anMapPaint();
   const ll = [pt.lat, pt.lon];
   /* the pin is the page, so it is never a switchable layer; the rings around it are (`anRings`) */
   LF.anPinG = L.layerGroup([
@@ -3586,6 +3704,29 @@ function anMapInit() {
   const key = `${pt.lat},${pt.lon}`;
   if (LF.anKey === key && LF.anZoom) map.setView(ll, LF.anZoom);
   else { map.fitBounds(anRingBounds(pt, TP_RINGS[TP_RINGS.length - 1]), { padding: [14, 14] }); LF.anKey = key; LF.anZoom = map.getZoom(); }
+  /* the ⤢ overlay survives a re-render; a map built inside it has to be told its real size */
+  if (document.querySelector("[data-testid=minimap].is-full")) setTimeout(() => LF.anmap && LF.anmap.invalidateSize(), 60);
+}
+/* the choropleth under the pin and its legend, on a map that already exists — re-painted rather
+   than rebuilt when the reader picks another indicator (AC-TP3, audit TP6/MM5) */
+function anMapPaint() {
+  const map = LF.anmap, r = LF.anR; if (!map || !r) return;
+  if (LF.anAreaG) { try { map.removeLayer(LF.anAreaG); } catch (e) {} LF.anAreaG = null; }
+  const gm = L.layerGroup().addTo(map); LF.anAreaG = gm;
+  /* the current choropleth underneath, at the finest level the indicator reaches */
+  const ind = curInd();
+  const useQ = !!(OSA && r.osa_alue && osaOwn(ind.key));
+  const areas = useQ ? OSA.areas : AREAS;
+  const micro = !useQ && AREAS.some(a => V(a, ind.key) != null);
+  const sc = useQ ? scaleOf(OSA.areas.filter(a => V(a, ind.key) != null), a => V(a, ind.key), null, ind)
+    : micro ? scaleOf(AREAS.filter(a => V(a, ind.key) != null), a => V(a, ind.key), null, ind) : scaleOf(MUNI, m => V(m, ind.key), null, ind);
+  areas.forEach(a => {
+    if (!hasRings(a)) return;
+    /* an area with no figure of its own takes its municipality's, exactly as the macro map does */
+    const own = V(a, ind.key);
+    const t = sc.t(useQ ? own : micro && own != null ? own : V(byCode[a.muni], ind.key));
+    L.polygon(a.rings, { color: "#FFFFFF", weight: .8, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .5, interactive: false }).addTo(gm);
+  });
   setLegend("anmaplegend", sc, ind, ind.key, useQ ? "osa-alueet" : micro ? "postal codes" : "kunnat");
 }
 /* --- e. infrastructure nearby --- */
@@ -3772,23 +3913,34 @@ function vAnalysis() {
   const e = tpEntity(r);
   if (!e) return `${tpHead(pt, r, null)}<div class="card"><p class="empty" data-testid="state-error">No area statistics cover this point.</p></div>`;
   const ind = curInd();
+  setTimeout(anMapInit, 0);
+  setTimeout(anFill, 0);
+  if (!AN.showSet) AN.show = ["infra"];
+  return `
+  <div id="tptop">${tpTop(pt, r, e)}</div>
+  ${studyRow(e, ind, "anmap", tpMapNote(e), TP_LEGENDS)}
+  <div id="tpsecs">${tpSections(pt, r, e)}</div>`;
+}
+/* the mini map's one line: what the fill is anchored on and how far the rings reach (TP17) */
+const tpMapNote = e => `${e.typeLabel.toLowerCase()} ${e.name} · rings out to ${nf(TP_RINGS[TP_RINGS.length - 1] / 1000, 1)} km`;
+/* the header and the toolbar: everything above the study row */
+function tpTop(pt, r, e) {
+  return `${tpHead(pt, r, e)}
+  <div class="card accent">
+    <div class="card-head tools-only"><div class="tools" data-row="1">${layersBtn()}${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
+  </div>`;
+}
+/* the eight toggles below the study row */
+function tpSections(pt, r, e) {
   const profile = e.inds.filter(i => !["Safety", "Climate"].includes(i.group || "") && eVal(e, i.key).v != null);
   const safety = e.inds.filter(i => (i.group || "") === "Safety" && eVal(e, i.key).v != null);
   /* Climate gets a section of its own because it needs its own sentence: a blank flood row is
      "not mapped", not "no hazard", and none of it is a property-level assessment. */
   const climate = e.inds.filter(i => (i.group || "") === "Climate" && eVal(e, i.key).v != null);
   const koms = anKomsNear(pt, r.kunta && r.kunta.code, AN_RING_M).filter(pubAvail);
-  setTimeout(anMapInit, 0);
-  setTimeout(anFill, 0);
-  if (!AN.showSet) AN.show = ["infra"];
   const show = AN.show;
   const hint = `A figure the ${esc(e.typeLabel.toLowerCase())} does not publish is its kunta's${e.type === "osa_alue" ? " · ^ = figure published for the whole peruspiiri" : ""} · the percentile bar fills toward "better", so a low value fills it where lower is better · ↗ opens the indicator in Charts.`;
   return `
-  ${tpHead(pt, r, e)}
-  <div class="card accent">
-    <div class="card-head tools-only"><div class="tools" data-row="1">${layersBtn()}${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
-  </div>
-  ${studyRow(e, ind, "anmap", `${esc(e.typeLabel.toLowerCase())} ${esc(e.name)} · rings out to ${nf(TP_RINGS[TP_RINGS.length - 1] / 1000, 1)} km`, TP_LEGENDS)}
   <div class="seclist">
     ${showSec(show, "infra", "Infrastructure nearby", `<span class="dim">within ${nf(AN_INFRA_M / 1000, 0)} km</span>`, anInfraCard(pt), "tp-sec-infra")}
     ${showSec(show, "public", `Public buildings within ${nf(AN_RING_M, 0)} m`, "", `<div id="anpub">${anPubCard(pt, r)}</div>`, "tp-sec-public")}
@@ -3800,6 +3952,28 @@ function vAnalysis() {
         + `<p class="cap">Reported crime comes from Tilastokeskus per kunta over a rolling four quarters; a postal code or osa-alue shows its kunta's figure.${e.type === "osa_alue" ? ` Helsingin kaupunki's own safety survey publishes per peruspiiri (^), so every osa-alue of ${esc(e.peruspiiri || "the district")} carries the same number — a different source, period and geography.` : ""}</p>` : ""), "tp-sec-profile")}
     ${showSec(show, "sources", "Sources & as-of", "", anSources(e, r, profile.concat(safety), koms.length > 0, koms.length > 0 && !!SCH_META), "tp-sec-sources")}
   </div>`;
+}
+/* Choosing an indicator or a year on the Test property updates the header, the tiles, the panel,
+   the sections and the map's colours **in place** — the same rule the area page follows (AC-TP3,
+   audit TP6). A layer, a filter and a radius already redrew in place in V4; this is the last call
+   site that went through render(). Returns false anywhere else. */
+function tpRefresh() {
+  if (S.view !== "property") return false;
+  const pt = anLoc(); if (!pt) return false;
+  const r = anRes(); if (!r || r.error) return false;
+  const e = tpEntity(r); if (!e) return false;
+  const row = document.querySelector("[data-testid=study-row]"); if (!row) return false;
+  const ind = curInd();
+  const top = document.getElementById("tptop"); if (top) top.innerHTML = tpTop(pt, r, e);
+  const panel = row.querySelector("[data-testid=chart-panel]");
+  if (panel) panel.outerHTML = chartPanel(e, ind);
+  const h = row.querySelector(".minimap .card-head h3"); if (h) h.textContent = ind.short || ind.label;
+  const hint = row.querySelector(".minimap .card-head .hint"); if (hint) hint.textContent = tpMapNote(e);
+  if (UI.mmFull) mmChipsFill(row.querySelector("[data-testid=minimap]"));
+  const secs = document.getElementById("tpsecs");
+  if (secs) { secs.innerHTML = tpSections(pt, r, e); enableSort(secs); }
+  anMapPaint(); anMapOverlays();
+  return true;
 }
 /* the Climate card on the Analysis sheet: the same rows as the profile table, but with the
    sentences a hazard figure cannot be read without */
@@ -4142,8 +4316,19 @@ function miniFull(mapId) {
   const on = card.classList.toggle("is-full");
   const btn = card.querySelector("[data-mmfull]"); if (btn) btn.textContent = on ? "✕" : "⤢";
   document.body.classList.toggle("has-full", on);
+  UI.mmFull = on;
+  /* The overlay covers the toolbar, so without a chips row of its own the reader would have to
+     leave full screen to change the indicator — and "full screen survives an indicator change"
+     (AC-P4) would be a promise about something they cannot do. DK puts the same row here. */
+  mmChipsFill(card);
   const map = mapId === "armap" ? LF.amap : mapId === "anmap" ? LF.anmap : null;
   setTimeout(() => { if (map) map.invalidateSize(); }, 220);
+}
+/* the chips row inside the full-screen overlay — the shared `indChips()`, so the two rows cannot
+   offer different indicators, and empty (and hidden by CSS) when the overlay is closed */
+function mmChipsFill(card) {
+  const host = (card || document).querySelector(".mm-chips");
+  if (host) host.innerHTML = UI.mmFull ? indChips("ind") : "";
 }
 function miniFullClose() {
   const card = document.querySelector("[data-testid=minimap].is-full");
@@ -4418,14 +4603,41 @@ const PUB_CAT = {
 };
 const pubCat = b => PUB_CAT[b.cat] || PUB_CAT.culture;
 const pubName = b => b.name || b.address || b.label;
+/* Finland's own sub-type, as the publisher spells it: `sub` is Palvelukartta's service class
+   ("library", "school"), not a BBR use code — there is no numeric code to show. */
+const PUB_SUB = { library: "Library", museum: "Museum", theatre: "Theatre", school: "School",
+                  kindergarten: "Daycare", hospital: "Hospital", clinic: "Health station",
+                  doctors: "Health station", pharmacy: "Pharmacy", college: "College",
+                  university: "University", community_centre: "Community centre",
+                  sports_centre: "Sports centre", arts_centre: "Arts centre",
+                  social_facility: "Social services", dentist: "Dental care" };
+const pubType = b => PUB_SUB[b.sub] || (b.sub ? String(b.sub).replace(/_/g, " ").replace(/^./, c => c.toUpperCase()) : (b.label || ""));
+/* The register publishes no key of its own, so one is derived here — once, at load — from the two
+   things that identify a building in it: its name and where it stands. Stable across rebuilds (the
+   publisher would have to move or rename the building to change it), URL-safe, and the only reason
+   `#public/<kunta>/<id>` is reachable at all: before V5 every `data-pubsheet` read "undefined". */
+const pubSlug = s => String(s || "").toLowerCase().replace(/[^a-z0-9åäö]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+const pubIdOf = b => `${pubSlug(pubName(b))}@${Number(b.lat).toFixed(5)},${Number(b.lon).toFixed(5)}`;
+function pubStamp(d, k) {
+  (d.buildings || []).forEach(b => { b.kom = k; if (!b.id) b.id = pubIdOf(b); });
+  return d;
+}
 function pubLoad(code) {
   schoolsLoad();
   const k = kcode(code);
   if (!PUB || !pubAvail(k) || PUB_FILES[k] || PUB_FILES["_loading_" + k]) return;
   PUB_FILES["_loading_" + k] = true;
   fetch(`public/${kcode(k)}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(d => { PUB_FILES[k] = d; delete PUB_FILES["_loading_" + k]; if (MK.pub && LF.map) lfPublicLayers(true); anMapOverlays(); anFill(); })
+    .then(d => { PUB_FILES[k] = pubStamp(d, k); delete PUB_FILES["_loading_" + k]; if (MK.pub && LF.map) lfPublicLayers(true); anMapOverlays(); anFill(); })
     .catch(() => { delete PUB_FILES["_loading_" + k]; PUB_FILES["_error_" + k] = true; });
+}
+/* which published areas a building stands in — found from its own coordinates, because the register
+   states neither a postal code nor an osa-alue. Empty while the kunta's rings are still in flight. */
+function pubAreas(b) {
+  const k = kcode(b.kom);
+  const pno = areaOf(AREAS.filter(a => a.muni === k), b.lat, b.lon);
+  const osa = OSA ? areaOf(OSA.areas.filter(a => String(a.muni) === String(k)), b.lat, b.lon) : null;
+  return [pno, osa].filter(Boolean);
 }
 /* what to draw: the municipality in view, else every loaded file — and at national zoom only the open cases */
 function pubParseFilter(q) {
@@ -4491,22 +4703,19 @@ function pubLoadVisible() {
 }
 function pubPopup(b) {
   const c = pubCat(b), row = (l, v) => v == null || v === "" ? "" : `<span class="lfrow"><span>${esc(l)}</span><b>${v}</b></span>`;
-  const area = [byNr[b.postinumero], byQ[b.osa_alue]].filter(Boolean);
+  const area = pubAreas(b);
+  const type = pubType(b);
   return `<div class="lfpop"><b>${esc(pubName(b))}</b>
     <span class="infrapills"><i class="ipill" style="color:${c.color};border-color:${c.color}55">${esc(c.label)}</i>
-      <i class="ipill">${esc(b.label)} · ${esc(b.code)}</i>
-      <i class="ipill ${b.kind === "case" ? "st-decided" : ""}">${b.kind === "existing" ? "Existing" : "Open building case"}</i></span>
+      ${type ? `<i class="ipill">${esc(type)}</i>` : ""}</span>
     <div class="lfrows">
-      ${row("Address", esc(b.address || ""))}${row("Floor area", b.m2 ? nf(b.m2, 0) + " m²" : "")}
-      ${b.kind === "existing" ? row("Built", b.year || "") + row("Floors", b.floors || "") : ""}
-      ${b.kind === "case" ? row("Permit", b.permit || "–") + row("Started", b.started || "") + row("Case age", b.age_yrs != null ? nf(b.age_yrs, 1) + " yr" : "") +
-        row("Expected completion", b.expected || "not stated") + row("Owner", b.owner || "") + row("Case no.", b.case_no || "") : ""}
-      ${row("Municipality", esc((byCode[b.kom] || {}).name || ""))}${row("Postal code", esc(b.postinumero || ""))}</div>
+      ${row("Address", esc(b.address || ""))}
+      ${row("Municipality", esc((byCode[kcode(b.kom)] || {}).name || ""))}
+      ${area.length ? row("Area", esc(area.map(a => a.name).join(" · "))) : ""}</div>
     ${schoolPopupBlock(b)}
-    ${b.kind === "case" ? `<p class="cap">⚠ An open permit case, not a confirmed construction schedule.</p>` : ""}
     <span class="lfact"><button class="lk mini primary" data-pubsheet="${esc(b.id)}">Open sheet ›</button>
       ${area.length ? `<button class="lk mini" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}</span>
-    <p class="cap dim">BBR ${esc(b.code)} · id ${esc(b.id.slice(0, 8))}… · the building register, ${esc((PUB || {}).built || "")}</p></div>`;
+    <p class="cap dim">${esc(b.src === "palvelukartta" ? "Helsingin kaupunki — Palvelukartta" : "OpenStreetMap contributors")} · ${esc((PUB || {}).built || "")}</p></div>`;
 }
 /* ---------- Public buildings: what makes it fast ----------
    Measured before changing anything: at zoom 13 over Helsinki region the layer put **5 293 SVG paths**
@@ -5106,7 +5315,7 @@ function vSchool() {
       ${m ? `<button class="lk" data-go="${withQ("area/kunta/" + s.kom)}">${esc(m.name)} ›</button>` : ""}
       ${area.length ? `<button class="lk" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}
       <a class="lk" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=17/${s.lat}/${s.lon}">OpenStreetMap ↗</a></div>
-    ${lukio ? `<div class="hl">
+    ${lukio ? `<div class="hl" data-testid="tiles">
       ${tile("Matriculation points", schCell(g, schGrade), gy ? "mean per candidate · " + gy : "mean per candidate")}
       ${tile(esc(s.kunta), schCell(kb, schGrade), g != null && kb != null ? schDiff(g - kb) + " vs kunta" : "")}
       ${tile("Finland", schCell(fi, schGrade), g != null && fi != null ? schDiff(g - fi) + " vs Finland" : "")}
@@ -5227,6 +5436,9 @@ function vProject() {
   const p = f.properties, s = geomStats(f), st = infraSt(p);
   const bn = p.budget_meur == null ? null : nf(p.budget_meur / 1000, 1) + " bn EUR";
   const priceNote = /2015 prices|price level|PL\d|09PL|PL09/i.test(p.notes || "") ? "price basis — see the note below" : "";
+  /* a project with no published alignment frames the kunnat it serves instead, and those need
+     their rings — lazy, like everywhere else, so ask for them and let the reload re-draw */
+  (p.kunnat || []).forEach(pnoWant);
   setTimeout(prMapInit, 0);
   const tile = (l, v, sub) => v == null || v === "" ? "" : `<div><span>${esc(l)}</span><b>${v}</b>${sub ? `<em>${esc(sub)}</em>` : ""}</div>`;
   const kom = (p.kunnat || []).map(c => byCode[c]).filter(Boolean);
@@ -5240,9 +5452,9 @@ function vProject() {
       <div class="artags"><span class="tag">${esc(INFRA_TYPE[p.type] || p.type)}</span><span class="tag st-${esc(p.status)}">${esc(st.label)}</span>${p.agency ? `<span class="tag">${esc(p.agency)}</span>` : ""}${p.schematic ? `<span class="tag">schematic geometry</span>` : ""}</div>
     </div>
     <div class="tools"><button class="lk" data-back>‹ Back</button>${p.map !== false ? `<button class="lk primary" data-go="map?ind=${encodeURIComponent(MK.ind)}&infra=1&focus=${encodeURIComponent(p.id)}">Show on map</button>` : ""}<a class="lk" href="${esc(p.source_url)}" target="_blank" rel="noopener">Source ↗</a></div>
-    <div class="hl">
+    <div class="hl" data-testid="tiles">
       <span class="hlc"><span>Opening</span><b>${esc(openLabel(p))}</b><em>${p.open_year_original && p.open_year_original !== p.open_year ? `originally ${p.open_year_original}` : ""}</em></span>
-      <span class="hlc"><span>Budget</span><b>${bn || "–"}</b><em>${esc(priceNote)}</em></span>
+      ${bn ? `<span class="hlc"><span>Budget</span><b>${bn}</b><em>${esc(priceNote)}</em></span>` : ""}
       ${s.km ? `<span class="hlc"><span>Length</span><b>${nf(s.km, 1)} km</b><em>${p.schematic ? "schematic" : "as mapped"}</em></span>` : ""}
       ${s.stations ? `<span class="hlc"><span>Stations</span><b>${s.stations}</b><em>in this project</em></span>` : ""}
       ${s.ha ? `<span class="hlc"><span>Area</span><b>${nf(s.ha, 0)} ha</b><em>${p.schematic ? "schematic" : "as mapped"}</em></span>` : ""}
@@ -5253,6 +5465,7 @@ function vProject() {
     <div class="card">
       <div class="card-head"><h3>Where it runs</h3><span class="hint">over ${esc(curInd().short || curInd().label)}</span></div>
       <div class="mapwrap"><div id="prmap"></div><div class="maplegend small" id="prlegend"></div></div>
+      <p class="cap" id="prmapnote" style="display:none"></p>
     </div>
     <div class="card">
       <div class="card-head"><h3>Areas served</h3><span class="hint">click to open it on the map</span></div>
@@ -5280,17 +5493,37 @@ function prMapInit() {
     L.polygon(a.rings, { color: "#FFFFFF", weight: .5, fillColor: t == null ? "#C4CBC4" : shadeOf(sc, t, ind.key), fillOpacity: .55, interactive: false }).addTo(map);
   }));
   const p = f.properties, style = infraStyle(p);
+  setLegend("prlegend", sc, ind, ind.key, "municipalities");
+  /* The alignments ride in `dist/infra.json` and are lazy, so the sheet renders before the
+     geometry lands — and five of Finland's biggest projects have no open alignment at all
+     (INFRA_ALL keeps them anyway, see `infraDrawable`). Either way there is nothing to draw yet:
+     the sheet says so and `vProject()`'s own `infraLoad(… renderKeep)` rebuilds it if one arrives.
+     Reading `f.geometry.type` here threw on every project sheet before V5. */
+  if (!f.geometry) {
+    map.fitBounds(komBoundsOf(p.kunnat) || L.latLngBounds(FI_BOX), { padding: [30, 30], maxZoom: 11 });
+    prMapNote(INFRA_GEO.done
+      ? "No alignment is published for this project — the municipalities it serves are framed instead."
+      : "Loading the alignments…");
+    return;
+  }
+  prMapNote("");
   const layer = f.geometry.type === "Point"
     ? L.circleMarker([f.geometry.coordinates[1], f.geometry.coordinates[0]], { radius: 8, color: infraSt(p).color, weight: 3, fillColor: "#FFFFFF", fillOpacity: 1 })
     : L.geoJSON(f, { style: { ...style, weight: Math.max(style.weight, 4) } });
   layer.addTo(map);
-  INFRA_ALL.filter(x => x.properties.parent_id === p.id && x.geometry.type === "Point").forEach(x =>
+  INFRA_ALL.filter(x => x.properties.parent_id === p.id && x.geometry && x.geometry.type === "Point").forEach(x =>
     L.circleMarker([x.geometry.coordinates[1], x.geometry.coordinates[0]], { radius: 5, color: infraSt(x.properties).color, weight: 2, fillColor: "#FFFFFF", fillOpacity: 1 })
       .bindTooltip(esc(infraShort(x.properties))).addTo(map));
   const b = layer.getBounds ? layer.getBounds() : L.latLngBounds([layer.getLatLng()], [layer.getLatLng()]);
   map.fitBounds(b, { padding: [40, 40], maxZoom: 13 });
-  setLegend("prlegend", sc, ind, ind.key, "municipalities");
 }
+/* the frame a project with no alignment opens on: the municipalities it serves */
+function komBoundsOf(codes) {
+  const b = boundsOf((codes || []).flatMap(c => muniAreas(c)));
+  return b && b.isValid() ? b : null;
+}
+const prMapNote = msg => { const el = document.getElementById("prmapnote");
+  if (el) { el.textContent = msg || ""; el.style.display = msg ? "" : "none"; } };
 /* ---------- Pipeline ---------- */
 function pipeRows() {
   if (!INFRA_GEO.done) infraLoad(() => renderKeep());
@@ -5333,43 +5566,48 @@ function vPublic() {
   const b = pubFind(PB.kom, PB.id);
   if (!b) { pubLoad(PB.kom); setTimeout(() => { if (pubFind(PB.kom, PB.id)) renderKeep(); }, 700);
     return `<div class="card"><p class="empty">Loading the building…</p></div>`; }
-  const c = pubCat(b), area = [byNr[b.postinumero], byQ[b.osa_alue]].filter(Boolean), m = byCode[b.kom];
+  const c = pubCat(b), m = byCode[kcode(b.kom)];
+  /* the rings answer which postal code and osa-alue the point falls in; they are lazy, so ask */
+  if (m) pnoWant(m.code);
+  const area = pubAreas(b), type = pubType(b);
+  const osm = b.src !== "palvelukartta";
   setTimeout(() => pbMapInit(b), 0);
+  /* a tile with nothing published behind it is not drawn — "Floor area –" is filler, not a figure
+     (AC-SH1). Finland's register states a name, a service class, an address and a coordinate. */
   const tile = (l, v, sub) => v == null || v === "" ? "" : `<span class="hlc"><span>${esc(l)}</span><b>${v}</b><em>${esc(sub || "")}</em></span>`;
   return `
   <div class="card accent arhead">
     <div class="arid"><h2>${esc(pubName(b))}</h2>
       <div class="artags"><span class="tag" style="color:${c.color};border-color:${c.color}55">${esc(c.label)}</span>
-        <span class="tag">${esc(b.label)} · register ${esc(b.code)}</span>
-        <span class="tag">${b.kind === "existing" ? "Existing" : "Open building case"}</span>${b.address ? `<span class="tag">${esc(b.address)}</span>` : ""}</div>
+        ${type ? `<span class="tag">${esc(type)}</span>` : ""}${b.address ? `<span class="tag">${esc(b.address)}</span>` : ""}
+        <span class="tag">${Number(b.lat).toFixed(5)}, ${Number(b.lon).toFixed(5)}</span></div>
     </div>
     <div class="tools"><button class="lk" data-back>‹ Back</button>
-      <button class="lk primary" data-go="map/${esc(b.kom)}?ind=${encodeURIComponent(MK.ind)}&public=1">Show on map</button>
-      ${area.length ? `<button class="lk" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}</div>
-    <div class="hl">
-      ${tile("Floor area", b.m2 ? nf(b.m2, 0) + " m²" : "–", b.floors ? b.floors + " floors" : "")}
-      ${b.kind === "existing" ? tile("Built", b.year || "–", "BBR opførelsesår")
-        : tile("Permit", b.permit || "–", b.age_yrs != null ? nf(b.age_yrs, 1) + " years ago" : "")}
-      ${b.kind === "case" ? tile("Started", b.started || "not stated", "sag005") + tile("Expected completion", b.expected || "not stated", "sag009") : ""}
-      ${tile("Municipality", esc((m || {}).name || b.kom), b.postinumero ? "postal code " + esc(b.postinumero) : "")}
+      <button class="lk primary" data-go="map/${esc(kcode(b.kom))}?ind=${encodeURIComponent(MK.ind)}&lay=public">Show on map</button>
+      ${area.length ? `<button class="lk" data-go="${withQ(pageOf(area[0]))}">${esc(area[0].name)} ›</button>` : ""}
+      <button class="lk" data-go="property?p=${Number(b.lat).toFixed(5)},${Number(b.lon).toFixed(5)}&ind=${encodeURIComponent(MK.ind)}">Read as a test property ›</button>
+      <a class="lk" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${b.lat}&mlon=${b.lon}#map=18/${b.lat}/${b.lon}">OpenStreetMap ↗</a></div>
+    <div class="hl" data-testid="tiles">
+      ${tile("Category", esc(c.label), type)}
+      ${tile("Municipality", esc((m || {}).name || kcode(b.kom)), area.length ? area[0].name : "")}
+      ${tile("Address", esc(b.address || ""), "as published")}
     </div>
   </div>
-  ${b.kind === "case" ? `<div class="card"><p class="cap">⚠ Owner-reported BBR case — not a confirmed construction schedule. In the pilot only 1 of 290 open cases carried an expected completion date and the median permit in Helsinki was 4.1 years old, so this says a case is open, not that the building opens soon.</p></div>` : ""}
   <div class="grid-2">
     <div class="card"><div class="card-head"><h3>Where it is</h3><span class="hint">over ${esc(curInd().short || curInd().label)}</span></div>
       <div class="mapwrap"><div id="prmap"></div><div class="maplegend small" id="prlegend"></div></div></div>
-    <div class="card"><div class="card-head"><h3>Details</h3><span class="hint">the building register</span></div>
+    <div class="card"><div class="card-head"><h3>Details</h3><span class="hint">as the register publishes them</span></div>
       <table class="tbl compact"><tbody>
-        <tr><th>Use code</th><td>${esc(b.code)} — ${esc(b.label)}</td></tr>
         <tr><th>Category</th><td>${esc(c.label)}</td></tr>
-        <tr><th>Status</th><td>${b.kind === "existing" ? "6 Opført (existing)" : `${esc(b.bbr_status || "")} — open building case`}</td></tr>
-        ${b.kind === "case" ? `<tr><th>Case number</th><td>${esc(b.case_no || "–")}</td></tr><tr><th>Owner type</th><td>${esc(b.owner || "not stated")}</td></tr>
-        <tr><th>Case floor area</th><td>${b.case_m2 ? nf(b.case_m2, 0) + " m²" : "–"}</td></tr>` : ""}
-        <tr><th>Postal code / quarter</th><td>${esc(area.map(a => a.name).join(" · ") || "–")}</td></tr>
-        <tr><th>BBR id</th><td class="dim">${esc(b.id)}</td></tr>
-        <tr><th>Name from</th><td class="dim">${b.name ? "OpenStreetMap, within 60 m (© OpenStreetMap contributors)" : "no OSM name within 60 m — address shown"}</td></tr>
+        ${type ? `<tr><th>Type</th><td>${esc(type)}</td></tr>` : ""}
+        <tr><th>Address</th><td>${esc(b.address || "not stated")}</td></tr>
+        <tr><th>Municipality</th><td>${esc((m || {}).name || kcode(b.kom))}</td></tr>
+        <tr><th>Postal code / osa-alue</th><td>${area.length ? esc(area.map(a => a.name).join(" · ")) : `<span class="dim">not resolved yet — the area rings are still loading</span>`}</td></tr>
+        <tr><th>Coordinates</th><td class="dim">${Number(b.lat).toFixed(5)}, ${Number(b.lon).toFixed(5)}</td></tr>
+        <tr><th>Published by</th><td class="dim">${osm ? "OpenStreetMap contributors (ODbL 1.0)" : "Helsingin kaupunki — Palvelukartta"}</td></tr>
+        <tr><th>Record id</th><td class="dim">${esc(b.id)}</td></tr>
       </tbody></table>
-      <p class="cap">Source: the building register, fetched ${esc((PUB || {}).built || "")}. Owner-reported register; the four phased-out use codes (410/420/430/440) are still in use alongside the finer ones. Method: <code>docs/PUBLIC_BUILDINGS.md</code>.</p></div>
+      <p class="cap">${esc(PUB_SRC_LINE)}; fetched ${esc((PUB || {}).built || "")}. <b>The register publishes no floor area, no year built and no permit case for Finland</b> — Palvelukartta is a service register and OpenStreetMap is a map, so those figures are not shown rather than shown as zeroes. Method: <code>docs/PUBLIC_BUILDINGS.md</code>.</p></div>
   </div>`;
 }
 function pbMapInit(b) {
@@ -5397,11 +5635,15 @@ function vPubList() {
   const kom = level === "kunta" ? code : level === "postinumero" ? (byNr[code] || {}).muni : (byQ[code] || {}).muni;
   const file = PUB_FILES[kcode(kom)];
   if (!file) { pubLoad(kom); setTimeout(() => { if (PUB_FILES[kcode(kom)]) renderKeep(); }, 700); }
-  const rows = ((file || {}).buildings || []).filter(b =>
-    (level === "kunta" ? b.kom === kcode(code) : level === "postinumero" ? b.postinumero === code : b.osa_alue === code)
+  /* the register states a coordinate and nothing else about where a building sits, so a postal code
+     or an osa-alue is answered from the published rings rather than from a field that is not there */
+  const ring = level === "postinumero" ? byNr[code] : level === "osa_alue" ? byQ[code] : null;
+  const inArea = b => level === "kunta" ? kcode(b.kom) === kcode(code)
+    : !!ring && (ring.rings || []).some(r => pip([b.lat, b.lon], r));
+  const rows = ((file || {}).buildings || []).filter(b => inArea(b)
     && (!cat || b.cat === cat) && (kind === "case" ? b.kind === "case" && b.recent : kind === "existing" ? b.kind === "existing" : true));
   const stale = (e || {}).stale_cases || 0;
-  const sorted = rows.slice().sort((a, b) => (b.m2 || 0) - (a.m2 || 0));
+  const sorted = rows.slice().sort((a, b) => pubName(a).localeCompare(pubName(b), LOCALE));
   const btn = (label, c2, k2, on) => `<button class="lk mini ${on ? "primary" : ""}" data-publist="${esc(level)}:${esc(code)}:${c2}:${k2}">${esc(label)}</button>`;
   return `
   <div class="card accent">
@@ -5410,12 +5652,12 @@ function vPubList() {
     <div class="tfilters"><button class="lk mini" data-back>‹ Back</button>
       ${btn("All categories", "", kind || "", !cat)}${Object.entries(PUB_CAT).map(([k, c]) => btn(c.label, k, kind || "", cat === k)).join("")}
       ${btn("Existing", cat || "", "existing", kind === "existing")}${btn("Open cases", cat || "", "case", kind === "case")}${btn("Both", cat || "", "", !kind)}</div>
-    <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>Building</th><th>Category</th><th>Use</th><th class="num">Floor area<br><span class="dim">m²</span></th><th class="num">Built</th><th>Status</th><th>Permit</th></tr></thead>
-      <tbody>${sorted.map(b => `<tr class="clickrow" data-pubsheet="${esc(b.id)}" data-pubkom="${esc(b.kom)}"><th><span class="thn">${esc(pubName(b))} <span class="go">›</span></span></th>
-        <td class="dim">${esc(pubCat(b).label)}</td><td class="dim">${esc(b.code)} ${esc(b.label)}</td>
-        <td class="num" data-v="${b.m2 || 0}">${b.m2 ? nf(b.m2, 0) : "–"}</td><td class="num" data-v="${b.year || ""}">${b.year || "–"}</td>
-        <td>${b.kind === "existing" ? "Existing" : "Open case"}</td><td class="dim">${esc(b.permit || "")}${b.age_yrs != null ? ` (${nf(b.age_yrs, 1)} yr)` : ""}</td></tr>`).join("")
-        || `<tr><td colspan="7" class="empty">${file ? "nothing matches this filter" : "loading the municipality's buildings…"}</td></tr>`}</tbody></table></div>
+    <div class="scrollx"><table class="tbl compact" data-sortable><thead><tr><th>Building</th><th>Category</th><th>Type</th><th>Address</th><th>Source</th></tr></thead>
+      <tbody>${sorted.map(b => `<tr class="clickrow" data-pubsheet="${esc(b.id)}" data-pubkom="${esc(kcode(b.kom))}"><th><span class="thn">${esc(pubName(b))} <span class="go">›</span></span></th>
+        <td class="dim">${esc(pubCat(b).label)}</td><td class="dim">${esc(pubType(b))}</td>
+        <td class="dim">${esc(b.address || "–")}</td>
+        <td class="dim">${esc(b.src === "palvelukartta" ? "Palvelukartta" : "OpenStreetMap")}</td></tr>`).join("")
+        || `<tr><td colspan="5" class="empty">${file ? "nothing matches this filter" : "loading the municipality's buildings…"}</td></tr>`}</tbody></table></div>
     ${stale ? `<details class="dinfo"><summary>Stale open cases (permit > ${(PUB || {}).recent_years} yrs): ${stale}</summary>
       <div class="note">BBR cases that were never closed. They are counted here but never drawn on the map: an old open case says nothing about current construction — see <code>docs/PUBLIC_BUILDINGS.md</code>.</div></details>` : ""}
     <p class="cap">the building register, ${esc((PUB || {}).built || "")}; names from OpenStreetMap where one lies within 60 m. An open case is owner-reported and is not a construction schedule.</p>
@@ -5447,14 +5689,16 @@ function lineChart(key, opts = {}) {
 }
 /* ---------- Sources ---------- */
 function vSources() {
-  /* a view of its own since v1.0: national macro is out of scope for the Finland edition */
-  const s = ((D.meta && D.meta.sources) || []).concat(OSA && OSA.meta ? OSA.meta.sources || [] : []);
+  /* a view of its own since v1.0: national macro is out of scope for the Finland edition.
+     The table is rendered from the export's own records (EXP8), so what a reader cross-checks in
+     `sources.csv` is the row they read here, publisher, as-of and licence included. */
+  const s = sourceRecords();
   const defs = (list, title) => `<div class="card"><div class="card-head"><h3>${title}</h3></div>
     <table class="tbl compact"><thead><tr><th>Indicator</th><th>Unit</th><th>Level</th><th>Status</th><th>Definition</th><th>Source</th><th>Caveat</th></tr></thead>
     <tbody>${list.map(i => `<tr><th>${esc(i.label)}</th><td class="dim">${esc(unitLabel(i))}</td><td class="dim">${esc(i.level)}</td><td class="dim">${i.frozen ? `<span class="warnline">Last published ${esc(i.frozen)} — series discontinued by publisher</span>` : "Live"}</td><td>${esc(i.desc || "")}</td><td class="dim">${esc(i.source || "")}</td><td class="dim">${esc(i.warn || "")}</td></tr>`).join("")}</tbody></table></div>`;
   return `${dataTabs()}<div class="card"><div class="card-head"><h3>Data sources and freshness</h3><span class="hint">built ${esc((D.meta && D.meta.built) || "–")}</span></div>
-    <table class="tbl compact" data-testid="sources-table" data-sortable><thead><tr><th>Source</th><th>Tables / files</th><th>As of</th><th>Fetched</th><th>Licence</th></tr></thead>
-    <tbody>${s.map(x => `<tr><th>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)}</th><td class="dim">${esc(x.tables || "")}</td><td>${esc(x.asof || "")}</td><td class="dim">${x.fetched ? esc(x.fetched) : `${esc((D.meta && D.meta.built) || "–")} <span class="tag">build</span>`}</td><td class="dim">${esc(x.licence || "")}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">no sources recorded</td></tr>`}</tbody></table>
+    <table class="tbl compact" data-testid="sources-table" data-sortable><thead><tr><th>Source</th><th>Publisher</th><th>Tables / files</th><th>As of</th><th>Fetched</th><th>Licence</th></tr></thead>
+    <tbody>${s.map(x => `<tr data-src="${esc(x.key)}"><th>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)}</th><td class="dim">${esc(x.publisher)}</td><td class="dim">${esc(x.tables)}</td><td>${esc(x.as_of || "–")}</td><td class="dim">${esc(x.fetched || "–")}${x.fetched_is_build ? ` <span class="tag">build</span>` : ""}</td><td class="dim">${esc(x.licence)}</td></tr>`).join("") || `<tr><td colspan="6" class="empty">no sources recorded</td></tr>`}</tbody></table>
     <p class="cap">${((D.meta && D.meta.attribution) || []).map(esc).join(" · ")}${OSA && OSA.meta && OSA.meta.attribution ? " · " + esc(OSA.meta.attribution) : ""}${SRV ? " · " + esc(SRV_ATTRIB.join(" · ")) : ""}</p></div>
   ${IND.some(i => i.proj) ? `<div class="card"><div class="card-head"><h3>Population outlook</h3><span class="hint">projections \u2014 read the caveat</span></div>
     <table class="tbl compact"><thead><tr><th>Source</th><th>Table</th><th>Window</th><th>Vintage</th><th>Fetched</th><th>Licence</th></tr></thead><tbody>

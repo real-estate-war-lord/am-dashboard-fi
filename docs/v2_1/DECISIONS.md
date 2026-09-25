@@ -167,3 +167,52 @@ replaces one.
   file by name, not with a variable in front of it — so a phase could run the whole suite or
   nothing. `tests/ui_v2.spec.py V4 V4-` is the same two settings as positional arguments; the
   environment still wins nothing and loses nothing, and `make ui` is untouched.
+- **V5** — **The two study-row pages are rendered in three blocks, and the wrappers are
+  `display:contents`.** `areaRefresh()` / `tpRefresh()` need something to address, so `vArea()` and
+  `vAnalysis()` now emit `#artop` · the study row · `#arsecs` (`#tptop` / `#tpsecs`). `#body` is a
+  flex column with a `gap`, so a plain wrapper would have turned two cards into one flex child and
+  eaten the gap between the identity card and the toolbar. `display:contents` keeps every card a
+  direct flex child and the column's spacing is byte-for-byte what it was; the wrappers exist only
+  for `getElementById().innerHTML`.
+- **V5** — **`indSet()` stops navigating on the area page and the Test property.** Everywhere else
+  it still ends in `go(hashFor())`; on those two it writes the hash with `syncHash()` and calls
+  `areaRefresh()` / `tpRefresh()`. The difference is deliberate and narrow: `go()` pushes a history
+  entry, and DK's `pickInd()` does not push one either, but changing it on the map and Charts as
+  well would have changed what the back button does on four routes to fix a problem that exists on
+  two. Both refreshers return false anywhere else, so every call site still falls back to
+  `renderKeep()`.
+- **V5** — **The flood zones on the *area* mini map have no switch and no `zones=0`.** MM6 asks for
+  the zones; LAY3's hide toggle lives in `Layers ▾`, and the area toolbar is `Indicator ▾ · Period`
+  and nothing else (AC-M1/AC-P1 — DK's area page has no `Layers ▾` at all). Adding one for a single
+  row would have been new surface, so the zones are derived from `ind=` here exactly as `clim=` is
+  derived on the map, and the area route writes no `zones=` key. `parseHash()` sets `MK.clim` for
+  the area view for the same reason it does for the property: `climLegendHtml()` reads it.
+  `arMapZones()` is the area's own tile layer in its own `climPane` (`LF.amClimL`), never
+  `climLayers()`, which stays the macro map's — the rule V4 set for `LF.anClimL`.
+- **V5** — **Finland's public-building register publishes no key, so one is derived in the loader.**
+  Every `data-pubsheet` in this build read `undefined`: `dist/public/<kunta>.json` carries
+  `cat · kind · name · address · lat · lon · src · sub` and neither an `id` nor a `kom`, so
+  `#public/<kunta>/<id>` was unreachable and `pubPopup()` threw on `b.id.slice(0, 8)`. `pubStamp()`
+  now sets `kom` and `id = <slug of the name>@<lat>,<lon>` — the two things that identify a building
+  in that register, so the link survives a rebuild. No data file was touched; this is a UI-side
+  key over what the publisher already gives.
+- **V5** — **The public-building list and sheet were rewritten against the fields Finland
+  publishes.** They were still the Danish BBR sheet: floor area, year built, permit case, owner,
+  "6 Opført", a use code — none of which Palvelukartta or OpenStreetMap publish, so the list drew
+  four columns of `–` and the sheet three tiles of `–`. That is filler, which AC-SH1 forbids, and
+  it is also a claim the sources do not support. What is shown now is what is published: category,
+  service type, address, municipality, the postal code and osa-alue found from the coordinate, the
+  publisher and the record id — and one sentence saying plainly that Finland's register has no
+  floor area, no year built and no permit case. The list's postal-code and osa-alue filters are
+  answered from the published rings for the same reason: the register states no postal code.
+- **V5** — **The climate exposure file names a return period, never a year.** Denmark's
+  `climate_exposure.csv` is level × horizon (2070, 2120). Finland's is level × **return period**,
+  because a return period is a probability and not a date (D13): the column reads `1/100a`, the
+  hazard sits in a column of its own (`sea flood` · `river flood` · `radon`), and a check asserts no
+  value in it ever matches four digits.
+- **V5** — **Two earlier checks were widened, not weakened.** `P1-sources-fetched` read the Fetched
+  column by a fixed index; EXP8 adds a Publisher column, and an index would silently have started
+  asserting on As-of instead, so the check now finds the column by its header — it can no longer
+  pass by reading the wrong one. `P7-menu` asserted the export menu is exactly five items; EXP10
+  adds a sixth, so it now asserts the five v2.0 items are still there in their old order and that
+  `climate` is the only addition.

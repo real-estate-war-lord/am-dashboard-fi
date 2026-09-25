@@ -62,7 +62,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | PICK5 | Group headers for Outlook / Climate carry a `Projection` / return-period pill | done | `PICKER_CORE.GROUP_PILL`; check `P3-period-modes` | — | MUST |
 | PICK6 | `From the municipality` group with `muni` tag on postinumero / osa-alue pages (AC-I5) | done | `picker_core.js:22` `GROUP_INHERITED`; check `P3-inherited-group` | — | MUST |
 | PICK7 | Button shows a level tag when the value is not native to the page level | done | `indPicker()` `:1055` `tag-muni municipality` | — | MUST |
-| PICK8 | Selecting re-renders only the dependent parts — **no full page rebuild** (AC-P4) | **partial** | `indSet()` `src/app.js:1104` ends in `go(hashFor())` → full `render()`. DK has `pickInd()` → `areaRefresh()`/`tpRefresh()` (`ref/dk_src/app.js:995`, `:2401`). Scroll is restored by `renderKeep()`, but the mini map is rebuilt (zoom lost) and `⤢` full screen closes | V5 | MUST |
+| PICK8 | Selecting re-renders only the dependent parts — **no full page rebuild** (AC-P4) | **done (V5)** | `indSet()` ends in `syncHash()` + `areaRefresh()` / `tpRefresh()` on the area page and the property, and in `go(hashFor())` everywhere else (DECISIONS V5); `arMapInit()` split into init + `arMapPaint()`, `anMapPaint()` extracted likewise, so the Leaflet map is re-painted, never rebuilt; checks `V5-area-refresh-in-place`, `V5-property-refresh-in-place`, `V5-area-fullscreen-survives` | — | MUST |
 | PICK9 | Chips row = picker short form, active one filled, never empty (AC-I4) | done | `indChips()` `:1118`; check `P3-chips` | — | MUST |
 | PICK10 | Pinned chips (`+`, localStorage, max 12) | missing | SHOULD in DK §9, deferred there too (`ref/QA.md` "Deferred") | — | LATER |
 | PICK11 | Picker on the Test property offers the pin's finest level first, then inherited groups (DK P10 §4) | **done (V4)** | `pickCtx()` takes `anEntity()` — `tpEntity()` dressed as an area-page entity — so the property gets `e.inds` and the area page's own `inherits()`; `curInds()` got the same branch so the hash guard cannot reset what the picker just offered (DECISIONS V4); check `V4-property-picker-groups` | — | MUST |
@@ -137,8 +137,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | AREA1 | No KEY FIGURES block, no separate Trend / Neighbours cards (AC-P1) | done | check `P5-no-key-figures` | — | MUST |
 | AREA2 | `study-row` = `chart-panel` + `minimap`, siblings, ~60/40, equal height, panel left (AC-P1) | done | `studyRow()` `src/app.js:2278`; check `P5-study-row` | — | MUST |
 | AREA3 | Toggles are `<details>` with state in `show=`; Population outlook open on kunta pages only (AC-P2) | done | `showSec()` `:1351`, `AR.showSet`; check `P5-toggles` | — | MUST |
-| AREA4 | **Chip / tile change updates the study row in place** — scroll, mini-map zoom and full screen survive (AC-P4) | **partial** | see PICK8. FI restores `#main.scrollTop` via `renderKeep()` `:699` but rebuilds the DOM and the Leaflet map | V5 | MUST |
-| AREA5 | All figures table: active row highlighted and scrolled into view; row click selects the indicator (AC-P6) | **partial** | the table renders and `indSet` is wired to rows, but there is no highlight-and-scroll on open | V5 | SHOULD |
+| AREA4 | **Chip / tile change updates the study row in place** — scroll, mini-map zoom and full screen survive (AC-P4) | **done (V5)** | see PICK8. `vArea()` renders `#artop` · study row · `#arsecs`; `areaRefresh()` repaints the first and the third and re-paints the map. Full screen survives **and is usable**: the `⤢` overlay got DK's own `.mm-chips` row, or the only indicator control would sit underneath it; checks `V5-area-refresh-in-place`, `V5-area-fullscreen-survives` | — | MUST |
+| AREA5 | All figures table: active row highlighted and scrolled into view; row click selects the indicator (AC-P6) | **done (V5)** | the `toggle` handler scrolls `tr.hi` into view with `block: nearest` when `figures` opens — DK's own rule (`ref/dk_src/app.js:680`); check `V5-area-active-row` | — | SHOULD |
 | AREA6 | Sub-areas table (postal codes / osa-alueet) | done | `areaSubTable()` `:2157`; check `P5-toggles` | — | MUST |
 | AREA7 | Sub-areas sparkline column | missing | SHOULD in DK §9, deferred there too | — | LATER |
 | AREA8 | At 390 the panel stacks above the mini map, each ≥ 300 px, no overflow (AC-P5) | done | check `P9-stacks`, `P9-no-overflow-390`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
@@ -174,8 +174,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | MM2 | `⤢` full screen as a fixed overlay, Esc closes, `invalidateSize()` after each transition (AC-MM2) | done | `miniFull()` / `miniFullClose()` `:3907`; check `P5-minimap-drag` | — | MUST |
 | MM3 | Teardown registry: every Leaflet map registered and removed before `#main` is replaced; `window.__maps` (AC-MM3) | done | `LF_MAPS` `:381`, `dropMaps()` `:400`; checks `P1-maps-registry`, `P1-maps-no-errors` | — | MUST |
 | MM4 | Clicking a neighbour opens its page; the selected area is outlined | done | `arMapInit()`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
-| MM5 | The mini map keeps its zoom when the indicator changes | **missing** | consequence of PICK8 / AREA4 — the map is destroyed and rebuilt | V5 | MUST |
-| MM6 | Flood zones drawn in the mini map when a Climate indicator is active | **done (V4) on the property**, missing on the area page | the property map draws its own SYKE tile layer in its own `climPane` inside `anMapOverlays()` (`LF.anClimL`), with a folded `legend-zones` card and a `zones` row in its `Layers ▾`; check `V4-property-climate`. `climLayers()` still starts `if (!LF.map) return`, so `arMapInit()` has none | V5 (area) | MUST |
+| MM5 | The mini map keeps its zoom when the indicator changes | **done (V5)** | `arMapPaint(fit)` — `fit` is only true when the map is first built or the sub-level changes, so a chip click repaints the polygons and leaves the camera alone; checks `V5-area-refresh-in-place`, `V5-property-refresh-in-place` read the centre and zoom off the live Leaflet instance before and after | — | MUST |
+| MM6 | Flood zones drawn in the mini map when a Climate indicator is active | **done (V4 property, V5 area)** | the property map draws its own SYKE tile layer in its own `climPane` inside `anMapOverlays()` (`LF.anClimL`); the area map has `arMapZones()` / `LF.amClimL`, same shape, with a folded `legend-zones` card in `AR_LEGENDS`. `climLayers()` is untouched and stays the macro map's. On the area route the zones follow `ind=` and have no switch — the toolbar is `Indicator ▾ · Period` (DECISIONS V5); checks `V4-property-climate`, `V5-area-minimap-zones` | — | MUST |
 
 ## 12. Test property (spec §5.5′, AC-TP1–TP9, DK P10 §1–§4)
 
@@ -186,7 +186,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | TP3 | Header also carries **`Export ▾`** (UI_V3 §4: sidebar footer, Data header **and** the property header) | **done (V4)** | `exportBtn("prop")` is the last action in `tpHead()`'s `.tools`; the menu opens in place and its `Test property` item downloads the pin's two files; check `V4-property-export` | — | MUST |
 | TP4 | Always five tiles, no grey filler slab | done | check `P6-five-tiles`; `docs/ui_v2/property_1440.png` | — | MUST |
 | TP5 | The shared study row anchored on the pin's finest area, with the level named (AC-TP2) | done | `studyRow()` reused; check `P6-study-row` | — | MUST |
-| TP6 | Tiles clickable → select the indicator and recolour the mini map (AC-TP3) | done | `indSet` on `[data-ind]` tiles; check `P6-study-row` | V5 (in-place, see PICK8) | MUST |
+| TP6 | Tiles clickable → select the indicator and recolour the mini map (AC-TP3) | **done (V5)** | `indSet` on `[data-ind]` tiles, and since V5 it repaints rather than re-renders: `tpRefresh()` rebuilds `#tptop` / `#tpsecs` and the panel and calls `anMapPaint()` + `anMapOverlays()`; checks `P6-study-row`, `V5-property-refresh-in-place` | — | MUST |
 | TP7 | Sections as `<details>` with state in `show=`; Infrastructure nearby open by default | done | `tpSec()` / `showSec()`; check `P6-sections` | — | MUST |
 | TP8 | Eight sections (outlook, profile, safety, infra, public, schools, climate, sources) | done | `vAnalysis()` `:3510+`; check `P6-sections` | — | MUST |
 | TP9 | Duplicate public-building rows grouped by (name, use code, distance ±20 m) with a count | done | check `P6-sections` (P6 build note 5) | — | MUST |
@@ -212,9 +212,9 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | EXP5 | Projects in their own file, never mixed into indicator columns (AC-X3) | done | `PROJECT_COLS` `:1723`; check `P7-projects-own-file` | — | MUST |
 | EXP6 | Unit / magnitude assertion at the export boundary (AC-X2) | done (adapted) | `assertUnit()` `:1774` — `k€` / `mio €` instead of `kDKK`; check `P7-unit-agreement` | — | MUST |
 | EXP7 | Test property: long schema behind `property_label, lat, lon` + a `_nearby_` file (AC-TP4) | done | `exportProperty()` `:1884`; check `P7-property-export` | — | MUST |
-| EXP8 | Sources catalogue = the rows the Sources table renders | **partial** | `exportSourcesCsv()` `:1923` and `vSources()` `:5186` build their rows separately — DK renders the table *from* the export records so the two cannot disagree | V5 | SHOULD |
+| EXP8 | Sources catalogue = the rows the Sources table renders | **done (V5)** | `sourceRecords()` is the one set; `vSources()` renders it (with a new Publisher column and `–` where a publisher gave no date) and `exportSourcesCsv()` writes it. Both now include the osa-alue catalogue, which only the table had; check `V5-sources-table-is-the-export` compares the table's `data-src` keys against the file's `key` column row for row | — | SHOULD |
 | EXP9 | National series file | n/a | no national-series dataset surfaced in FI (D5) | — | n/a |
-| EXP10 | Climate exposure file (`climate_exposure_<date>.csv`, level × horizon) | missing | DK ships it; the FI equivalent is level × return period over the 8 Climate indicators | V5 | SHOULD |
+| EXP10 | Climate exposure file (`climate_exposure_<date>.csv`, level × horizon) | **done (V5, adapted)** | `exportClimateCsv()` / `CLIMATE_COLS` — every area × every Climate indicator, with `hazard` (`sea flood` · `river flood` · `radon`) and `return_period` (`1/100a` · `1/1000a`) in columns of their own. A return period is a probability, not a date (D13), so no value in that column is ever a year; check `V5-climate-export` asserts exactly that | — | SHOULD |
 | EXP11 | CSV rules: UTF-8 BOM, `;`, `.` decimal, no grouping, one header row | done | `downloadCsv()` `:1946`; check `P7-long-schema` | — | MUST |
 | EXP12 | One-line status toast naming the file | done | `exportToast()` `:1938` | — | MUST |
 | EXP13 | `Everything (.zip)` | missing | LATER in DK §9 | — | LATER |
@@ -226,7 +226,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | DATA1 | `#data` → `#data/areas/kunta`; tab state in the path (AC-D1) | done | `dataTabHash()` `src/app.js:634`; check `P1-data-tabs` | — | MUST |
 | DATA2 | Four tabs → **three in Finland** (Areas · Projects · Sources) | done (adapted) | `DATA_TABS` `:495`; D5; check `P1-data-tabs` | — | n/a (4th) |
 | DATA3 | Areas: the active indicator's column is highlighted and the table sorted by it (AC-D5) | done | `vTable()` `:1654` (`th.num.hi`), `tableBodyHtml()` sorts by `curInd()` | — | MUST |
-| DATA4 | `th[data-col=<key>]` test ids on the Areas table (spec §10) | missing | `vTable()` writes no per-column key | V5 | SHOULD |
+| DATA4 | `th[data-col=<key>]` test ids on the Areas table (spec §10) | **done (V5)** | every `th` in `vTable()` carries one — `name` · `code` · `parent` · `population` · the indicator keys · `<key>_delta`; check `V5-areas-table-col-ids` also asserts they are unique and that `th.hi` is the active indicator's | — | SHOULD |
 | DATA5 | Sources as a proper table, no empty `Fetched` cell (AC-D4) | done | `vSources()` `:5186`; check `P1-sources-fetched` | — | MUST |
 | DATA6 | Projects: unchanged table + filters, header names the count and the publishers | done | `vPipeline()` `:5039` | — | MUST |
 | DATA7 | Row click opens the area page; `↗` opens Charts | done | `tableBodyHtml()` `clickrow` / `tch` | — | MUST |
@@ -237,9 +237,9 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 
 | # | DK item | FI status | Evidence | Phase | Pri |
 |---|---|---|---|---|---|
-| SHEET1 | No grey filler tile on any sheet (AC-SH1) | **partial** | `vProject()` `src/app.js:4960+` renders tiles conditionally (`tile()` returns `""`), so the markup is right — but no check covers the project / public / school sheets, and `.arhead .hl` (`src/style.css:1378`) is a 1 px-gap grid over `--line`, which shows through an empty cell at 3- and 2-column widths | V5 | MUST |
-| SHEET2 | Breadcrumb names the municipality, not the app (AC-SH3) | done | `crumbs()` `src/app.js:646` pushes the kunta for `public`, `publist`, `school` | V5 (add check) | MUST |
-| SHEET3 | `data-testid=tiles` on sheet tile rows (spec §10) | missing | only `headlineHtml()` `:2023` carries it; the sheets use bare `.hl` | V5 | SHOULD |
+| SHEET1 | No grey filler tile on any sheet (AC-SH1) | **done (V5)** | the CSS override at `src/style.css` (`.arhead .hl{background:none;border:0;gap:var(--s2)}`, v2.0 P6) already ended the grey slab; what was missing was anything asserting it off the area page. `V5-sheets-no-filler` now reads the computed background, border and gap of every `[data-testid=tiles]` row on the project, school and public sheets and fails on an empty cell. Two real faults fell out of writing it: the **public sheet was unreachable** (no `id` in the FI register — `pubStamp()` derives one) and its tiles and table were the Danish BBR's, drawn as `–`; and `prMapInit()` **threw on every project sheet** before the lazy alignments landed. Both fixed — see PROGRESS V5 | — | MUST |
+| SHEET2 | Breadcrumb names the municipality, not the app (AC-SH3) | **done (V5)** | `crumbs()` `src/app.js` pushes the kunta for `public`, `publist`, `school`; a project is not in one kunta, so its crumb is `Finland › Data › Projects`; check `V5-sheet-breadcrumbs` asserts all four | — | MUST |
+| SHEET3 | `data-testid=tiles` on sheet tile rows (spec §10) | **done (V5)** | the project, school and public sheets carry it; the outlook card deliberately does **not**, so `[data-testid=tiles]` still means "the headline row" on the area page and the property (`P6-five-tiles` counts it); check `V5-sheets-no-filler` | — | SHOULD |
 | SHEET4 | Public-building list groups identical rows with a count | missing | DK's own O2 — SHOULD, and the grouping *is* implemented on the property (TP9) | — | LATER |
 | SHEET5 | Climate deep-dive sheet `#climate/<kommune>` (AC-SH2) | **missing** | FI has no such route; climate content lives on the area page (`climBars()`) and in the property's Climate section (`anClimateCard()` `:3565`) | — | LATER |
 | SHEET6 | Project sheet: `Source ↗`, `updated`, "Where it runs" map over the active indicator | done | `vProject()` `:4978-4980` | — | MUST |
@@ -336,13 +336,16 @@ LAY6 + LAY7 + LAY8 + TP12 (one `Layers ▾` with one switch per drawn layer, off
 sticks), TP11 (Services), TP13 + PICK11 (inherited groups in the property picker), TP14 + MM6's
 property half (zones in the mini map), TP3 (`Export ▾` in the property header), TP18 (`.anhead .arid`
 at 1536), TP10 (radius into the menu — and made to filter). All `done (V4)` above, eight checks
-registered under phase V4. TP17 came with them. **MM6's area-page half is still V5's.**
+registered under phase V4. TP17 came with them. **MM6's area-page half shipped in V5.**
 
-**V5 — area page, sheets, Data, Export**
-PICK8 + AREA4 + MM5 + TP6 (in-place refresh: port `areaRefresh()` / `tpRefresh()` from `ref/dk_src`),
-SHEET1 (no filler on the project / public / school sheets, with a check), SHEET2 (breadcrumb check),
-MM6 (area mini map — the property's half shipped in V4, and `anMapOverlays()` is the pattern to copy).
-*Also if there is room:* AREA5, DATA4, EXP8, EXP10, SHEET3.
+**V5 — area page, sheets, Data, Export** ☑ shipped
+PICK8 + AREA4 + MM5 + TP6 (the in-place refresh: `areaRefresh()` / `tpRefresh()`, `arMapPaint()` /
+`anMapPaint()`, and DK's chips row inside the `⤢` overlay), SHEET1, SHEET2, MM6's area half — and
+every one of its "if there is room" rows: AREA5, DATA4, EXP8, EXP10, SHEET3. All `done (V5)` above,
+eleven checks registered under phase V5, plus four new sweep routes (`area_climate`, `project`,
+`school`, `public`). Writing SHEET1's check found two faults nothing had covered: the public-building
+sheet was **unreachable** (the FI register publishes no id) and `prMapInit()` **threw** on every
+project sheet before the lazy alignments landed. Both fixed.
 
 **V6 — responsive, numbers, accessibility, states**
 A11Y1, A11Y2, A11Y3 (accessibility sweep), NUM8 (`1,2 km`), NUM9 (`score` / `weighted` sweep),

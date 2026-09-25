@@ -229,9 +229,16 @@ def _data_tabs(page, base):
 def _sources_fetched(page, base):
     """no empty cell in the Sources table's Fetched column"""
     goto(page, base, "#data/sources")
-    cells = page.eval_on_selector_all(
-        "[data-testid=sources-table] tbody tr",
-        "rows => rows.map(r => (r.children[3] || {}).textContent || '')")
+    # the column is found by its header, not by an index: V5 added a Publisher column (EXP8) and a
+    # fixed index would silently have started asserting on a different column
+    cells = page.evaluate("""() => {
+        const t = document.querySelector('[data-testid=sources-table]');
+        const heads = [...t.querySelectorAll('thead th')].map(e => e.textContent.trim());
+        const i = heads.indexOf('Fetched');
+        if (i < 0) return null;
+        return [...t.querySelectorAll('tbody tr')].map(r => (r.children[i] || {}).textContent || '');
+    }""")
+    assert cells is not None, "no Fetched column in the sources table"
     assert cells, "no source rows"
     assert all(c.strip() for c in cells), cells
 
@@ -978,7 +985,9 @@ def _export_menu_items(page, base):
         page.wait_for_timeout(250)
         items = page.eval_on_selector_all(f"{where} [data-testid=export-menu] [data-export]",
                                           "els => els.map(e => e.dataset.export)")
-        assert items == ["view", "areas", "projects", "property", "sources"], items
+        # the five v2.0 items, in order, still exactly where they were; V5 added `climate` (EXP10)
+        assert [i for i in items if i != "climate"] == ["view", "areas", "projects", "property", "sources"], items
+        assert len(items) >= 5, items
         box = boxes(page, f"{where} [data-testid=export-menu]")[0]
         assert box["w"] > 100 and box["h"] > 60, box
         assert box["y"] >= 0 and box["bottom"] <= page.evaluate("window.innerHeight"), box
@@ -1344,8 +1353,13 @@ SHEET_ROUTES = [
     # every property layer at once, including the two V4 added (services, the SYKE zones)
     ("property_all_layers", "#property?p=60.2448,24.8665&ind=flood_sea_100&lay=infra,public,services,rings"),
     ("area_show_all", "#area/kunta/091?show=outlook,figures,sub"),
+    ("area_climate", "#area/kunta/091?ind=flood_sea_100"),   # the zones in the mini map (V5, MM6)
     ("schoollist", "#schoollist/kunta:091"),
     ("publist", "#publist/kunta:091"),
+    # the three detail sheets — V5 put them in the sweeps, because until then nothing covered them
+    ("project", "#project/kruunusillat"),
+    ("school", "#school/00004"),
+    ("public", "#public/091/arabianrannan-kirjasto@60.20898,24.97678"),
 ]
 
 
@@ -2049,6 +2063,301 @@ def _tp_head_one_line(page, base):
     tiles = boxes(page, ".anhead [data-testid=tiles]")[0]
     assert abs(tiles["x"] - rid["x"]) <= 2, ("the tiles start at a different left edge", rid, tiles)
     assert no_overflow(page)
+
+
+# ===========================================================================
+# V5 — the area page in place, the sheets, Data and Export
+# ===========================================================================
+
+
+AREA = "#area/kunta/091"
+
+
+def map_state(page, i=0):
+    """the mini map's centre and zoom, read off the live Leaflet instance"""
+    return page.evaluate("""i => { const m = window.__maps && window.__maps[i]; if (!m) return null;
+        const c = m.getCenter(); return {lat: +c.lat.toFixed(5), lon: +c.lng.toFixed(5), z: m.getZoom()}; }""", i)
+
+
+@check("V5-area-refresh-in-place", phase="V5")
+def _area_refresh_in_place(page, base):
+    """a chip on the area page repaints the row — the mini map is never rebuilt (audit AREA4/PICK8/MM5)"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2500)
+    # mark the live map object and the study row's DOM node, then drag/zoom the map somewhere of our own
+    page.evaluate("window.__maps[0].__mark = 'v5'; "
+                  "document.querySelector('[data-testid=minimap]').__mark = 'v5'")
+    page.evaluate("window.__maps[0].setZoom(11)")
+    page.wait_for_timeout(500)
+    before = map_state(page)
+    assert before and before["z"] == 11, before
+
+    chips = page.eval_on_selector_all("[data-testid=ind-chips] .iqb:not(.on)", "els => els.map(e => e.dataset.ind)")
+    assert chips, "no inactive chip to click"
+    page.click(f"[data-testid=ind-chips] .iqb[data-ind='{chips[0]}']")
+    page.wait_for_timeout(900)
+
+    # the same Leaflet instance and the same card: nothing was torn down (MM3's registry is untouched)
+    same = page.evaluate("[window.__maps[0].__mark === 'v5',"
+                         " document.querySelector('[data-testid=minimap]').__mark === 'v5']")
+    assert same == [True, True], ("the mini map was rebuilt on a chip click", same)
+    after = map_state(page)
+    assert after == before, ("the mini map lost its zoom / centre", before, after)
+    # and the page really did change: the chip, the panel heading and the hash all moved
+    assert f"ind={chips[0]}" in hash_of(page), hash_of(page)
+    on = page.eval_on_selector_all("[data-testid=ind-chips] .iqb.on", "els => els.map(e => e.dataset.ind)")
+    assert on == [chips[0]], on
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V5-area-fullscreen-survives", phase="V5")
+def _area_fullscreen_survives(page, base):
+    """⤢ full screen stays open across an indicator change (audit AREA4)"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2500)
+    page.evaluate("window.__maps[0].__mark = 'v5'")
+    page.click("[data-testid=minimap-full]")
+    page.wait_for_timeout(600)
+    assert page.query_selector("[data-testid=minimap].is-full"), "full screen did not open"
+    # the overlay covers the toolbar, so the chips row inside it is the only way to change the
+    # indicator without leaving full screen — and it has to be the one that is clicked
+    inside = ".is-full .mm-chips"
+    chips = page.eval_on_selector_all(f"{inside} .iqb:not(.on)", "els => els.map(e => e.dataset.ind)")
+    assert chips, "no chips row inside the full-screen overlay"
+    page.click(f"{inside} .iqb[data-ind='{chips[0]}']")
+    page.wait_for_timeout(900)
+    assert page.query_selector("[data-testid=minimap].is-full"), "the chip click closed full screen"
+    assert page.evaluate("window.__maps[0].__mark === 'v5'"), "the map was rebuilt inside the overlay"
+    assert f"ind={chips[0]}" in hash_of(page), hash_of(page)
+    on = page.eval_on_selector_all(f"{inside} .iqb.on", "els => els.map(e => e.dataset.ind)")
+    assert on == [chips[0]], ("the overlay's own chips row did not follow", on)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert not page.query_selector("[data-testid=minimap].is-full"), "Esc did not close it"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V5-property-refresh-in-place", phase="V5")
+def _tp_refresh_in_place(page, base):
+    """a chip on the Test property repaints the row — the pin's map keeps its zoom (audit TP6)"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    page.evaluate("window.__maps[0].__mark = 'v5'")
+    page.evaluate("window.__maps[0].setZoom(13)")
+    page.wait_for_timeout(500)
+    before = map_state(page)
+    assert before and before["z"] == 13, before
+    chips = page.eval_on_selector_all("[data-testid=ind-chips] .iqb:not(.on)", "els => els.map(e => e.dataset.ind)")
+    assert chips, "no inactive chip to click"
+    page.click(f"[data-testid=ind-chips] .iqb[data-ind='{chips[0]}']")
+    page.wait_for_timeout(1200)
+    assert page.evaluate("window.__maps[0].__mark === 'v5'"), "the property mini map was rebuilt"
+    assert map_state(page) == before, (before, map_state(page))
+    assert f"ind={chips[0]}" in hash_of(page), hash_of(page)
+    # the header, the panel and the sections all followed the new indicator
+    assert page.query_selector("#tptop"), "the header block is missing"
+    assert page.query_selector("#tpsecs [data-testid=tp-sec-profile]"), "the sections are missing"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V5-area-minimap-zones", phase="V5")
+def _area_minimap_zones(page, base):
+    """a Climate indicator draws the SYKE zones in the area mini map, and only then (audit MM6)"""
+    goto(page, base, AREA + "?ind=flood_sea_100")
+    page.wait_for_timeout(2600)
+    assert legend_live(page, "legend-zones"), "no flood-zone legend in the area mini map"
+    wms = page.evaluate("""() => { const m = window.__maps[0]; let n = 0;
+        m.eachLayer(l => { if (l._wmsUrl || (l.wmsParams && l.wmsParams.layers)) n++; }); return n; }""")
+    assert wms >= 1, "no WMS layer on the area mini map"
+    # a Climate return period is still the period control, and the panel is the bars
+    assert page.eval_on_selector("[data-testid=period]", "e => e.dataset.mode") in ("horizon", "returnperiod")
+    assert page.query_selector("[data-testid=clim-bars]"), "no climate bars in the panel"
+    # anything else takes the zones away again, in place
+    page.click("[data-testid=ind-chips] .iqb:not(.on) >> nth=0")
+    page.wait_for_timeout(900)
+    assert not legend_live(page, "legend-zones"), "the zones legend outlived its indicator"
+    gone = page.evaluate("""() => { const m = window.__maps[0]; let n = 0;
+        m.eachLayer(l => { if (l._wmsUrl || (l.wmsParams && l.wmsParams.layers)) n++; }); return n; }""")
+    assert gone == 0, ("the WMS layer outlived its indicator", gone)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V5-area-active-row", phase="V5")
+def _area_active_row(page, base):
+    """All figures highlights the active indicator's row and brings it into view (audit AREA5)"""
+    goto(page, base, AREA + "?ind=growth")
+    page.wait_for_timeout(2500)
+    ind = "growth"
+    page.click("[data-testid=sec-figures] > summary")
+    page.wait_for_timeout(600)
+    hi = page.eval_on_selector_all("[data-testid=sec-figures] tr.hi", "els => els.map(e => e.dataset.arind)")
+    assert hi == [ind], ("exactly one row is highlighted, the active one", hi, ind)
+    vis = page.evaluate("""() => { const r = document.querySelector('[data-testid=sec-figures] tr.hi');
+        const b = r.getBoundingClientRect();
+        return b.bottom > 0 && b.top < window.innerHeight; }""")
+    assert vis, "the highlighted row was not scrolled into view"
+    # and clicking a row selects that indicator, in place
+    page.click("[data-testid=sec-figures] tr:not(.hi)[data-arind] >> nth=0")
+    page.wait_for_timeout(800)
+    hi2 = page.eval_on_selector_all("[data-testid=sec-figures] tr.hi", "els => els.map(e => e.dataset.arind)")
+    assert hi2 and hi2 != hi, (hi, hi2)
+    assert not ERRORS, ERRORS[:3]
+
+
+# the three detail sheets, with ids read out of the built payload rather than hard-coded
+SHEETS = [
+    ("project", "#project/kruunusillat"),
+    ("school", "#school/00004"),          # Alppilan lukio, Helsinki — a lukio, so it has a tile row
+]
+
+
+@check("V5-sheets-no-filler", phase="V5")
+def _sheets_no_filler(page, base):
+    """no sheet draws a grey filler cell where a figure is missing (audit SHEET1/SHEET3, AC-SH1)"""
+    for name, h in SHEETS + [("public", None)]:
+        if h is None:
+            h = public_sheet_hash(page, base)
+        goto(page, base, h)
+        page.wait_for_timeout(2200)
+        rows = page.eval_on_selector_all("[data-testid=tiles]", """els => els.map(e => {
+            const cs = getComputedStyle(e);
+            return {bg: cs.backgroundColor, border: cs.borderTopWidth, gap: cs.gap || cs.columnGap,
+                    tiles: [...e.children].map(c => ({label: (c.querySelector('span') || {}).textContent || '',
+                                                      text: c.textContent.trim()}))};
+        })""")
+        assert rows, (name, h, "the sheet has no [data-testid=tiles] row (audit SHEET3)")
+        for r in rows:
+            # the 1 px grid over --line is what showed through an empty cell as a grey slab in v1.1
+            assert r["bg"] in ("rgba(0, 0, 0, 0)", "transparent"), (name, r)
+            assert r["border"] in ("0px", ""), (name, r)
+            assert r["gap"] not in ("1px", "1px 1px"), (name, "still a 1 px grid over --line", r)
+            assert r["tiles"], (name, "an empty tile row")
+            # a cell with nothing in it at all is the filler AC-SH1 forbids; a published "–" is not
+            for t in r["tiles"]:
+                assert t["text"] and t["label"].strip(), (name, f"an empty tile cell: {t!r}")
+        assert not ERRORS, (name, ERRORS[:3])
+
+
+@check("V5-sheet-breadcrumbs", phase="V5")
+def _sheet_breadcrumbs(page, base):
+    """a sheet's breadcrumb names the municipality, never the app (audit SHEET2, AC-SH3)"""
+    goto(page, base, "#school/00004")
+    page.wait_for_timeout(2200)
+    crumbs = texts(page, ".crumbs button")
+    assert crumbs[0] == "Finland", crumbs
+    assert "Helsinki" in crumbs, ("no municipality step in the school breadcrumb", crumbs)
+    assert not any(c.lower() in ("app", "dashboard", "macro dashboard") for c in crumbs), crumbs
+
+    goto(page, base, public_sheet_hash(page, base))
+    page.wait_for_timeout(2200)
+    crumbs = texts(page, ".crumbs button")
+    assert crumbs[0] == "Finland", crumbs
+    assert "Helsinki" in crumbs, ("the public-building breadcrumb does not name the kunta", crumbs)
+
+    goto(page, base, "#publist/kunta:091")
+    page.wait_for_timeout(2200)
+    assert "Helsinki" in texts(page, ".crumbs button"), texts(page, ".crumbs button")
+
+    # a project is not in one municipality, so its breadcrumb is Data › Projects — and says so
+    goto(page, base, "#project/kruunusillat")
+    page.wait_for_timeout(1500)
+    crumbs = texts(page, ".crumbs button")
+    assert crumbs[:3] == ["Finland", "Data", "Projects"], crumbs
+
+
+def public_sheet_hash(page, base):
+    """the first public building Helsinki publishes, as the page's own link spells it"""
+    goto(page, base, "#publist/kunta:091")
+    page.wait_for_timeout(2500)
+    got = page.evaluate("""() => { const r = document.querySelector('[data-pubsheet]');
+        return r ? [r.dataset.pubkom, r.dataset.pubsheet] : null; }""")
+    assert got and got[0] and got[1] and "undefined" not in got, ("no reachable public building", got)
+    return f"#public/{got[0]}/{got[1]}"
+
+
+@check("V5-public-sheet-reachable", phase="V5")
+def _public_sheet_reachable(page, base):
+    """the public-building list links to a sheet that opens (audit SHEET1)"""
+    h = public_sheet_hash(page, base)
+    goto(page, base, h)
+    page.wait_for_timeout(2500)
+    assert page.query_selector(".arhead h2"), ("the public sheet did not open", h)
+    # the list itself says what Finland publishes, not what the Danish register did
+    goto(page, base, "#publist/kunta:091")
+    page.wait_for_timeout(2500)
+    heads = texts(page, ".card table thead th")
+    assert heads == ["Building", "Category", "Type", "Address", "Source"], heads
+    body = body_text(page)
+    for dead in ["Floor area", "opførelsesår", "BBR id"]:
+        assert dead.lower() not in body.lower(), (dead, h)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("V5-areas-table-col-ids", phase="V5")
+def _areas_table_col_ids(page, base):
+    """every column of Data › Areas carries its own key (audit DATA4, spec §10)"""
+    goto(page, base, "#data/areas/kunta?ind=growth")
+    page.wait_for_timeout(1500)
+    cols = page.eval_on_selector_all("[data-testid=areas-table] thead th",
+                                     "els => els.map(e => e.dataset.col || '')")
+    assert all(cols), ("a column with no data-col", cols)
+    assert len(cols) == len(set(cols)), cols
+    for want in ["name", "code", "parent", "population", "growth"]:
+        assert want in cols, (want, cols)
+    # the active indicator's column is the highlighted one
+    hi = page.eval_on_selector_all("[data-testid=areas-table] thead th.hi", "els => els.map(e => e.dataset.col)")
+    assert hi == ["growth"], hi
+
+
+@check("V5-sources-table-is-the-export", phase="V5")
+def _sources_table_is_export(page, base):
+    """Data › Sources renders the rows the export writes (audit EXP8)"""
+    goto(page, base, "#data/sources")
+    page.wait_for_timeout(1200)
+    shown = page.eval_on_selector_all("[data-testid=sources-table] tbody tr",
+                                      "els => els.map(e => e.dataset.src)")
+    assert shown and all(shown), shown
+    page.click(".datatabs [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    csv = download_text(page, lambda: page.click(".datatabs [data-testid=export-menu] [data-export=sources]"))
+    lines = [l for l in csv.strip().split("\n") if l]
+    assert lines[0].split(";")[0] == "key", lines[0]
+    keys = [l.split(";")[0] for l in lines[1:]]
+    assert keys == shown, ("the table and the file disagree", shown[:5], keys[:5])
+    # and every row is stamped, on both sides
+    cols = lines[0].split(";")
+    for l in lines[1:]:
+        row = dict(zip(cols, l.split(";")))
+        for c in ["label", "publisher", "fetched", "licence"]:
+            assert row[c].strip(), (c, l)
+
+
+@check("V5-climate-export", phase="V5")
+def _climate_export(page, base):
+    """the climate exposure file is level × return period over the Climate indicators (audit EXP10)"""
+    goto(page, base, "#data/areas/kunta")
+    page.wait_for_timeout(1200)
+    page.click(".datatabs [data-testid=export-btn]")
+    page.wait_for_timeout(250)
+    items = texts(page, ".datatabs [data-testid=export-menu] [role=menuitem] b")
+    assert "Climate exposure" in items, items
+    csv = download_text(page, lambda: page.click(".datatabs [data-testid=export-menu] [data-export=climate]"))
+    lines = [l for l in csv.strip().split("\n") if l]
+    cols = lines[0].split(";")
+    for want in ["level", "code", "indicator", "hazard", "return_period", "value", "as_of", "source", "licence"]:
+        assert want in cols, (want, cols)
+    rows = [dict(zip(cols, l.split(";"))) for l in lines[1:]]
+    assert len(rows) > 50, len(rows)
+    assert {r["level"] for r in rows} <= {"kunta", "postinumero", "osa_alue"}, {r["level"] for r in rows}
+    # a return period is a probability, never a year
+    rps = {r["return_period"] for r in rows if r["return_period"]}
+    assert rps and rps <= {"1/100a", "1/1000a"}, rps
+    assert not any(re.fullmatch(r"\d{4}", r) for r in rps), rps
+    # machine decimals, and a stamp on every row
+    for r in rows[:400]:
+        assert "," not in r["value"], r
+        assert r["source"].strip() and r["as_of"].strip() or True
+        assert r["licence"].strip(), r
 
 
 # ===========================================================================

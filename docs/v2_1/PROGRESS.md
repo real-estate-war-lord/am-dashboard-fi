@@ -328,3 +328,101 @@ No earlier check was deleted or weakened.
   which are the macro map's own and read `LF.map` throughout.
 - Seen in the V4 screenshots and still **not** fixed: the clipped RENT tile at 390
   (`21,3 EUR/m²/mont`) and the 390 `Legend ▾` pill over the attribution line — both V6 (TILE5).
+
+---
+
+## V5 — the area page in place, the sheets, Data and Export ☑
+
+Audit rows closed: **PICK8, AREA4, MM5, TP6** (the in-place refresh), **MM6**'s area half,
+**SHEET1**, **SHEET2**, and every one of V5's "if there is room" rows — **AREA5, DATA4, EXP8,
+EXP10, SHEET3**. Gate: `./overnight.sh gate V5` green — build ✓, **70 node tests** ✓,
+**106 ui checks** ✓ (95 + 11 new, and four new sweep routes), budgets `src/app.js` 434 KB / 460,
+`src/style.css` 141 KB / 165. The python unit suite is still red on the one pre-existing false
+positive (GLOB5) and is still informational.
+
+**Built**
+
+1. **The study row updates in place** (AC-P4/AC-TP3; PICK8, AREA4, MM5, TP6). `vArea()` and
+   `vAnalysis()` now render three blocks — `#artop` (identity card + toolbar) · the study row ·
+   `#arsecs` (the toggles + source note), and `#tptop` / `#tpsecs` on the property — and
+   **`areaRefresh()` / `tpRefresh()`** repaint the first and the third, the chart panel, the mini
+   map's heading and its note, and then **re-paint** the Leaflet map rather than rebuilding it.
+   `arMapInit()` was split into `arMapInit()` (the map, once) and **`arMapPaint(fit)`** (the
+   polygons, the legend and the zones), the same split V4's `anMapInit()` / `anMapOverlays()`
+   already had; `anMapPaint()` is its property twin, extracted out of `anMapInit()`.
+   `indSet()` ends in `syncHash()` + a refresh on those two views and still in `go(hashFor())`
+   everywhere else (DECISIONS V5); the year select and the `data-arsub` segment take the same road.
+   The consequence the audit asked for: a chip click keeps the reader's scroll, the mini map's own
+   pan and zoom, and the `⤢` overlay.
+2. **The `⤢` overlay got the chips row DK puts in it.** Full screen is a fixed overlay over the
+   whole page, so before V5 the toolbar — the only place an indicator could be chosen — was
+   underneath it: "full screen survives an indicator change" was a promise about something a
+   reader could not do. `miniFull()` now fills a `.mm-chips` row in the card with the shared
+   `indChips("ind")`, `areaRefresh()` / `tpRefresh()` keep it current, and `UI.mmFull` is cleared
+   by `render()` because the class lives on a card that is about to be replaced.
+3. **The SYKE flood zones in the area mini map** (MM6's area half). `arMapZones()` — the area map's
+   own WMS tile layer in its own `climPane` (`LF.amClimL`), with a folded `legend-zones` card in
+   `AR_LEGENDS`, exactly the shape V4 gave `LF.anClimL`. They follow `ind=` and have **no switch
+   and no `zones=0`** on this route: the area toolbar is `Indicator ▾ · Period` and nothing else
+   (DECISIONS V5). `parseHash()` derives `MK.clim` for the area view so `climLegendHtml()` has it.
+4. **The public-building family was rewritten against the data Finland actually publishes**
+   (SHEET1). The sheet was **unreachable**: `dist/public/<kunta>.json` carries no `id` and no
+   `kom`, so every `data-pubsheet` read `undefined` and `pubPopup()` threw on `b.id.slice(0, 8)`.
+   `pubStamp()` now derives both at load (`<slug of the name>@<lat>,<lon>` — DECISIONS V5), and
+   the list, the popup and the sheet show category, service type, address, municipality, the
+   postal code and osa-alue found from the coordinate, the publisher and the record id — instead
+   of the Danish BBR's floor area, year built, permit case and use code, which Palvelukartta and
+   OpenStreetMap do not publish and which drew four columns and three tiles of `–`. One sentence
+   on the sheet says so plainly. The list's postal-code and osa-alue filters are answered from the
+   published rings, because the register states no postal code.
+5. **The project sheet stopped throwing.** `prMapInit()` read `f.geometry.type` before the lazy
+   alignments landed — and five of Finland's biggest projects have no open alignment at all — so
+   every `#project/…` raised a `pageerror`. It now frames the municipalities the project serves and
+   says which of the two cases it is; nothing else on the sheet changed.
+6. **`data-testid=tiles` on the three sheets' tile rows** (SHEET3), and a check that no tile row is
+   a 1 px grid over `--line` with an empty cell showing through (SHEET1/AC-SH1 — the CSS fix
+   itself shipped in v2.0 P6; what was missing was anything asserting it off the area page).
+   **Breadcrumbs** (SHEET2): the school, public-building and public-list sheets name the kunta; a
+   project is not in one kunta, so its crumb is `Finland › Data › Projects`, and the check says so.
+7. **Data › Areas**: every `th` carries `data-col="<key>"` (DATA4, spec §10), the four leading
+   columns included, and the active indicator's column is still the highlighted one.
+8. **Export ▾**: `sourceRecords()` is now the one set of source rows — Data › Sources **renders**
+   it and `exportSourcesCsv()` **writes** it, so the screen and the file cannot disagree (EXP8);
+   the table gained a Publisher column and a `–`-never-blank Fetched cell. And a sixth item,
+   **`Climate exposure`** (EXP10): every area × every Climate indicator with `hazard` and
+   `return_period` in columns of their own — `1/100a`, never a year (DECISIONS V5).
+9. **All figures** (AREA5): opening the section scrolls the active indicator's row into view with
+   `block: nearest`, DK's own rule; the row was already highlighted and already selected on click.
+
+**Checks added** (phase V5, eleven): `V5-area-refresh-in-place`, `V5-area-fullscreen-survives`,
+`V5-property-refresh-in-place`, `V5-area-minimap-zones`, `V5-area-active-row`,
+`V5-sheets-no-filler`, `V5-sheet-breadcrumbs`, `V5-public-sheet-reachable`,
+`V5-areas-table-col-ids`, `V5-sources-table-is-the-export`, `V5-climate-export`. Plus four sweep
+routes — `area_climate`, `project`, `school`, `public` — so P10's error, hash and picker sweeps and
+the screenshot set now cover the three detail sheets, which nothing covered before tonight.
+
+**Two earlier checks were widened, not weakened** (logged in DECISIONS V5): `P1-sources-fetched`
+found its column by a fixed index and now finds it by its header, so the Publisher column EXP8 adds
+cannot make it assert on a different one; `P7-menu` asserted the export menu is exactly five items
+and now asserts the five v2.0 items are still there in their old order, with `climate` the only
+addition. No check was deleted.
+
+**What the next phase must know**
+
+- **`#artop` / `#arsecs` / `#tptop` / `#tpsecs` are `display:contents`** (`src/style.css`). They
+  exist so `innerHTML` has something to address; they must never become boxes, or `#body`'s flex
+  gap collapses between the identity card and the toolbar. Anything V6 adds above the study row
+  belongs **inside `areaTop()` / `tpTop()`**, not beside them, or the refresh will not reach it.
+- **Four functions now build the two pages**: `areaTop` / `areaSections` and `tpTop` / `tpSections`.
+  A new section added straight into `vArea()` / `vAnalysis()` would render once and then vanish on
+  the first chip click. Same for the mini map: draw through `arMapPaint()` / `anMapPaint()` +
+  `anMapOverlays()`, never in the `*MapInit()` body.
+- **`UI.mmFull` is state now.** `render()` clears it; `miniFull()` sets it; `mmChipsFill()` is the
+  only thing that writes the overlay's chips row. A V6 responsive change to the overlay has to keep
+  that row reachable at 390 too — it is the only indicator control a full-screen reader has.
+- **The public-building id is derived in the UI**, not published. If a morning task teaches
+  `scripts/build_public_*.py` to emit an `id`, `pubStamp()` keeps it (`if (!b.id)`) and nothing
+  else has to change.
+- Still **not** fixed and still V6's: the clipped RENT tile at 390 (`21,3 EUR/m²/mont`, TILE5), the
+  390 `Legend ▾` pill over the attribution line, `tpRadLabel`'s `1.2 km` (NUM8) and the missing
+  accessibility sweep (A11Y1–A11Y3). V5 added no `abbr`, no shortcut and no loading state.

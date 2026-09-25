@@ -2001,6 +2001,11 @@ th .thn{display:inline}
 [data-testid=minimap].is-full{position:fixed;inset:12px;z-index:120;margin:0;
   box-shadow:0 20px 70px rgba(10,14,9,.35)}
 body.has-full{overflow:hidden}
+/* the chips row only exists while the map is full screen: the overlay covers the toolbar, and a
+   reader must still be able to change the indicator without leaving it (AC-P4) */
+.mm-chips{display:none}
+[data-testid=minimap].is-full .mm-chips{display:block;margin:0 0 8px;flex:0 0 auto}
+[data-testid=minimap].is-full .mm-chips .iq{margin:0}
 
 /* --- the panel head: value, change, rank, distance from the median --- */
 .pnhead{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px var(--s4);margin:0 0 var(--s3)}
@@ -2039,6 +2044,13 @@ body.has-full{overflow:hidden}
   .studyrow{grid-template-columns:1fr}
   .studyrow .minimap #armap,.studyrow .minimap #anmap{min-height:320px}
 }
+
+/* V5: the area page and the Test property are rendered in three blocks — header+toolbar, study
+   row, sections — so an indicator change can repaint the first and the third in place instead of
+   rebuilding the page under the reader's mini map. The wrappers are addressing handles only and
+   must not become boxes of their own: `display:contents` keeps every card a direct flex child of
+   #body, so the column's gap is the same as it was before they existed. */
+#artop,#arsecs,#tptop,#tpsecs{display:contents}
 
 /* a card inside a toggle already has the toggle's own heading */
 .seclist .secbody .card>.card-head h3{display:none}
