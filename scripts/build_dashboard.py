@@ -170,6 +170,7 @@ def main():
                 .replace("{{LEAFLET_JS}}", (SRC / "vendor" / "leaflet.js").read_text(encoding="utf-8"))
                 .replace("{{ROUTE_JS}}", (SRC / "route_core.js").read_text(encoding="utf-8"))
                 .replace("{{PICKER_JS}}", (SRC / "picker_core.js").read_text(encoding="utf-8"))
+                .replace("{{RAMP_JS}}", (SRC / "ramp_core.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))
                 .replace("{{DATA}}", payload)

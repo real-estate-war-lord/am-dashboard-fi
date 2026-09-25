@@ -256,7 +256,6 @@ main{overflow-y:auto;display:flex;flex-direction:column}
 /* leading caption inside a segmented control, e.g. "Within  500 m | 1 km" on the pin filter */
 .segl{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
   background:var(--panel2);display:flex;align-items:center;padding:5px 8px 5px 10px}
-.seg.tprad .sg{padding:5px 9px}
 
 .chart{width:100%;height:auto;display:block}
 .grid{stroke:var(--line2)}
@@ -1518,10 +1517,11 @@ th .thn{display:inline}
 .olboth .olrow{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:10.5px;padding:1px 0}
 .olboth .olsrc{font-weight:600}
 .olages{margin-top:10px}
-/* the centre of a diverging legend is a boundary, not just another class edge */
-.maplegend .lgrow.lgmid{position:relative}
-.maplegend .lgrow.lgmid i{box-shadow:0 0 0 1px var(--ink2)}
-.maplegend .lgctr{font-style:normal;margin-left:auto;font-family:var(--mono);font-size:8.5px;color:var(--muted)}
+/* Zero is a boundary on a signed legend, not just another class edge: a thin rule under the lowest
+   positive bin, so the reader sees which bins are green-side and which are red-side without reading
+   the numbers. The rule is the only decoration a legend row carries — everything else is a swatch
+   and a value (spec §4.5: legends are keys). */
+.maplegend .lgrow.lgzero{border-bottom:1px solid var(--ink2);padding-bottom:3px;margin-bottom:2px}
 /* the outlook tiles sit in a row like the headline row, not in a stacked column */
 .card.outlook .hl{margin-top:10px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
 @media (max-width:1250px){.card.outlook .hl{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1623,6 +1623,33 @@ th .thn{display:inline}
 
 .tp-pin i{display:block;width:16px;height:16px;border-radius:50%;background:var(--pin);
   border:3px solid #fff;box-shadow:0 0 0 1px var(--pin),0 1px 5px rgba(0,0,0,.4)}
+
+/* --- the pin card (DK P10 §1) ---
+   The pin a pasted link drops on the macro map, said in words. It is a block in the page flow
+   between the map area card and the map — never a floating card — so there is no width at which
+   it can cover the toolbar above it or the legend stack inside the map below it. */
+.pincard{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  margin:9px 0 0;padding:8px 11px;border:1px solid var(--line);border-left:3px solid var(--pin);
+  border-radius:9px;background:var(--panel2)}
+.pincard .pcmark{flex:0 0 auto;width:11px;height:11px;border-radius:50%;background:var(--pin);
+  border:2px solid #fff;box-shadow:0 0 0 1px var(--pin)}
+.pincard .pcbody{flex:1 1 240px;min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 10px}
+.pincard .pclab{font-family:var(--disp);font-size:14.5px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.pincard .pcll{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.pincard .pcwhere{font-family:var(--mono);font-size:10.5px;color:var(--ink2);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pincard .pcact{flex:0 0 auto;display:flex;align-items:center;gap:6px;margin-left:auto}
+.pincard .pcx{font-size:13px;line-height:1;padding:2px 7px}
+@media (max-width:640px){
+  .pincard{gap:8px}
+  /* the dot would claim a line of its own once the body wraps; the pin-coloured left border
+     already says the same thing, and it is aria-hidden either way */
+  .pincard .pcmark{display:none}
+  .pincard .pcbody{flex:1 1 100%}
+  .pincard .pcwhere{white-space:normal}
+  .pincard .pcact{margin-left:0;flex:1 1 100%}
+  .pincard .pcact .primary{flex:1 1 auto;text-align:center}
+}
 .lfpop .tplab{font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:-.02em;color:var(--ink);
   width:100%;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 5px;margin:0 0 4px -5px}
 .lfpop .tplab:hover{border-color:var(--line)}
@@ -1635,8 +1662,10 @@ th .thn{display:inline}
 .tppop .cap{margin:2px 0 0}
 
 /* ---------- Analysis sheet: one property against every layer ---------- */
-/* the title is an input, so the identity column needs a basis of its own — a bare input shrinks to ~20 characters */
-.anhead .arid{flex:1 1 420px;min-width:0}
+/* The identity block always claims its own line (DK Q2, audit TP18). At 420 px of basis the header
+   split into two columns around 1536 px — the name and its area tags on the left, the five actions
+   riding up beside them — and the tile row below started at a different left edge than the title. */
+.anhead .arid{flex:1 1 100%;min-width:0}
 .anhead .anlab{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:-.03em;color:var(--ink);
   display:block;width:100%;border:1px solid transparent;border-radius:8px;background:transparent;padding:2px 7px;margin:0 0 8px -7px}
 .anhead .anlab:hover{border-color:var(--line)}
@@ -1777,6 +1806,13 @@ th .thn{display:inline}
 #mapcard .card-head.tools-only{padding:var(--s3) var(--s4) var(--s2)}
 #mapcard .tools{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;row-gap:var(--s2)}
 #mapcard .tools>*{flex:0 0 auto}
+/* …except the search, which takes the room the other four controls leave. Without this the blanket
+   rule above wins on specificity, `.msearch`'s own `flex` never applies and the box collapses to an
+   input's intrinsic width — clamped to its 200 px minimum, the clipped "Search kunta, postinum" of
+   the v2.0 screenshots (audit SRCH8). The basis is that same 200 px **on purpose**: a larger one
+   counts towards the line and wrapped the 1366 toolbar onto two rows, pushing the map 37 px below
+   the 200 px AC-S3 allows. Growing only spends free space, so the row count cannot change. */
+#mapcard .tools>.msearch{flex:1 1 200px}
 .tbtn{height:var(--ctrl-h);display:inline-flex;align-items:center;gap:6px;background:var(--panel);
   border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-size:13px;
   padding:0 11px;cursor:pointer;white-space:nowrap}
@@ -1787,7 +1823,9 @@ th .thn{display:inline}
 #hdact{display:flex;align-items:flex-start;gap:var(--s2)}
 
 /* --- unified search --- */
-.msearch{position:relative;flex:1 1 300px;min-width:200px;max-width:460px;display:flex;align-items:center}
+/* the cap is what the placeholder needs at 13px plus room to type into: a clipped
+   "Search kunta, postinum" tells the reader less than the box is worth (audit SRCH8) */
+.msearch{position:relative;flex:1 1 200px;min-width:200px;max-width:470px;display:flex;align-items:center}
 .mqi{width:100%;height:var(--ctrl-h);border:1px solid var(--line);border-radius:8px;background:var(--panel);
   font:inherit;font-size:13px;padding:0 30px 0 11px;color:var(--ink)}
 .mqi:focus{border-color:var(--good)}
@@ -1963,6 +2001,11 @@ th .thn{display:inline}
 [data-testid=minimap].is-full{position:fixed;inset:12px;z-index:120;margin:0;
   box-shadow:0 20px 70px rgba(10,14,9,.35)}
 body.has-full{overflow:hidden}
+/* the chips row only exists while the map is full screen: the overlay covers the toolbar, and a
+   reader must still be able to change the indicator without leaving it (AC-P4) */
+.mm-chips{display:none}
+[data-testid=minimap].is-full .mm-chips{display:block;margin:0 0 8px;flex:0 0 auto}
+[data-testid=minimap].is-full .mm-chips .iq{margin:0}
 
 /* --- the panel head: value, change, rank, distance from the median --- */
 .pnhead{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px var(--s4);margin:0 0 var(--s3)}
@@ -1977,8 +2020,12 @@ body.has-full{overflow:hidden}
 /* --- the distribution strip and the return-period bars --- */
 .dist .dtick{stroke:#B9BDB2;stroke-width:1}
 .dist .dmed{stroke:#5C5F52;stroke-width:1.5;stroke-dasharray:3 3}
+/* the dot takes the choropleth's own class colour inline (src/app.js distStrip), so the strip and
+   the map of the same indicator cannot disagree; --k1 is the fallback when there is no scale */
 .dist .ddot{fill:var(--k1);stroke:#fff;stroke-width:1.5}
 .dist .dlab{font-weight:600;fill:var(--ink)}
+/* the zero line on a signed strip — the same boundary the legend's thin rule marks */
+.dist .dzero{stroke:var(--ink2);stroke-width:1}
 .cbar{fill:var(--clim)}
 .cmed{stroke:#5C5F52;stroke-width:1.6;stroke-dasharray:4 3}
 
@@ -1997,6 +2044,13 @@ body.has-full{overflow:hidden}
   .studyrow{grid-template-columns:1fr}
   .studyrow .minimap #armap,.studyrow .minimap #anmap{min-height:320px}
 }
+
+/* V5: the area page and the Test property are rendered in three blocks — header+toolbar, study
+   row, sections — so an indicator change can repaint the first and the third in place instead of
+   rebuilding the page under the reader's mini map. The wrappers are addressing handles only and
+   must not become boxes of their own: `display:contents` keeps every card a direct flex child of
+   #body, so the column's gap is the same as it was before they existed. */
+#artop,#arsecs,#tptop,#tpsecs{display:contents}
 
 /* a card inside a toggle already has the toggle's own heading */
 .seclist .secbody .card>.card-head h3{display:none}
@@ -2020,9 +2074,6 @@ body.has-full{overflow:hidden}
 .mmlegs .maplegend{position:static;flex:0 0 auto;max-width:100%}
 .mmlegs .maplegend .lgnote{max-width:none}
 .studyrow .minimap #anmap{min-height:420px}
-.tpmaptools{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;background:var(--panel);
-  border:1px solid var(--line);border-radius:var(--r);padding:var(--s2) var(--s4);margin-top:var(--s3)}
-.tpmaptools .lychips{padding:0}
 .lychip:disabled{opacity:.45;cursor:not-allowed}
 
 /* a folded legend keeps its title and nothing else */
@@ -2064,7 +2115,7 @@ body.has-full{overflow:hidden}
    =================================================================================== */
 /* Nothing may make the page wider than the window. Three offenders in v1.1: a table that was
    never in a scroll box, a breadcrumb whose last two parts could not shrink, and the chips row. */
-.card,.seclist,.mstrip,.tpmaptools,.datatabs{max-width:100%;min-width:0}
+.card,.seclist,.mstrip,.datatabs{max-width:100%;min-width:0}
 .tbl{max-width:100%}
 .card>.tbl,.seclist .secbody>.tbl{display:block;overflow-x:auto}
 #hd,.crumbs{min-width:0}
@@ -2131,3 +2182,60 @@ main{overflow-x:hidden}
 .mklegs{top:auto;bottom:22px;right:12px;max-height:72%;align-items:flex-end;pointer-events:auto;
   max-width:min(60%,300px)}
 .mklegs .maplegend{position:static;flex:0 0 auto;max-width:100%}
+
+/* =====================================================================================
+   v2.1 V6 — responsive, the number marks, accessibility, empty / loading / error states
+   ===================================================================================== */
+
+/* §4.10. One shape for all three states, ported from the Danish build: a noun the reader can act
+   on, the file or the publisher under it, and — while something is in flight — three skeleton
+   bars rather than a spinner, so the page keeps its shape instead of blocking. */
+.statecard{display:flex;flex-direction:column;gap:var(--s2);align-items:flex-start;
+  background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s3) var(--s4);margin:var(--s2) 0}
+.statecard b{font-family:var(--body);font-size:13.5px;font-weight:600;color:var(--ink)}
+.statecard p{margin:0;font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--ink2);max-width:66ch}
+.statecard[data-kind=error]{border-color:#E0C3BA;background:#FBF2EF}
+.statecard[data-kind=error] b{color:var(--bad2,#8A2E17)}
+.statecard .skel{display:grid;gap:6px;width:min(320px,100%)}
+.statecard .skel i{display:block;height:9px;border-radius:3px;background:var(--line);
+  animation:v6skel 1.4s ease-in-out infinite}
+.statecard .skel i:nth-child(2){width:78%}
+.statecard .skel i:nth-child(3){width:54%}
+@keyframes v6skel{0%,100%{opacity:.5}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.statecard .skel i{animation:none}}
+/* the same card inside a map's legend slot: the map is the frame, so it drops its own */
+.maplegend .statecard{margin:0;padding:0;border:0;background:none;gap:5px}
+.maplegend .statecard b{font-size:11.5px}
+.maplegend .statecard p{font-size:10.5px;max-width:30ch}
+.maplegend .statecard .skel{width:100%}
+
+/* The `^` marker explains itself now (audit NUM10): an <abbr> with a title, not a bare glyph.
+   Browsers give `abbr[title]` a dotted underline that reads as a typo next to a number, so the
+   mark carries its own hint instead — raised, mono, and a `help` cursor. */
+abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em;
+  vertical-align:.32em;color:var(--muted);cursor:help}
+
+/* TILE5 — at 390 the RENT tile printed "21,3 EUR/m²/mont": `EUR/m²/month` is one unbreakable
+   12-character token, and at 26 px it is wider than a two-column tile, so it ran under the tile
+   to its right and was painted over. The figure type is fluid below the five-column breakpoints,
+   and `overflow-wrap:anywhere` is the floor: whatever the unit, a tile can no longer be clipped. */
+.hlc b{overflow-wrap:anywhere}
+/* the money denominator, on the figure's baseline and a little smaller — see `tileValueHtml()` */
+/* `.hlc span` is the tile's LABEL rule and it matches any span in the tile, so the denominator has
+   to say no to all of it: it is not a mono uppercase label, it is part of the figure. */
+.hlc b .hu{font:inherit;font-size:.64em;letter-spacing:0;text-transform:none;color:inherit;
+  opacity:.72;white-space:nowrap;overflow:visible}
+@media (max-width:1180px){.arhead .hlc b,.anhead .hlc b{font-size:23px}}
+@media (max-width:820px){.arhead .hlc b,.anhead .hlc b{font-size:20px}
+  .card.outlook .hlc b{font-size:20px}}
+
+/* LEG5 + DK Q1 — on a phone Leaflet's attribution wraps to two lines and spans the whole bottom
+   edge of the map, and the `Legend ▾` pill sat straight on top of it. The credit is a licence
+   condition, so the pill and the stack it opens move to the top-right corner, where nothing else
+   on a mini map or the macro map lives (the zoom control is top-left, ⤢ is in the card head). */
+@media (max-width:1024px){
+  .legpill{top:8px;right:8px;bottom:auto;left:auto}
+  .mapwrap.legs-open .maplegs{top:42px;right:8px;bottom:auto;left:auto;
+    max-height:calc(100% - 54px);align-items:flex-end}
+}

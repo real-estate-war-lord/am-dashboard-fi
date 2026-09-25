@@ -41,6 +41,24 @@ const TABLE = [
   ["#project/vt4-oulu", "project/vt4-oulu"],
   ["#school/280657", "school/280657"],
   ["", "map"],
+  /* v2.1 NAV6/LAY4: the map's four layer flags became the one `lay=` key the property route
+     already wrote. The order is the Layers ▾ menu's own. */
+  ["#map?infra=1", "map?lay=infra"],
+  ["#map/091?ind=growth&infra=1&public=1&services=1", "map/091?ind=growth&lay=infra,public,services"],
+  ["#map/091?micro=1&mind=rent", "map/091?mind=rent&lay=buildings"],
+  ["#map/091?infra=1&micro=1", "map/091?lay=infra,buildings"],
+  ["#map?infra=0&public=0", "map"],                       /* every flag off writes no key at all */
+  ["#map?ind=growth&infra=0", "map?ind=growth"],
+  ["#map?lay=infra,public", "map?lay=infra,public"],      /* already canonical */
+  ["#map?lay=infra&public=1", "map?lay=infra,public"],    /* a half-migrated link */
+  ["#map?lay=infra&infra=1", "map?lay=infra"],            /* the flag never doubles a name */
+  /* v2.1 NAV7: the v1.1 area tabs became the `show=` section set; `g=` named a block v2.0 deleted */
+  ["#area/kunta/091?t=bbr&g=Rents", "area/kunta/091?show=figures"],
+  ["#area/kunta/091?t=ind", "area/kunta/091?show=figures"],
+  ["#area/postinumero/00100?t=sub&ind=rent", "area/postinumero/00100?ind=rent&show=sub"],
+  ["#area/kunta/091?t=nonsense", "area/kunta/091"],
+  ["#area/kunta/091?g=Rents", "area/kunta/091"],
+  ["#area/kunta/091?t=sub&show=outlook", "area/kunta/091?show=outlook"],   /* an explicit show= wins */
 ];
 
 test("every v1.1 hash lands on its v2.0 spelling", () => {
@@ -58,6 +76,30 @@ test("toV2 is idempotent — the address bar is rewritten once, not every frame"
 test("the second Compare pin and the second analysis pin are dropped, not carried", () => {
   assert.strictEqual(RC.toV2("#analysis?a=60.2,24.9&b=61.5,23.8&lb=Toinen"), "property?p=60.2,24.9");
   assert.ok(!RC.toV2("#compare?a=kunta:091&b=kunta:837").includes("837"));
+});
+
+test("the map's layer flags fold into one lay= key and nothing else moves", () => {
+  /* the key names are the Layers ▾ menu's own `data-layer` values, and `buildings` is the one the
+     property route already used for micro=1 — one spelling of one idea (audit NAV6/LAY4) */
+  assert.deepStrictEqual(RC.LAY_KEYS, ["infra", "public", "services", "buildings"]);
+  /* `mind=` is not a switch: it names which building figure is drawn, the way `ind=` does */
+  assert.strictEqual(RC.layerFlags({ micro: "1", mind: "rent" }).mind, "rent");
+  /* a hash that names no flag at all is left completely alone — including one with no lay= */
+  assert.deepStrictEqual(RC.layerFlags({ ind: "growth" }), { ind: "growth" });
+  assert.deepStrictEqual(RC.layerFlags({ lay: "infra" }), { lay: "infra" });
+  /* the query object handed in is never mutated: parseHash reads it again afterwards */
+  const q = { infra: "1" };
+  RC.layerFlags(q);
+  assert.strictEqual(q.infra, "1");
+});
+
+test("the v1.1 area tabs become show=, and g= is dropped rather than guessed at", () => {
+  assert.strictEqual(RC.areaTabs({ t: "bbr" }).show, "figures");
+  assert.strictEqual(RC.areaTabs({ t: "sub" }).show, "sub");
+  assert.strictEqual(RC.areaTabs({ t: "bbr", g: "Rents" }).g, undefined);
+  /* a link that already says show= keeps it — that is what makes the rewrite idempotent */
+  assert.strictEqual(RC.areaTabs({ t: "sub", show: "outlook" }).show, "outlook");
+  assert.deepStrictEqual(RC.areaTabs({ ind: "rent" }), { ind: "rent" });
 });
 
 test("query keys that are not part of the route survive the rewrite", () => {
