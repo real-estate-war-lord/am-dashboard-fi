@@ -9,12 +9,8 @@ address.
 
 ![The map: one toolbar — search, Layers ▾, indicator, period — over the choropleth](docs/screenshot.png)
 
-| The area page | The Test property page |
-|---|---|
-| ![Area page: header, five headline tiles, the study row, the toggles](docs/ui_v2/area_kunta_1440.png) | ![Test property: the same study row anchored on one pin](docs/ui_v2/property_1440.png) |
-
-Every route is captured at 1440 px and at 390 px in [`docs/ui_v2/`](docs/ui_v2/), rebuilt by
-`make ui SHOTS=1`.
+Every route is captured at 1440 px and at 390 px by `make ui SHOTS=1`, which writes
+`docs/ui_v2/*.png`. Those are build output and are not committed — run it to regenerate them.
 
 **Live:** _(GitHub Pages link goes here once `main` is published)_
 

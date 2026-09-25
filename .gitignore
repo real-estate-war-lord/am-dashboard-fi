@@ -32,3 +32,6 @@ probe.txt
 
 # the address lookup is ~65 MB rebuilt from data/processed/addr on every deploy
 dist/addr/
+
+# the per-route screenshots are rebuilt on demand by `make ui SHOTS=1` — kept locally, not in git
+docs/ui_v2/
