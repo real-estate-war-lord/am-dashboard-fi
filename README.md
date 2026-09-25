@@ -7,7 +7,10 @@ side by side, plus map layers for services, public buildings, infrastructure pro
 schools, buildings and zoning, and a **Test property** sheet that reads all of it for one
 address.
 
-![The macro map, old-flat prices per m²](docs/screenshot.png)
+![The map: one toolbar — search, Layers ▾, indicator, period — over the choropleth](docs/screenshot.png)
+
+Every route is captured at 1440 px and at 390 px by `make ui SHOTS=1`, which writes
+`docs/ui_v2/*.png`. Those are build output and are not committed — run it to regenerate them.
 
 **Live:** _(GitHub Pages link goes here once `main` is published)_
 

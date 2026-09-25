@@ -1,5 +1,124 @@
 # Changelog
 
+## v2.0 — the UI overhaul (draft, not released)
+
+Branch `v2.0-ui`, cut from `main` (= v1.1). Nothing merged, tagged or pushed. **No data source,
+figure or build script changed**: this round is the interface. Where a number changed on screen it
+is because v1.1 was printing it wrong (§ *Numbers and labels*).
+
+### Navigation
+
+- **Four destinations**: `Map · Data · Charts · Test property`. Table, Pipeline and Sources became
+  the three tabs of **Data** (`#data/areas/<level>` · `#data/projects` · `#data/sources`), and
+  **Compare is deleted** — a two-column sheet with no winner was a second way of reading what the
+  area page already reads better.
+- **Every v1.1 link still works.** `src/route_core.js` is the one place both spellings are known:
+  `#table/*` → `#data/areas/*` · `#pipeline` → `#data/projects` · `#sources` → `#data/sources` ·
+  `#analysis?a=…&la=…` → `#property?p=lat,lon:label` · `#compare?a=<type>:<code>&b=…` → the **a**
+  side's area page. `toV2()` is idempotent and `parseHash()` rewrites the address bar once, so a
+  link redirects exactly once and every route round-trips.
+- **Export ▾** in the sidebar footer, in place of the single "Export data" button and its four
+  lines of caption.
+
+### The map
+
+- **One toolbar row**: `[search ▾] [level switch] [Layers ▾] [Indicator ▾] [Period]`, with the
+  indicator chips under it. At 1366×768 the map now starts **≤ 200 px** down the page (was 246) and
+  is at least 480 px tall.
+- **One search box** for four kinds of answer: a camera jump (Helsinki · Tampere · Turku · Oulu ·
+  Finland, at the top of its dropdown — `H/T/U/O/F` unchanged), an area by name or code, a
+  coordinate or a Google Maps link, and a street address through the DVV register. The last two open
+  the Test property page. The privacy sentence left the map for the box's own tooltip.
+- **Layers ▾** replaces the Infra projects / Public buildings / Services / Zoning / 1 km grid
+  buttons and the Climate-risk segment with its four return-period pills, and it holds the
+  sub-filters that used to live inside the floating legend cards. **A legend is a key now**: colour,
+  label, source, a fold control, nothing to filter.
+- **The area card is identity, five figures, two buttons and two toggles.** `Outlook 2040` and
+  `Upcoming projects (n)` are `<details>` whose state is in the URL, and the whole card folds.
+
+### One picker, one period control, one study row
+
+- **`IndicatorPicker`** on the Map, the area page, Data › Areas, Charts and Test property: search,
+  every group, the unit, `↓ lower is better`, an availability tag, and a **From the municipality**
+  group on postal-code and osa-alue pages. Full keyboard model.
+- **`PeriodControl`** is a function of the indicator, in four shapes: a year select, the
+  **return-period switch `[1/100a | 1/1000a]`** for a flood indicator, the
+  `Projection 2026→2040 · Tilastokeskus Väestöennuste 2024` badge for an Outlook one, or the as-of
+  for something published once. A year select next to a 2040 figure read as an actual.
+- **Choosing a Climate indicator draws SYKE's own flood zones** for that return period, and choosing
+  anything else removes them; the zones and the figure are the same measurement seen two ways. The
+  reader's hide toggle is `zones=0`.
+- **Three families, three hues**: every projection purple, every climate figure blue, observed
+  green, and the legend says which it is reading. They are never mixed in one legend.
+- **The area page is one study row** — chart panel beside a draggable mini map with `⤢` full screen
+  — with the toggles under it. The KEY FIGURES block (10 tabs over ~60 cards) is gone.
+- **Test property** is the same study row anchored on the pin's finest published area, with the
+  sections as `<details>` and the public-building rows grouped when the register publishes one line
+  per building part.
+
+### Export
+
+One menu, five files, one schema. `level, code, name, parent_code, parent_name, maakunta,
+population, indicator, label, unit, period, period_type, value, value_type, inherited_from,
+direction, source, table_id, source_url, as_of, fetched, licence` — 168 k rows, **every one with a
+source, a fetch date and a licence**, and an inherited figure carried as `value_type=inherited` with
+`inherited_from` set. Projects and the Test property's surroundings have their own files. UTF-8 with
+a BOM and `;` for Excel, `.` decimals and no grouping for a machine; the exporter refuses to let a
+unit disagree with its magnitude.
+
+### Numbers and labels (the Chrome review of v1.1)
+
+- **Units on the number**: a price tile read `5 225 EUR` and a monthly rent `21,3 EUR` — a total
+  price and a total rent. They read `5 225 EUR/m²` and `21,3 EUR/m²/month` everywhere.
+- **"vs median" is a difference**, in percentage points for a share or a rate and in the indicator's
+  own unit otherwise. v1.1 divided by the median, so net migration on `#area/kunta/091` read
+  `+53 220,0 % VS MEDIAN` and intermunicipal net migration `-367,9 %`.
+- **The outlook line** read `+104 297 residents (+12,1 %/yr)`. That bracket was `fc_pop_rate_5y` —
+  residents per 1 000 per year over the **first five** years — beside a fourteen-year change. It now
+  reads `+104 297 residents · +14,8 % over 14 years · ≈ +1,0 % / yr (compound)`, and the card says
+  that both headline projections share the base year 2026.
+- **One rank format**, `#n of N`, whose title says N counts the areas with a published figure for
+  that indicator.
+- **The lone `°` is gone.** An inherited figure is dimmed and tagged `muni` (`municipality figure`
+  on a tile); a map popup says *From the kunta*; an exported chart says *(kunta)*.
+- The period option names the active indicator's own latest period, never a global "latest (2025)".
+
+### Bugs fixed on the way
+
+- `Cannot read properties of undefined (reading '_leaflet_pos')` on the Test property sheet —
+  Leaflet ends a zoom animation from a `setTimeout` that `map.remove()` cannot cancel. A teardown
+  registry drops every map before `#body` is replaced, panes and canvas renderers are per map, and
+  four guards on `L.Map.prototype` catch the rest.
+- **`#area/postinumero/00100` took 18,3 s to render.** `V()` asks for a kunta's per-area file the
+  moment it reads a postal code with no history, and a median over that page's peers reads all
+  3 018 of them — so the page re-rendered once per file, 308 times. Coalesced: **0,77 s**.
+- **`#property` on 00410 drew two tiles and an empty grey block.** An osa-alue carried the short
+  indicator list although `eVal` already inherits, and the five-column grid's background showed
+  through. Always five tiles, the inherited ones labelled.
+- **Three legends drew on top of each other** on the Test property map, and the feature stack grew
+  into the indicator legend on the big one. One scrollable column, folded to titles.
+- The **Infra layer threw** on every project whose alignment the publisher has not drawn, and
+  `geomStats()` threw on the same projects in the export. Both null-safe.
+- Every map with a marker asked twice for Leaflet default-icon images the build does not ship.
+- The sidebar's own Export menu was clipped by the scrolling sidebar and opened into nothing.
+- "Upcoming projects" was empty on every map card unless the reader had switched the Infra layer on
+  first — the per-area index rides in `infra.json`, not in the page.
+- A headline figure on the map card could not be selected while the map was in osa-alue mode.
+
+### Responsive
+
+No horizontal overflow on any route at 1366×768, 1440×900, 1536×864 or 390×844. Below 1024 px the
+sidebar is a 52 px top bar with a ☰ drawer that Esc closes; below 700 px the chips and the Data tabs
+scroll sideways, the study row stacks, tables scroll inside their card and the map legends collapse
+behind one `Legend ▾` pill.
+
+### Tests
+
+`tests/ui_v2.spec.py` (`make ui`) — 70 Playwright checks over ten phases, its own server on a free
+ephemeral port. `tests/route.test.js` (11) and `tests/picker.test.js` (10) cover the two pure
+modules. Screenshots of every route at 1440 px and 390 px in `docs/ui_v2/` (`make ui SHOTS=1`).
+
+
 ## v1.1 — map layers and Test property (draft, not released)
 
 Branch `v1.1-layers`. Nothing merged, tagged or pushed.

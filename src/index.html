@@ -12,21 +12,22 @@
 </head>
 <body>
 <div class="app">
-  <aside>
+  <button class="navtoggle" id="navtoggle" data-testid="nav-toggle" data-navtoggle aria-label="Menu" aria-expanded="false">☰</button>
+  <div class="navscrim" data-navclose hidden></div>
+  <aside data-testid="sidebar" id="sidebar">
     <div class="brand"><h2>Macro Dashboard</h2><span class="brandsub">Finland</span></div>
     <div id="nav"></div>
-    <div class="side-foot">
-      <button class="xbtn" data-xall>⤓ Export data</button>
-      <div class="xcap">Everything in one CSV (long format: level; code; name; parent; year; indicator; value) — paste into Claude or open in Excel.</div>
-    </div>
+    <div class="side-foot" id="sidefoot"></div>
   </aside>
   <main id="main">
-    <div class="topbar"><div id="hd"></div></div>
+    <div class="topbar"><div id="hd"></div><div id="hdact"></div></div>
     <div id="body"></div>
   </main>
 </div>
 <script>{{LEAFLET_JS}}</script>
 <script>window.DATA = {{DATA}};</script>
+<script>{{ROUTE_JS}}</script>
+<script>{{PICKER_JS}}</script>
 <script>{{TESTPROP_JS}}</script>
 <script>{{APP_JS}}</script>
 </body>
