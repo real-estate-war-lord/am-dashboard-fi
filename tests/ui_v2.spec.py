@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 SHOTDIR = ROOT / "docs" / "ui_v2"
 
-PHASES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"]
+PHASES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]
 
 # the routes every width is swept over (P9/P10); `name` is the screenshot stem
 ROUTES = [
