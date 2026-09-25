@@ -426,3 +426,126 @@ addition. No check was deleted.
 - Still **not** fixed and still V6's: the clipped RENT tile at 390 (`21,3 EUR/m²/mont`, TILE5), the
   390 `Legend ▾` pill over the attribution line, `tpRadLabel`'s `1.2 km` (NUM8) and the missing
   accessibility sweep (A11Y1–A11Y3). V5 added no `abbr`, no shortcut and no loading state.
+
+---
+
+## V6 — responsive, the number rules, accessibility, the three states ☑
+
+Audit rows closed: **A11Y1, A11Y2, A11Y3, NUM8, NUM9, TILE4, TILE5** — every MUST the audit
+assigned to V6 — and **every one** of its "if there is room" rows: **NUM10, NUM11, STATE3,
+STATE4, A11Y4, AREA9, GLOB5**. **LEG5** came with them, and **RESP1 / RESP6** were widened from
+the ten main routes to all 26. Gate: `./overnight.sh gate V6` green — build ✓, **70 node tests** ✓,
+**121 ui checks** ✓ (106 + 15 new), **the python unit suite green for the first time this run**
+(GLOB5), budgets `src/app.js` 439 KB / 460, `src/style.css` 144 KB / 165.
+
+**Built**
+
+1. **One `fmt()` path, and the three places that were not on it** (NUM8, DK Q13). `tpRadLabel`
+   went through raw arithmetic — `(m / 1000) + " km"` — and printed **`1.2 km`** for the 1 200 m
+   ring under a fi-FI interface, where a `.` reads as a thousands separator. It goes through
+   `nf()` now, and whole kilometres keep no decimal (`2 km`, not `2,0 km`). Writing the check
+   found two more nobody had looked at: the SYKE flood-depth legend (`under 0.5 m`, `0.5–1 m`)
+   and the building-register note (`3.8 million`). `V6-fi-decimals` walks every visible text node
+   on all 26 routes **with `Layers ▾` open**, and allows exactly six shapes: a coordinate, a
+   licence name, a Finnish date, a version, a URL and a file name.
+2. **The `^` explains itself** (NUM10, DK Q12). `caretMark(why)` returns one
+   `<abbr class="cmark" title="…">^</abbr>` with the right sentence for each of the marker's two
+   meanings — *published for the whole peruspiiri* and *published for a coarser area than this
+   one* — and `peruspiiriMark()`, `inhMark()` and the map popup's KK-survey heading all go
+   through it. The heading was a bare glyph with no explanation anywhere on that popup.
+   `V6-caret-explains-itself` looks only where the mark decorates a **figure** (tiles, table
+   cells, popup rows, legend titles): the captions that explain `^` in words are why the glyph
+   was readable at all before tonight, and they stay.
+3. **AC-G1** (NUM9). `V6-no-scores` is DK's two-halves check: the dashboard's own chrome may not
+   say *score* / *weighted* / *index of* at all, and any other occurrence has to be verbatim out
+   of the built registry. Two sentences the app wrote itself were **rewritten, not exempted** —
+   see DECISIONS V6. AC-G1 now holds in Finland as written, with no allow-list.
+4. **Accessibility** (A11Y1, A11Y2, A11Y3, A11Y4). `V6-a11y-sweep` is the offline stand-in for
+   axe-core on all 26 routes — an accessible name on every visible control outside Leaflet's own,
+   `aria-expanded` on every `[aria-haspopup]`/`[aria-controls]`, an `alt` on every image — plus
+   all six triggers (picker, `Layers ▾`, `Export ▾`, `☰`, the `Legend ▾` pill, the map card's
+   fold) asserted to read `"true"` or `"false"` on every one of them. `V6-keyboard-popovers`
+   walks Tab from a blurred `#map` and reaches the picker inside the twelve AC-A2 allows, then
+   asserts Enter-opens / Esc-closes / Esc-returns-focus on the picker, `Layers ▾` **and**
+   `Export ▾`.
+   Two real faults came out of it: the drawer **did not trap Tab** (twenty presses walked out
+   into a map and a table behind the scrim), and neither menu returned focus on Esc — and a naive
+   fix would have sent a reader who opened `Export ▾` from the Data header to the **sidebar's**
+   copy, because `document.querySelector("[data-exopen]")` finds that one first. `UI.exBtn` /
+   `UI.lyBtn` remember the trigger; the focus is handed back from the Esc key only.
+5. **The tiles** (TILE5, TILE4). `21,3 EUR/m²/mont` was not the tile clipping: `EUR/m²/month` is
+   one unbreakable 12-character token, wider at 26 px than a two-column tile, so it ran out of
+   the tile and the **next tile's background painted over it** — which is why it looked like a
+   clean cut. `tileValueHtml()` sets the money denominator at `.64em` on the figure's own
+   baseline, the figure type is fluid at the breakpoints the tile grid already has (23 px
+   ≤ 1180, 20 px ≤ 820), and `overflow-wrap:anywhere` is the floor for whatever unit a later
+   build adds. The first of the three is what makes it fit, and it is also simply how a unit is
+   set; with only the other two the tile passed the check and then broke `EUR/m²/mont|h` across
+   two lines, which is why the screenshots matter as much as the assertion.
+   `V6-tiles-not-clipped` runs at 1536 · 1440 · 1366 · **1180** · 820 · 390 over four routes and
+   measures the **text** with a `Range`: a `getBoundingClientRect()` on the `<b>` returns its
+   border box, which stayed inside the tile the whole time, and is why two phases looked at this
+   and had nothing to measure.
+6. **The `Legend ▾` pill is off Leaflet's attribution** (LEG5, DK Q1). At 390 the credit wraps to
+   two lines and spans the whole bottom edge of the map, and the bottom-left pill sat on top of a
+   licence condition — in every screenshot set since v2.0. Pill and stack move to the map's
+   top-right corner at ≤ 1024, which is empty on all three maps. `V6-legend-pill-clear-390`
+   asserts it on the macro map and both mini maps, closed **and** open.
+7. **Empty / loading / error** (STATE3, STATE4). `stateCard(kind, title, note, action)`, ported
+   from `ref/dk_src/app.js:1960`: a noun, the file or the publisher under it, `role="status"
+   aria-live="polite"` and three skeleton bars while something is in flight — never a bare
+   spinner, never a blocked page. It replaced the grey one-liners on the school sheet, the school
+   list, the public-building sheet, the map's postal-boundary wait and the property's own two,
+   and Charts got one it never had for its `history.json` wait. `schoolsLoad()`'s `catch` set
+   `SCHOOLS = {schools: []}`, so **"the file failed" and "this kunta has no lukio" drew the same
+   page** — a dashboard whose first rule is that missing is never zero. There is a `SCH_ERR` flag
+   now. `V6-states` drives the loading and the error branch through the app's own state rather
+   than a timing race, and asserts the file's name is in both.
+8. **The sweeps** (RESP1, RESP6, AREA9). `V6-sweep-sheets-*` takes the sixteen routes P9 does not
+   cover — the three detail sheets, the two list panels, a pinned map, a property with every
+   layer, the v1.1-flag map — through 1366 · 1440 · 1536 · 390, asserting no horizontal overflow
+   and an empty `ERRORS` on each. `V6-study-row-first-screen` measures the study row's own top at
+   1366×768 on the kunta page, the postinumero page and the property; AREA9 had been inferred
+   from two other checks' shell metrics and nothing measured it. `V6-no-double-escape` sweeps all
+   26 routes for `&amp;` · `&lt;` · `&gt;` · `&quot;` · `&#nn;` in `innerText` (NUM11, DK Q3).
+9. **GLOB5** — `tests/test_codes.py` had been red all run on `csvNum`, a **value** formatter the
+   lint mistook for a code normaliser. The lint now flags `String(Number(…))` on a code-named
+   argument, and a second test pins the survivor: exactly one may exist in `src/app.js` and it
+   must be `csvNum`. Strictly stronger than the old grep, and green — no app code changed for it.
+
+**Checks added** (phase V6, fifteen): `V6-sweep-sheets-1366` / `-1440` / `-1536` / `-390`,
+`V6-tiles-not-clipped`, `V6-fi-decimals`, `V6-no-scores`, `V6-a11y-sweep`,
+`V6-keyboard-popovers`, `V6-drawer-traps-focus`, `V6-legend-pill-clear-390`, `V6-states`,
+`V6-caret-explains-itself`, `V6-no-double-escape`, `V6-study-row-first-screen`.
+**No earlier check was deleted or weakened.** `tests/test_codes.py` gained a test and narrowed
+one — see GLOB5 above and DECISIONS V6.
+
+**Deviations** (all in DECISIONS.md V6, with the reasoning)
+
+- **A coordinate keeps its `.` decimal.** The comma there separates latitude from longitude, and
+  the same string goes verbatim into `p=`, `pin=` and the OpenStreetMap link.
+- **One NUM8 hit is left on screen and logged rather than hidden.** `Transport projects within
+  1.2 km` is an indicator description in `config/indicators.json` — a path the wrapper rolls a
+  phase back for touching. Reformatting registry prose in the UI would also reformat a
+  publisher's own table title, which is worse than the dot. **Morning task: one character.**
+- **The two AC-G1 sentences were rewritten rather than allow-listed**, because an allow-list is
+  how the next phase's invented score gets in.
+
+**What the next phase must know**
+
+- **`stateCard()` is the one shape for all three states.** A new wait or failure goes through it,
+  not through `<p class="empty">`; `stateCardIn()` wraps it in a card when a whole view is
+  waiting. `anSkel()` still exists and is still right inside the property's *sections*, where the
+  card is already drawn around it.
+- **`caretMark(why)` is the only way to draw a `^`.** A bare one next to a figure now fails
+  `V6-caret-explains-itself`.
+- **`UI.exBtn` / `UI.lyBtn` are state.** Anything that opens those menus without going through
+  the click delegation must set them, or Esc will hand focus back to the wrong copy.
+- **The `Legend ▾` pill is top-right below 1024 px.** Anything V7 puts in a map's top-right
+  corner at that width will collide with it.
+- **`V6-fi-decimals`, `V6-no-scores` and `V6-a11y-sweep` run on all 26 routes**, so a new route
+  in `ROUTES` / `SHEET_ROUTES` is swept by seven more checks than it was this morning — worth
+  knowing before V7 adds one.
+- Left for V7 and named in the audit's "Later" table, not forgotten: the `/` and `g m` shortcuts
+  (A11Y7), the `aria-live` drill announcement (A11Y8), and real axe-core (nothing is vendored and
+  the run installs nothing — the same deviation Denmark documented as O9).

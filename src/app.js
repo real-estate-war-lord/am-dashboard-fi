@@ -99,12 +99,18 @@ const IND_ANY = IND.concat(IND_OSA.filter(i => !IND.some(x => x.key === i.key)))
 /* quarter-layer indicators that are published per district (peruspiiri), not per quarter: the KK survey's crime and
    safety shares, and unemployment — their values carry ^ instead of the ° of a municipality value */
 const peruspiiriLevel = i => !!i && !!i.geo_level && i.geo_level !== "osa_alue";
-const peruspiiriMark = i => peruspiiriLevel(i) ? " ^" : "";
+/* The `^` is an `<abbr>`, not a bare glyph (DK Q12): on a tile it used to be a character whose
+   only explanation was a table caption two screens below, and to a screen reader it was the word
+   "caret". It now says what it means on hover and to assistive technology, wherever it is drawn. */
+const caretMark = why => ` <abbr class="cmark" title="${esc(why)}">^</abbr>`;
+const peruspiiriMark = i => peruspiiriLevel(i)
+  ? caretMark("Published for the whole peruspiiri (district), not for this osa-alue.") : "";
 /* ^ also means "this figure is published for a coarser area than the one you are looking at":
    rents and building production exist per maakunta for most of the country, and the value a
    kunta shows is then its region's, not its own measurement. The build records which keys an
    area inherited (`inh`), so the mark is per area, not per indicator. */
-const inhMark = (o, key) => (o && o.inh && o.inh.indexOf(key) >= 0) ? " ^" : "";
+const inhMark = (o, key) => (o && o.inh && o.inh.indexOf(key) >= 0)
+  ? caretMark("Published for a coarser area than this one — the figure is that area's, not this one's measurement.") : "";
 const inhLevel = key => { const i = indOf(key); return (i && i.inherited && i.inherited.level) || ""; };
 const indOf = key => IND.concat(IND_OSA).find(i => i.key === key) || null;
 const lowerBetter = key => { const i = indOf(key); return !!i && i.direction === "lower_better"; };
@@ -319,7 +325,9 @@ const microAvail = code => !!(code && MICRO_IDX[kcode(code)]);
 const microMode = () => !!(MK.micro && MK.muni && microAvail(MK.muni));
 const curMind = () => MICRO_INDS.find(i => i.key === MK.mind) || MICRO_INDS[0];
 const AR = { type: null, code: null, sub: "osa_alue", show: [], showSet: false };   /* area page; `show` = which <details> are open (URL key show=) */
-const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false, mmFull: false };   /* fold states that survive a re-render */
+const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false, mmFull: false,
+             /* which trigger opened the menu — Esc hands the focus back to that one (V6, A11Y4) */
+             exBtn: null, lyBtn: null };   /* fold states that survive a re-render */
 const CH = { ind: (IND[0] || {}).key, areas: [], y0: "", y1: "", median: true, title: "", mode: "auto", dist: "size", fq: "year", ov: [], nat: true };   /* chart generator; fq = year | q, ov = overlay indicators, nat = Finland line */
 const PR = { id: null };                                                          /* project datasheet */
 const PB = { kom: null, id: null };                                               /* public-building sheet */
@@ -371,7 +379,9 @@ const TP_PIN_ZOOM = 13;           /* the zoom the map takes when a pin is droppe
 let TP_CHOICES = null;
 const tpRadOn = () => TP.lat != null && TP.rad > 0;
 const tpWithin = (lat, lon) => !tpRadOn() || (lat != null && lon != null && havM(TP.lat, TP.lon, lat, lon) <= TP.rad);
-const tpRadLabel = m => m >= 1000 ? (m / 1000) + " km" : m + " m";
+/* fi-FI writes a decimal with a comma, so the 1 200 m ring is "1,2 km" and never "1.2 km" — a `.`
+   reads as a thousands separator here (DK Q13, audit NUM8). Whole kilometres keep no decimal. */
+const tpRadLabel = m => m >= 1000 ? nf(m / 1000, m % 1000 ? 1 : 0) + " km" : nf(m, 0) + " m";
 const KOM = { list: null, err: false, p: null };   /* dist/geo/kunnat_lookup.json, fetched the first time a pin is dropped */
 const T = { q: "", level: "kunta", region: "", minPop: 0 };                     /* table view filters */
 /* maakunnat — taken from the data so the list is whatever the boundary vintage actually carries */
@@ -753,7 +763,7 @@ document.addEventListener("click", e => {
   if ((el = g("[data-pipe]"))) { const f = INFRA_BY[el.dataset.pipe];
     go(f && f.properties.map !== false ? `map?ind=${encodeURIComponent(MK.ind)}&lay=infra&focus=${encodeURIComponent(el.dataset.pipe)}` : `project/${el.dataset.pipe}`); return; }
   if ((el = g("[data-project]"))) { go(`project/${el.dataset.project}`); return; }
-  if (g("[data-exopen]")) { exportToggle(); return; }
+  if ((el = g("[data-exopen]"))) { exportToggle(el); return; }
   if ((el = g("[data-export]"))) { exportRun(el.dataset.export); return; }
   if (g("[data-mkown]")) { MK.own = !MK.own; renderKeep(); return; }
   if ((el = g("[data-level]"))) { const k = el.dataset.level;
@@ -765,7 +775,7 @@ document.addEventListener("click", e => {
     const on = w.classList.toggle("legs-open"); el.setAttribute("aria-expanded", on ? "true" : "false");
     el.textContent = on ? "Legend ▴" : "Legend ▾"; return; }
   if ((el = g("[data-lgfold]"))) { const k = el.dataset.lgfold; LEG_FOLD[k] = !LEG_FOLD[k]; mmFoldable(k); return; }
-  if (g("[data-lyopen]")) { layersToggle(); return; }
+  if ((el = g("[data-lyopen]"))) { layersToggle(el); return; }
   if (g("[data-cardfold]")) { UI.mapCard = !UI.mapCard; syncHash(); mkRefreshStrip(); return; }
   if ((el = g("[data-layer]"))) { if (el.disabled) return; layerToggle(el.dataset.layer); return; }
   if (g("[data-fs]")) { toggleFullscreen(); return; }
@@ -881,8 +891,8 @@ document.addEventListener("toggle", e => {
 }, true);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && miniFullClose()) return;
-  if (e.key === "Escape" && UI.exOpen) { exportClose(); return; }
-  if (e.key === "Escape" && UI.lyOpen) { layersClose(); return; }
+  if (e.key === "Escape" && UI.exOpen) { exportClose(true); return; }
+  if (e.key === "Escape" && UI.lyOpen) { layersClose(true); return; }
   if (IPK.open) {
     if (e.key === "Escape") { e.preventDefault(); ipkClose(true); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault();
@@ -897,6 +907,18 @@ document.addEventListener("keydown", e => {
     if (e.key === "Escape") { msClose(); return; }
   }
   if (e.key === "Escape" && UI.navOpen) { navToggle(false); return; }
+  /* while the drawer is open it is the page: Tab cycles inside it rather than walking off into a
+     map and a table the reader cannot see behind the scrim (spec §7, audit A11Y4). */
+  if (e.key === "Tab" && UI.navOpen) {
+    const side = document.getElementById("sidebar"); if (!side) return;
+    const f = [...side.querySelectorAll("button,a[href],input,select,[tabindex]:not([tabindex='-1'])")]
+      .filter(el => !el.disabled && el.getClientRects().length);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1], cur = document.activeElement;
+    if (e.shiftKey && (cur === first || !side.contains(cur))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (cur === last || !side.contains(cur))) { e.preventDefault(); first.focus(); }
+    return;
+  }
   if (e.key === "Enter" && e.target.id === "chq") { chartAdd(null, e.target.value); return; }
   if (e.key === "Enter" && e.target.id === "mf-addr") { microFind(e.target.value); return; }
   if (e.key === "Enter" && e.target.id === "tpq") { tpGo(e.target.value); return; }
@@ -1018,6 +1040,17 @@ function scaleOf(list, vk, fixed, ind) {
 /* On a phone a legend card covers the map it explains, so every legend on a map hides behind one
    pill and the reader opens them when they want them (spec §6). */
 const legendPill = () => `<button class="legpill" data-legpill aria-expanded="false">Legend ▾</button>`;
+/* §4.10 empty / loading / error. One shape for all three, ported from the Danish build: a noun
+   the reader can act on, the file or the publisher underneath it, and — while something is in
+   flight — three skeleton bars instead of a spinner, so the page keeps its shape rather than
+   blocking. `title` and `note` are text (escaped here); `action` is markup the caller escapes. */
+function stateCard(kind, title, note, action) {
+  return `<div class="statecard" data-kind="${esc(kind)}" data-testid="state-${esc(kind)}"${kind === "loading" ? ` role="status" aria-live="polite"` : ""}>
+    <b>${esc(title)}</b>${note ? `<p>${esc(note)}</p>` : ""}
+    ${kind === "loading" ? `<span class="skel" aria-hidden="true"><i></i><i></i><i></i></span>` : ""}${action || ""}</div>`;
+}
+/* the same card in a card of its own — what a whole view shows while it waits or after it failed */
+const stateCardIn = (kind, title, note, action) => `<div class="card">${stateCard(kind, title, note, action)}</div>`;
 /* A legend bin on a signed ramp prints the number and nothing the title already says: no unit
    suffix from the value formatter (the pct family carries one), and no grouping. `signpct1` etc.
    would give "+0,5 %", which the unit is then appended to a second time. */
@@ -1675,12 +1708,17 @@ function anLayersMenu() {
   h += tpRadChips();
   return h;
 }
-function layersToggle() { UI.lyOpen = !UI.lyOpen;
+function layersToggle(btn) { UI.lyOpen = !UI.lyOpen; UI.lyBtn = UI.lyOpen ? (btn || null) : null;
   document.querySelectorAll(".lypop").forEach(m => { m.innerHTML = layersMenu(); m.hidden = !UI.lyOpen; });
   document.querySelectorAll("[data-lyopen]").forEach(b => b.setAttribute("aria-expanded", UI.lyOpen ? "true" : "false")); }
-function layersClose() { if (!UI.lyOpen) return; UI.lyOpen = false;
+/* `focusBtn` only from the Esc key: a keyboard reader who closes the menu must land back on the
+   control they opened it from — the one they opened, not the first one in the document — and an
+   outside click must not steal the focus they just moved. */
+function layersClose(focusBtn) { if (!UI.lyOpen) return; UI.lyOpen = false;
   document.querySelectorAll(".lypop").forEach(m => { m.hidden = true; });
-  document.querySelectorAll("[data-lyopen]").forEach(b => b.setAttribute("aria-expanded", "false")); }
+  document.querySelectorAll("[data-lyopen]").forEach(b => b.setAttribute("aria-expanded", "false"));
+  const b = UI.lyBtn; UI.lyBtn = null;
+  if (focusBtn && b && document.contains(b)) b.focus(); }
 function layersRefresh() { const el = document.querySelector(".lypop"); if (el) el.innerHTML = layersMenu();
   const b = document.querySelector("[data-lyopen]"); if (b) { const n = layerCount();
     b.classList.toggle("on", !!n); b.innerHTML = `Layers ▾${n ? `<span class="tbn">${n}</span>` : ""}`; } }
@@ -1864,10 +1902,15 @@ function exportBtn(where) {
     <div class="exmenu" data-testid="export-menu" role="menu" ${UI.exOpen ? "" : "hidden"}>${EXPORT_ITEMS.filter(x => exportAvail(x[0])).map(([id, label, cap]) =>
       `<button role="menuitem" data-export="${id}"><b>${esc(label)}</b><em>${esc(cap())}</em></button>`).join("")}</div></div>`;
 }
-function exportClose() { if (!UI.exOpen) return; UI.exOpen = false; document.querySelectorAll(".exwrap").forEach(w => {
+function exportClose(focusBtn) { if (!UI.exOpen) return; UI.exOpen = false; document.querySelectorAll(".exwrap").forEach(w => {
   const m = w.querySelector(".exmenu"), b = w.querySelector("[data-exopen]");
-  if (m) m.hidden = true; if (b) b.setAttribute("aria-expanded", "false"); }); }
-function exportToggle() { UI.exOpen = !UI.exOpen; document.querySelectorAll(".exwrap").forEach(w => {
+  if (m) m.hidden = true; if (b) b.setAttribute("aria-expanded", "false"); });
+  /* as in `layersClose`: Esc hands the focus back to the trigger that opened the menu — the
+     sidebar's, the Data header's or the property header's — and an outside click leaves it alone */
+  const bt = UI.exBtn; UI.exBtn = null;
+  if (focusBtn && bt && document.contains(bt)) bt.focus(); }
+function exportToggle(btn) { UI.exOpen = !UI.exOpen; UI.exBtn = UI.exOpen ? (btn || null) : null;
+  document.querySelectorAll(".exwrap").forEach(w => {
   const m = w.querySelector(".exmenu"), b = w.querySelector("[data-exopen]");
   if (m) { m.innerHTML = EXPORT_ITEMS.filter(x => exportAvail(x[0])).map(([id, label, cap]) =>
     `<button role="menuitem" data-export="${id}"><b>${esc(label)}</b><em>${esc(cap())}</em></button>`).join(""); m.hidden = !UI.exOpen; }
@@ -2229,13 +2272,23 @@ function tileStats(e, i) {
    page that has them — the area page, the map card and the Test property sheet. A figure the area
    does not publish is the kunta's, dimmed and labelled "municipality figure"; v1.1 marked it with a
    lone `°` that nothing on the page explained. A tile is a button: it selects that indicator. */
+/* A money figure carries its denominator (NUM3), and on a tile that denominator is one unbreakable
+   token: `EUR/m²/month` is twelve characters, and at the tile's own display size it is wider than a
+   two-column tile on a phone — it used to run out of the tile and be painted over by the tile to its
+   right (audit TILE5). It is set a little smaller here, on the same baseline as the figure, which is
+   how a unit is normally set anyway. Only money: "133 / 1,000" has no denominator to split off. */
+function tileValueHtml(i, v) {
+  const s = fmtOf(i)(v);
+  const k = (i && EUR_DEC[i.fmt] !== undefined) ? s.indexOf(" EUR") : -1;
+  return k > 0 ? `${esc(s.slice(0, k))} <span class="hu">${esc(s.slice(k + 1))}</span>` : esc(s);
+}
 function headlineHtml(e) {
   const inds = CARD_KEYS.concat(HL_KEYS.filter(k => CARD_KEYS.indexOf(k) < 0))
     .map(k => e.inds.find(i => i.key === k)).filter(i => i && eVal(e, i.key).v != null).slice(0, 5);
   if (!inds.length) return "";
   return `<div class="hl" data-testid="tiles">${inds.map(i => { const s = tileStats(e, i); const inh = !s.cur.own;
     return `<button class="hlc ${MK.ind === i.key ? "on" : ""} ${inh ? "inh" : ""}" data-testid="tile-${esc(i.key)}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)} — click to study this figure">
-    <span>${esc(i.short || i.label)}${s.cur.own ? markFor(e.o, i, e.type) : ""}</span><b>${fmtOf(i)(s.cur.v)}</b>
+    <span>${esc(i.short || i.label)}${s.cur.own ? markFor(e.o, i, e.type) : ""}</span><b>${tileValueHtml(i, s.cur.v)}</b>
     <em>${inh ? `<span class="tag-muni">municipality figure</span>`
       : `${s.yoy != null ? `<i class="${cls(s.yoy, i.key)}">${sign(s.yoy, x => nf(x, 1))}${s.unit}</i> y/y` : ""}${s.rk ? `${s.yoy != null ? " · " : ""}${rankText(s.rk)}` : ""}`}</em></button>`; }).join("")}</div>`;
 }
@@ -2697,7 +2750,7 @@ var CLIM_LAYERS = [
    water body, not flooded land, and is the reason the measurement filters by class rather
    than by "is anything drawn here". */
 const CLIM_LEGEND = [
-  ["#7ECCE6", "under 0.5 m"], ["#5498CC", "0.5–1 m"], ["#2B66B3", "1–2 m"],
+  ["#7ECCE6", "under 0,5 m"], ["#5498CC", "0,5–1 m"], ["#2B66B3", "1–2 m"],
   ["#003399", "2–3 m"], ["#002673", "over 3 m"], ["#C19CD6", "flooded, depth not published"],
   ["#D1FFFF", "water body (not flooded land)"],
 ];
@@ -3029,7 +3082,7 @@ function lfPopup(a, muni) {
     ${native ? `<span class="lfsec">${isQ ? "Osa-alue" : "Postal code"}</span><div class="lfrows">${native}</div>` : ""}
     ${inherited ? `<span class="lfsec">From the kunta</span><div class="lfrows">${inherited}</div>` : ""}
     ${safety ? `<span class="lfsec">Safety${muni ? " · from the kunta" : ""}</span><div class="lfrows">${safety}</div>` : ""}
-    ${isQ && a.kk ? `<span class="lfsec">KK survey · ${esc(a.kk.peruspiiri)} ^</span><div class="lfrows">${kkRows(a.kk)}</div>` : ""}</details></div>`;
+    ${isQ && a.kk ? `<span class="lfsec">KK survey · ${esc(a.kk.peruspiiri)}${caretMark("Published for the whole peruspiiri (district), not for this osa-alue.")}</span><div class="lfrows">${kkRows(a.kk)}</div>` : ""}</details></div>`;
 }
 /* figures the KK safety survey publishes per peruspiiri but the dashboard does not map: counts and two offence groups */
 function kkRows(kk) {
@@ -3823,7 +3876,7 @@ function anSchCard(pt, r) {
         <td class="dim">${esc(schY(s, "grade_avg") || schY(s, "pupils_total") || SCH_LATEST)}</td></tr>`; }).join("")}</tbody></table></div>`
     : `<p class="empty">no grundskole within ${nf(AN_RING_M, 0)} m</p>`;
   return card(body, `${rows.length} school${rows.length === 1 ? "" : "s"} \u00b7 Opetushallitus`,
-    `<p class="cap">Distance is to the school's register point, not to its gate. Matriculation points are the mean total grade points per candidate on YTL's own 0\u20137 scale, so a school whose candidates sit more exams scores higher for that reason alone; "vs kunta" is this school minus its kunta's mean. A dash is <b>suppressed, not a zero</b>. <b>Finland publishes no comprehensive-school results</b>, so a peruskoulu row carries a name and a type and nothing else. L\u00e4hde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>`);
+    `<p class="cap">Distance is to the school's register point, not to its gate. Matriculation points are the mean total grade points per candidate on YTL's own 0\u20137 scale, so a school whose candidates sit more exams ends up with more points for that reason alone; "vs kunta" is this school minus its kunta's mean. A dash is <b>suppressed, not a zero</b>. <b>Finland publishes no comprehensive-school results</b>, so a peruskoulu row carries a name and a type and nothing else. L\u00e4hde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>`);
 }
 /* --- h. sources and as-of stamps, from the same metadata the Sources view uses --- */
 function anSources(e, r, inds, hasPub, hasSch) {
@@ -3902,16 +3955,18 @@ function vAnalysis() {
   if (!pt) return anEmpty();
   /* the kunta rings answer which municipality the point is really in — everything else waits for them */
   if (!KOM.list && !KOM.err) return `<div class="card accent"><div class="card-head"><h3>${esc(AN.label || TP_LABEL)}</h3><span class="hint">${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}</span></div>
-    <p class="empty" data-testid="state-loading">Locating the property — loading the municipality boundaries…</p>${anSkel(5)}</div>`;
+    ${stateCard("loading", "Locating the property…", "geo/kunnat_lookup.json · Tilastokeskus — the municipality boundaries decide which area's figures this pin is read against")}</div>`;
   const r = locate(pt.lat, pt.lon);
   /* The postal rings ride in dist/area/<kunta>.json and are lazy. Until they land, locate() can only
      answer "which kunta", so the sheet would silently read a whole municipality for an address. */
   if (r.kunta) pnoWant(r.kunta.code);
   if (r.error) return `<div class="card accent"><div class="card-head"><h3>${esc(AN.label || TP_LABEL)}</h3><span class="hint">${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}</span></div>
-    <p class="empty" data-testid="state-error">That point is ${esc(r.error)} — no municipality or postal code covers it.</p>
-    <div class="tools"><button class="lk primary" data-go="${withQ("map")}">‹ Back to the map</button></div></div>`;
+    ${stateCard("error", `That point is ${r.error}.`, "No municipality or postal code covers it, so there are no area statistics to read it against.",
+      `<button class="lk mini primary" data-go="${esc(withQ("map"))}">‹ Back to the map</button>`)}</div>`;
   const e = tpEntity(r);
-  if (!e) return `${tpHead(pt, r, null)}<div class="card"><p class="empty" data-testid="state-error">No area statistics cover this point.</p></div>`;
+  if (!e) return `${tpHead(pt, r, null)}<div class="card">${stateCard("error", "No area statistics cover this point.",
+    "The pin falls inside Finland but outside every area the build publishes figures for.",
+    `<button class="lk mini primary" data-go="${esc(withQ("map"))}">‹ Back to the map</button>`)}</div>`;
   const ind = curInd();
   setTimeout(anMapInit, 0);
   setTimeout(anFill, 0);
@@ -4073,7 +4128,7 @@ function microExplain() {
       floors: "Number of storeys (kerrosluku).",
       vacant_pct: "Whether the register records the building as Tyhjillään — not in use. It is a building-level flag, not a share of its dwellings." }[i.key]}</p>
     <p class="dim"><em>Source</em> Ryhti-rakennustietojärjestelmä, buildings with ≥ ${idx.min_dwellings || (D.micro && D.micro.min_dwellings) || 2} dwellings · <em>Coverage</em> ${nf(idx.n || 0, 0)} buildings in ${esc(m ? m.name : "")} · <em>As of</em> ${esc((D.micro && D.micro.built) || "")}. Click a dot for the building's card.</p>
-    <p class="dim">The register also carries saunas, sheds and bell towers; a buildings layer that drew all 3.8 million would say nothing about housing, so it is cut at 2 dwellings. <b>Ryhti publishes no tenure and no per-dwelling area or room count</b>, so there is no "rented" and no "small dwellings" here.</p></div>
+    <p class="dim">The register also carries saunas, sheds and bell towers; a buildings layer that drew all 3,8 million would say nothing about housing, so it is cut at 2 dwellings. <b>Ryhti publishes no tenure and no per-dwelling area or room count</b>, so there is no "rented" and no "small dwellings" here.</p></div>
   </details>
   <div class="tfilters mfbar">
     ${/* Ryhti publishes no address on the building record, so there is nothing to search here;
@@ -4201,12 +4256,16 @@ function lfLayers() {
   });
   LF.areaG = L.layerGroup(polys).addTo(LF.map);
   LF.ctx = { areas, munis, sc, micro, ind, vk };
+  /* §4.10: the wait for a kunta's boundary file is a state card with the file's name in it, not a
+     grey sentence in the legend slot — a reader who sees an empty map has to be told which file is
+     still coming and what to do when it never does (audit STATE3/STATE4). */
   if (MK.muni && !polys.length) {
-    const note = PNO.err[MK.muni]
-      ? "The postal-code boundaries for this kunta could not be loaded — open the dashboard through a server (make serve) or the published link, not as a file on disk."
-      : "Loading the postal-code boundaries for this kunta…";
+    const file = `area/${MK.muni}.json`;
     const el = document.getElementById("maplegend");
-    if (el) el.innerHTML = `<div class="leg"><span class="dim">${esc(note)}</span></div>`;
+    if (el) el.innerHTML = PNO.err[MK.muni]
+      ? stateCard("error", `Could not load ${file}.`,
+          "The postal-code boundaries come from Tilastokeskus (Paavo). Open the dashboard through a server (make serve) or the published link, not as a file on disk.")
+      : stateCard("loading", "Loading the postal-code boundaries…", `${file} · Tilastokeskus (Paavo)`);
   }
   lfInfraLayers();
   lfPublicLayers();
@@ -4554,6 +4613,11 @@ function vCharts() {
     <div class="chips">${ents.map((e, k) => `<span class="chip" style="border-color:${CH_COLORS[k % CH_COLORS.length]}"><i style="background:${CH_COLORS[k % CH_COLORS.length]}"></i>${esc(e.name)}${!e.inds.some(i => i.key === ind.key) ? ' <em title="indicator not available at this level">n/a</em>' : ""}<button data-chrm="${esc(e.id)}" title="remove">×</button></span>`).join("")}</div>
     <div class="tfilters"><label class="hint" style="flex:1;display:flex;gap:8px;align-items:center">title <input id="chtitle" type="text" value="${esc(CH.title)}" placeholder="${esc(chartAutoTitle())}" style="flex:1;min-width:200px"></label>
       <button class="lk primary" data-chpng>⤓ Download PNG</button><button class="lk" data-chcsv>⤓ Data CSV</button><span class="hint">link: copy the address bar — it holds the whole setup</span></div>
+    ${ents.length && !HIST.done && !HIST.err ? stateCard("loading", "Loading the history series…",
+      "history.json · Tilastokeskus — the chart draws the years already in the page until the file lands") : ""}
+    ${HIST.err ? stateCard("error", "Could not load history.json.",
+      "The chart is drawing the latest year only. Reload the page, or open the dashboard over http rather than as a file on disk.",
+      `<a class="lk mini" href="${STATFIN_UI}" target="_blank" rel="noopener">Tilastokeskus StatFin ↗</a>`) : ""}
     <div class="chartbox">${ents.length ? chartSvg(true) : `<div class="chempty"><b>Nothing to plot yet</b><p>Type a municipality, postal code or Helsinki-region osa-alue in the box above (up to 8), or start with a set:</p>
       <div class="tools">${quick.map(([l, ids]) => `<button class="lk" data-chadd="${ids.join("|")}">+ ${l}</button>`).join("")}</div>
       <p class="dim">Tip: every area page and table row has a ↗ that opens it here with the indicator pre-selected.</p></div>`}</div>
@@ -5210,7 +5274,13 @@ function setServicesLegend() {
 
 const SCH_META = (PUB && PUB.schools) || null;      /* {built, retrieved, years, n, benchmarks} */
 const SCH_BY = {};                                  /* institutionsnummer → record */
-let SCHOOLS = null, SCH_LOADING = false;
+let SCHOOLS = null, SCH_LOADING = false, SCH_ERR = false;
+/* the two sentences a school view says while it waits or after schools.json failed (§4.10) */
+const SCH_STATE = () => SCH_ERR
+  ? stateCardIn("error", "Could not load schools.json.",
+      "The lukio figures come from Tilastokeskus's oppilaitosrekisteri. Reload the page, or open the dashboard over http rather than as a file on disk.",
+      `<a class="lk mini" href="${STATFIN_UI}" target="_blank" rel="noopener">Tilastokeskus StatFin ↗</a>`)
+  : stateCardIn("loading", "Loading the schools…", "schools.json · Tilastokeskus oppilaitosrekisteri");
 function schoolsLoad() {
   if (SCHOOLS || SCH_LOADING || !SCH_META) return;
   SCH_LOADING = true;
@@ -5219,7 +5289,8 @@ function schoolsLoad() {
       if (LF.map && MK.pub) lfPublicLayers();
       anMapOverlays();
       if (["school", "schoollist", "area", "charts"].includes(S.view)) renderKeep(); anFill(); })
-    .catch(() => { SCH_LOADING = false; SCHOOLS = { schools: [] }; });
+    .catch(() => { SCH_LOADING = false; SCH_ERR = true; SCHOOLS = { schools: [] };
+      if (["school", "schoollist"].includes(S.view)) renderKeep(); });
 }
 const schoolOf = b => (b && b.school && SCH_BY[b.school]) || null;
 const SCH_YEARS = (SCH_META && SCH_META.years) || [];
@@ -5287,7 +5358,7 @@ function schoolPopupBlock(b) {
 }
 /* --- school datasheet (#school/<institutionsnummer>) --- */
 function vSchool() {
-  if (!SCHOOLS) { schoolsLoad(); return `<div class="card"><p class="empty">Loading the schools…</p></div>`; }
+  if (!SCHOOLS) { schoolsLoad(); return SCH_STATE(); }
   const s = SCH_BY[SC.nr];
   if (!s) return `<div class="card"><p class="empty">No school with institutionsnummer ${esc(SC.nr)} in the layer.</p>
     <div class="tools"><button class="lk" data-back>‹ Back</button></div></div>`;
@@ -5336,7 +5407,7 @@ function vSchool() {
         <tr><th>${esc(s.kunta)}</th><td class="num">${schCell(kb, schGrade)}</td><td class="dim">${g != null && kb != null ? schDiff(g - kb) + " vs kunta" : ""}</td></tr>
         <tr><th>Finland</th><td class="num">${schCell(fi, schGrade)}</td><td class="dim">${g != null && fi != null ? schDiff(g - fi) + " vs Finland" : ""}</td></tr>
       </tbody></table>
-      <p class="cap">Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school where candidates sit more exams scores higher for that reason alone. <b>It tracks intake at least as much as teaching</b>, and Finland publishes no measure of intake to set against it — unlike Denmark's socioeconomic reference, there is no Finnish equivalent to show here.</p></div>
+      <p class="cap">Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school where candidates sit more exams ends up with more points for that reason alone. <b>It tracks intake at least as much as teaching</b>, and Finland publishes no measure of intake to set against it — unlike Denmark's socioeconomic reference, there is no Finnish equivalent to show here.</p></div>
   </div>` : `<div class="card"><div class="card-head"><h3>Results</h3></div>
     <p class="empty">${esc(SCH_NO_COMPREHENSIVE)}</p>
     <p class="cap">This is not a suppressed figure and not a gap in this dashboard: Finland does not run national comprehensive-school exams whose results are published per school. What the register does publish — the school's name, type, location and register year — is above.</p></div>`}
@@ -5352,7 +5423,7 @@ function schoolLine(level, code) {
 }
 /* --- list panel: the schools of one area, sorted by grade --- */
 function vSchoolList() {
-  if (!SCHOOLS) { schoolsLoad(); return `<div class="card"><p class="empty">Loading the schools…</p></div>`; }
+  if (!SCHOOLS) { schoolsLoad(); return SCH_STATE(); }
   const [level, code] = (SL.key || "").split(":");
   const e = pubOf(level, code) || {};
   const areaName = level === "kunta" ? (byCode[code] || {}).name : level === "postinumero" ? (byNr[code] || {}).name : (byQ[code] || {}).name;
@@ -5373,7 +5444,7 @@ function vSchoolList() {
         <td class="num" data-v="${schV(s, "candidates") ?? ""}">${schCell(schV(s, "candidates"), v => nf(v, 0))}</td>
         <td class="dim">${esc(schY(s, "grade_avg") || "")}</td></tr>`; }).join("")
         || `<tr><td colspan="6" class="empty">no schools in this area</td></tr>`}</tbody></table></div>
-    <p class="cap">Sorted by matriculation points. A dash is <b>suppressed, not a zero</b> — ${sorted.filter(s => schV(s, "grade_avg") == null).length} of these schools carry no figure, which for a peruskoulu is not suppression at all: <b>Finland publishes no comprehensive-school results.</b> Points are the mean total grade points per candidate on YTL's own 0–7 scale, so a school whose candidates sit more exams scores higher for that reason alone. Lähde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>
+    <p class="cap">Sorted by matriculation points. A dash is <b>suppressed, not a zero</b> — ${sorted.filter(s => schV(s, "grade_avg") == null).length} of these schools carry no figure, which for a peruskoulu is not suppression at all: <b>Finland publishes no comprehensive-school results.</b> Points are the mean total grade points per candidate on YTL's own 0–7 scale, so a school whose candidates sit more exams ends up with more points for that reason alone. Lähde: Tilastokeskus and Ylioppilastutkintolautakunta, retrieved ${esc((SCH_META || {}).retrieved || "")}.</p>
   </div>`;
 }
 /* --- a small grade trend for one municipality, used in the Charts view --- */
@@ -5418,7 +5489,7 @@ function schoolsChartCard() {
   return `<div class="card"><div class="card-head"><h3>Schools</h3>
       <span class="hint">Matriculation grade points, mean per candidate · ${esc(SCH_YEARS[0])} → ${esc(SCH_LATEST)}</span></div>
     ${trends.map(t => `<div class="chartbox">${schoolTrendSvg(t)}</div>`).join("")}
-    <p class="cap">Candidate-weighted over the lukios of the municipality that publish a figure. Dashed = Finland. Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school whose candidates sit more exams scores higher for that reason alone, and <b>the figure tracks intake at least as much as teaching</b>. <b>Finland publishes no comprehensive-school results</b>, so no peruskoulu appears here.</p></div>`;
+    <p class="cap">The municipality figure is per candidate, not per school: every lukio that publishes a figure counts in proportion to the candidates who sat that session. Dashed = Finland. Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school whose candidates sit more exams ends up with more points for that reason alone, and <b>the figure tracks intake at least as much as teaching</b>. <b>Finland publishes no comprehensive-school results</b>, so no peruskoulu appears here.</p></div>`;
 }
 
 /* ---------- Project datasheet (#project/<id>) and Pipeline table (#pipeline) ---------- */
@@ -5565,7 +5636,12 @@ function pubFind(kom, id) {
 function vPublic() {
   const b = pubFind(PB.kom, PB.id);
   if (!b) { pubLoad(PB.kom); setTimeout(() => { if (pubFind(PB.kom, PB.id)) renderKeep(); }, 700);
-    return `<div class="card"><p class="empty">Loading the building…</p></div>`; }
+    const file = `public/${kcode(PB.kom)}.json`;
+    return PUB_FILES["_error_" + kcode(PB.kom)]
+      ? stateCardIn("error", `Could not load ${file}.`,
+          `The building register is published by ${PUB_SRC_SHORT}. Reload the page, or open the dashboard over http rather than as a file on disk.`,
+          `<button class="lk mini" data-back>‹ Back</button>`)
+      : stateCardIn("loading", "Loading the building…", `${file} · ${PUB_SRC_SHORT}`); }
   const c = pubCat(b), m = byCode[kcode(b.kom)];
   /* the rings answer which postal code and osa-alue the point falls in; they are lazy, so ask */
   if (m) pnoWant(m.code);

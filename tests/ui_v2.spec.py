@@ -2361,6 +2361,459 @@ def _climate_export(page, base):
 
 
 # ===========================================================================
+# V6 — responsive, the number rules, accessibility, empty / loading / error
+#      (audit RESP1/RESP6, TILE4, TILE5, NUM8–NUM11, A11Y1–A11Y4, AREA9,
+#       STATE3/STATE4, GLOB3/NUM9, LEG5)
+# ===========================================================================
+
+# P9 sweeps the ten main routes at four widths. These sweep everything else the app can show —
+# the map with a pin, the three detail sheets, the two list panels, a property with every layer —
+# at the same four widths, so a shared component cannot be left broken on a page no check opens.
+def _sweep_sheets(page, base):
+    bad = []
+    for name, route in SHEET_ROUTES:
+        goto(page, base, route)
+        page.wait_for_timeout(650)
+        if not no_overflow(page):
+            sw = page.evaluate("document.documentElement.scrollWidth")
+            who = page.evaluate("""() => { const out = [];
+                document.querySelectorAll('*').forEach(e => { const r = e.getBoundingClientRect();
+                  if (r.right > window.innerWidth + 1 && r.width > 0)
+                    out.push(e.tagName + '.' + String(e.className && e.className.baseVal !== undefined
+                      ? e.className.baseVal : e.className || '').slice(0, 28)); });
+                return out.slice(0, 3); }""")
+            bad.append((name, sw, page.evaluate("window.innerWidth"), who))
+        if ERRORS:
+            bad.append((name, ERRORS[0]))
+    assert not bad, bad
+
+
+@check("V6-sweep-sheets-1366", phase="V6", viewport="1366x768")
+def _v6_sweep_1366(page, base):
+    """every sheet, list and pinned map renders clean and inside the window at 1366"""
+    _sweep_sheets(page, base)
+
+
+@check("V6-sweep-sheets-1440", phase="V6", viewport="1440x900")
+def _v6_sweep_1440(page, base):
+    """…nor at 1440"""
+    _sweep_sheets(page, base)
+
+
+@check("V6-sweep-sheets-1536", phase="V6", viewport="1536x864")
+def _v6_sweep_1536(page, base):
+    """…nor at 1536"""
+    _sweep_sheets(page, base)
+
+
+@check("V6-sweep-sheets-390", phase="V6", viewport="390x844")
+def _v6_sweep_390(page, base):
+    """…nor on a phone"""
+    _sweep_sheets(page, base)
+
+
+# the widths the tile grid changes at: five columns, the 1180 break to auto-fit, the 820 break to
+# two, and the phone. TILE4 asks for 1180 by name, TILE5 for 390.
+TILE_WIDTHS = [1536, 1440, 1366, 1180, 820, 390]
+TILE_ROUTES = ["#area/kunta/091", "#area/osa_alue/091010", "#property?p=60.2448,24.8665",
+               "#area/kunta/091?show=outlook"]
+
+# a tile's own box against the ink of every line inside it — `getBoundingClientRect` on the <b>
+# returns its border box, which stays inside the tile even when one unbreakable token ("EUR/m²/month")
+# runs past it and is painted over by the next tile. A Range measures the text itself.
+TILE_JS = """() => {
+  const bad = [], rng = document.createRange();
+  for (const t of document.querySelectorAll('.hlc, .hltile')) {
+    const r = t.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const lab = (t.querySelector('span') || {}).textContent || '';
+    if (t.scrollWidth > t.clientWidth + 1)
+      bad.push(lab.trim() + ': tile scrolls (' + t.scrollWidth + ' > ' + t.clientWidth + ')');
+    for (const kid of t.children) {
+      const cs = getComputedStyle(kid);
+      if (cs.overflow !== 'visible') continue;          /* the label ellipsises on purpose */
+      rng.selectNodeContents(kid);
+      const k = rng.getBoundingClientRect();
+      if (k.width < 1) continue;
+      if (k.right > r.right - 1 || k.left < r.left - 1)
+        bad.push(lab.trim() + ' / ' + kid.tagName + ': "' + (kid.textContent || '').trim().slice(0, 24)
+                 + '" runs ' + Math.round(k.right - r.right) + ' px past the tile');
+    }
+  }
+  return bad;
+}"""
+
+
+@check("V6-tiles-not-clipped", phase="V6")
+def _v6_tiles(page, base):
+    """no headline tile clips its own figure or unit at any width (audit TILE5, TILE4)"""
+    bad = []
+    try:
+        for w in TILE_WIDTHS:
+            page.set_viewport_size({"width": w, "height": 900})
+            for h in TILE_ROUTES:
+                goto(page, base, h)
+                page.wait_for_timeout(1400)
+                for msg in page.evaluate(TILE_JS):
+                    bad.append(f"{w}px {h}: {msg}")
+                # TILE4: the row must not leave a bare grid cell showing the separator through
+                holes = page.evaluate("""() => {
+                  const out = [];
+                  for (const g of document.querySelectorAll('[data-testid=tiles]')) {
+                    const r = g.getBoundingClientRect(); if (r.width < 2) continue;
+                    const cs = getComputedStyle(g);
+                    if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent')
+                      out.push('the tile row has a background of its own: ' + cs.backgroundColor);
+                    for (const c of g.children)
+                      if (!(c.textContent || '').trim()) out.push('an empty tile cell');
+                  }
+                  return out; }""")
+                for msg in holes:
+                    bad.append(f"{w}px {h}: {msg}")
+    finally:
+        page.set_viewport_size({"width": 1440, "height": 900})
+    assert not bad, bad[:8]
+
+
+# NUM8 — every decimal a reader sees is fi-FI. What is NOT a decimal, and is allowed to keep its
+# dot: a coordinate (the comma there separates lat from lon, so a comma decimal is unreadable —
+# and the same string goes into `p=` and into the OpenStreetMap link), a version, a file name and
+# a URL.
+DOT_DEC = re.compile(r"\d\.\d")
+DOT_OK = re.compile(r"""  https?://\S+
+                      | [\w/.-]+\.(json|csv|js|py|md|html|zip|png|geojson|fi|com|org)\b
+                      | \d{1,3}\.\d{4,6}              # a coordinate: 60.24480
+                      | \bv\d+\.\d+                   # the build line: v2.1
+                      | \bCC[ -]BY[\w-]*[ -]\d\.\d    # a licence name, as the publisher writes it
+                      | \bODbL[ -]?\d\.\d
+                      | \b\d{1,2}\.\d{1,2}\.(\d{4}\b)?  # a Finnish date, with or without its year
+                   """, re.X | re.I)
+
+
+@check("V6-fi-decimals", phase="V6")
+def _v6_fi_decimals(page, base):
+    """no `1.2 km` under a fi-FI interface — every decimal on screen uses a comma (audit NUM8)"""
+    js = """() => {
+      const out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const p = n.parentElement;
+        if (!p || p.closest('script,style,svg,.leaflet-control-attribution')) continue;
+        const r = p.getBoundingClientRect();
+        if (r.width < 1 && r.height < 1) continue;
+        const t = (n.nodeValue || '').trim();
+        if (t) out.push(t);
+      }
+      return out; }"""
+    hits = []
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(700)
+        # the radius labels live inside Layers ▾, which is where NUM8's own example is
+        btn = page.query_selector("[data-lyopen]")
+        if btn:
+            btn.click()
+            page.wait_for_timeout(200)
+        for t in page.evaluate(js):
+            if DOT_DEC.search(DOT_OK.sub(" ", t)):
+                hits.append((h, t))
+    # Split the way AC-G1 is split, and for the same reason: what the dashboard writes itself has
+    # to be fi-FI, and what it merely renders out of the built registry is a data fix this run may
+    # not make (`config/` is read-only at night — see DECISIONS V6). `Transport projects within
+    # 1.2 km` is an indicator description in the registry, not a sentence in src/app.js.
+    blob = page.evaluate("JSON.stringify(D)")
+    strayed = [f"{h}: {t[:90]!r}" for h, t in hits if t not in blob]
+    assert not strayed, strayed[:8]
+
+
+# NUM9 / AC-G1 — the dashboard never invents a score, a weight or an index. Split the way Denmark
+# split it: the app's own chrome may not say the words at all, and any other occurrence has to be
+# a publisher's prose, verbatim out of the built registry.
+G1_RX = re.compile(r"\b(score|scores|scoring|weighted|weighting|index of)\b", re.I)
+G1_CHROME = ("button, h1, h2, h3, h4, th, .tl, .tag, .tag-muni, .lgtitle, .chip, .dtab, .sg, "
+             "[data-testid=nav-item], [data-testid=ind-picker-btn], .ipkg, .subh, .statecard b")
+
+
+@check("V6-no-scores", phase="V6")
+def _v6_no_scores(page, base):
+    """no score, no weighting, no "index of" anywhere the dashboard speaks for itself (AC-G1)"""
+    chrome_js = ("sel => [...document.querySelectorAll(sel)]"
+                 ".filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })"
+                 ".map(e => (e.textContent || '').trim())")
+    text_js = """() => {
+      const out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const p = n.parentElement;
+        if (!p || p.closest('script,style')) continue;
+        const r = p.getBoundingClientRect();
+        if (r.width < 1 && r.height < 1) continue;
+        const t = (n.nodeValue || '').trim();
+        if (t) out.push(t);
+      }
+      return out; }"""
+    hits, quoted = [], []
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(700)
+        for t in page.evaluate(chrome_js, G1_CHROME):
+            if G1_RX.search(t):
+                hits.append(f"{h}: the app's own chrome says {t[:80]!r}")
+        for t in page.evaluate(text_js):
+            if G1_RX.search(t):
+                quoted.append((h, t))
+    assert not hits, hits[:6]
+    if quoted:
+        blob = page.evaluate("JSON.stringify(D)")
+        strayed = [f"{h}: {t[:80]!r}" for h, t in quoted if t not in blob]
+        assert not strayed, strayed[:6]
+
+
+# A11Y1 / A11Y3 — the offline stand-in for axe-core. The run installs nothing and
+# src/vendor/axe.min.js is not in this repo, so this is a DOM sweep of the rules that matter for
+# a dashboard: every visible control has an accessible name, every popover trigger carries
+# aria-expanded, and no icon is a bare glyph.
+A11Y_JS = """() => {
+  const bad = [];
+  const vis = e => { const r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+  const id = e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') +
+    (e.getAttribute('data-testid') ? '[' + e.getAttribute('data-testid') + ']' : '') +
+    (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/)[0] : '');
+  const name = e => {
+    const lb = e.getAttribute('aria-labelledby');
+    const byId = lb && lb.split(/\\s+/).map(i => (document.getElementById(i) || {}).textContent || '').join(' ');
+    return (e.getAttribute('aria-label') || byId || e.title ||
+            (e.labels && e.labels.length ? [...e.labels].map(l => l.textContent).join(' ') : '') ||
+            e.placeholder || e.textContent || e.value || '').trim();
+  };
+  for (const e of document.querySelectorAll('button,input,select,textarea,a[href],[role=button]')) {
+    if (!vis(e) || e.disabled) continue;
+    if (e.closest('.leaflet-container')) continue;            /* Leaflet's own controls */
+    if (!name(e)) bad.push('no accessible name: ' + id(e));
+  }
+  for (const e of document.querySelectorAll('[aria-haspopup],[aria-controls]')) {
+    if (!vis(e) || e.tagName === 'DIV') continue;
+    if (!e.hasAttribute('aria-expanded')) bad.push('no aria-expanded: ' + id(e));
+  }
+  for (const e of document.querySelectorAll('img')) {
+    if (vis(e) && e.getAttribute('alt') === null) bad.push('img without alt: ' + id(e));
+  }
+  return bad;
+}"""
+
+# every popover trigger the app has: the picker, Layers ▾, Export ▾, ☰ and the legend pill
+TRIGGERS = ["[data-testid=ind-picker-btn]", "[data-lyopen]", "[data-testid=export-btn]",
+            "[data-testid=nav-toggle]", "[data-legpill]", "[data-cardfold]"]
+
+
+@check("V6-a11y-sweep", phase="V6")
+def _v6_a11y(page, base):
+    """every control has a name and every popover trigger says whether it is open (A11Y1, A11Y3)"""
+    bad = []
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(900)
+        for msg in page.evaluate(A11Y_JS):
+            bad.append(f"{h}: {msg}")
+        for t in TRIGGERS:
+            got = page.eval_on_selector_all(t, "els => els.map(e => e.getAttribute('aria-expanded'))")
+            for v in got:
+                if v not in ("true", "false"):
+                    bad.append(f"{h}: {t} aria-expanded = {v!r}")
+    assert not bad, bad[:8]
+
+
+@check("V6-keyboard-popovers", phase="V6")
+def _v6_keyboard(page, base):
+    """Tab reaches the picker, and Enter/Esc open and close the picker, Layers ▾ and Export ▾ (A11Y2)"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(900)
+    page.evaluate("if (document.activeElement) document.activeElement.blur();")
+    seen = []
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        seen.append(page.evaluate("""(() => { const e = document.activeElement; if (!e) return '';
+            return e.tagName.toLowerCase() + (e.getAttribute('data-testid')
+              ? '[' + e.getAttribute('data-testid') + ']' : '') + (e.id ? '#' + e.id : ''); })()"""))
+        if page.evaluate("document.activeElement === document.querySelector('[data-testid=ind-picker-btn]')"):
+            break
+    else:
+        raise AssertionError(f"the picker was not reached in 12 tabs — the path was {seen}")
+
+    def open_close(sel, pop, name):
+        page.eval_on_selector(sel, "e => e.focus()")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(350)
+        assert page.eval_on_selector(pop, "e => e.offsetParent !== null"), f"Enter did not open {name}"
+        assert page.get_attribute(sel, "aria-expanded") == "true", f"{name}: aria-expanded did not follow"
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(350)
+        assert page.eval_on_selector(pop, "e => e.offsetParent === null"), f"Escape did not close {name}"
+        assert page.get_attribute(sel, "aria-expanded") == "false", f"{name}: aria-expanded stuck open"
+        assert page.eval_on_selector(sel, "e => e === document.activeElement"), \
+            f"Escape did not hand focus back to {name}"
+
+    open_close("[data-testid=ind-picker-btn]", "[data-testid=ind-picker-pop]", "the picker")
+    open_close("[data-lyopen]", ".lypop", "Layers ▾")
+    goto(page, base, "#data/areas/kunta")
+    page.wait_for_timeout(900)
+    open_close(".datatabs [data-testid=export-btn]", ".datatabs [data-testid=export-menu]", "Export ▾")
+
+
+@check("V6-drawer-traps-focus", phase="V6", viewport="390x844")
+def _v6_drawer(page, base):
+    """the ☰ drawer keeps Tab inside it, and Esc closes it and hands focus back (A11Y4, AC-S2)"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(900)
+    tog = "[data-testid=nav-toggle]"
+    assert page.get_attribute(tog, "aria-expanded") == "false", "the toggle does not start collapsed"
+    page.click(tog)
+    page.wait_for_timeout(400)
+    assert page.get_attribute(tog, "aria-expanded") == "true", "aria-expanded did not follow the drawer"
+    assert page.evaluate("document.getElementById('sidebar').contains(document.activeElement)"), \
+        "focus did not move into the drawer"
+    for _ in range(20):
+        page.keyboard.press("Tab")
+    assert page.evaluate("document.getElementById('sidebar').contains(document.activeElement)"), \
+        "Tab escaped the open drawer"
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert page.eval_on_selector("[data-testid=sidebar]", "e => e.getBoundingClientRect().right <= 1")
+    assert page.evaluate("document.activeElement.dataset.testid") == "nav-toggle", "focus did not return to ☰"
+
+
+@check("V6-legend-pill-clear-390", phase="V6", viewport="390x844")
+def _v6_legend_pill(page, base):
+    """on a phone every map folds its legends behind one pill, and neither the pill nor the open
+    stack covers the map's attribution (LEG5, DK Q1)"""
+    bad = []
+    for h in ["#map", "#area/kunta/091", "#property?p=60.2448,24.8665"]:
+        goto(page, base, h)
+        page.wait_for_timeout(2600)
+        pill = page.query_selector(".mapwrap .legpill")
+        assert pill, (h, "no legend pill on a phone")
+        pill.scroll_into_view_if_needed()
+        page.wait_for_timeout(200)
+        attr = boxes(page, ".mapwrap .leaflet-control-attribution")
+        pb = boxes(page, ".mapwrap .legpill")[0]
+        for a in attr:
+            if overlap(pb, a):
+                bad.append((h, "the pill covers the attribution", pb, a))
+        assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetParent === null"), (h, "legend shown by default")
+        pill.click()
+        page.wait_for_timeout(400)
+        assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetParent !== null"), (h, "the pill did not open it")
+        assert page.get_attribute(".mapwrap .legpill", "aria-expanded") == "true", (h, "the pill does not say it is open")
+        for lg in boxes(page, ".mapwrap .maplegend"):
+            if lg["w"] < 4 or lg["h"] < 4:
+                continue
+            for a in attr:
+                if overlap(lg, a):
+                    bad.append((h, "an open legend covers the attribution", lg, a))
+    assert not bad, bad
+
+
+@check("V6-states", phase="V6")
+def _v6_states(page, base):
+    """loading and error are cards with a noun and the file's name — never a bare spinner
+    (audit STATE3, STATE4)"""
+    goto(page, base, "#data/areas/kunta")
+    page.wait_for_timeout(900)
+    # the real branches, driven through the app's own state rather than through a timing race:
+    # schools.json still in flight, and schools.json having failed.
+    page.evaluate("(() => { SCHOOLS = null; SCH_LOADING = true; SCH_ERR = false;"
+                  " go('schoollist/kunta:091'); })()")
+    page.wait_for_timeout(600)
+    card = page.query_selector("[data-testid=state-loading]")
+    assert card, "the school list shows no loading state while schools.json is in flight"
+    assert card.query_selector("b"), "the loading state has no noun of its own"
+    assert "schools.json" in card.inner_text(), card.inner_text()
+    assert card.query_selector(".skel"), "the loading state is a bare sentence, not a skeleton"
+    assert page.get_attribute("[data-testid=state-loading]", "role") == "status", "not announced"
+    # …and it is a card on the page, not a collapsed box: the CSS has to have arrived too
+    box = boxes(page, "[data-testid=state-loading]")[0]
+    assert box["h"] >= 60 and box["w"] >= 200, box
+    bars = [b for b in boxes(page, "[data-testid=state-loading] .skel i") if b["w"] > 40]
+    assert len(bars) == 3, [b["w"] for b in boxes(page, "[data-testid=state-loading] .skel i")]
+    assert all(b["right"] <= box["right"] + 1 for b in bars), bars
+
+    page.evaluate("(() => { SCHOOLS = null; SCH_LOADING = true; SCH_ERR = true; renderKeep(); })()")
+    page.wait_for_timeout(400)
+    err = page.query_selector("[data-testid=state-error]")
+    assert err, "a failed schools.json shows no error state"
+    txt = err.inner_text()
+    assert "schools.json" in txt, txt
+    assert err.query_selector("a, button"), "the error state offers nothing to do"
+    assert not err.query_selector(".skel"), "an error state must not pretend to be loading"
+
+    # and the shape is the same one everywhere: the property's own wait for the kunta rings
+    page.evaluate("(() => { SCH_ERR = false; SCHOOLS = null; SCH_LOADING = false;"
+                  " KOM.list = null; KOM.err = false; KOM.p = Promise.resolve();"
+                  " go('property?p=60.2448,24.8665'); })()")
+    page.wait_for_timeout(600)
+    card = page.query_selector("[data-testid=state-loading]")
+    assert card and card.query_selector(".skel"), "the property's wait is not the same card"
+    assert "kunnat_lookup.json" in card.inner_text(), card.inner_text()
+
+
+@check("V6-caret-explains-itself", phase="V6")
+def _v6_caret(page, base):
+    """the ^ that marks a coarser-area figure is an <abbr> with a title, not a bare glyph (NUM10)"""
+    found = 0
+    for h in ["#area/osa_alue/091010", "#area/kunta/091?show=figures", "#data/areas/kunta",
+              "#property?p=60.2448,24.8665"]:
+        goto(page, base, h)
+        page.wait_for_timeout(1600)
+        # only where the mark decorates a figure. The captions and legend footers that *explain*
+        # `^` in words are the reason the glyph was readable at all before V6, and they stay.
+        bare = page.evaluate("""() => {
+          const out = [];
+          const scope = '[data-testid=tiles], td, th, .lfbig, .lfrow, .lfkey, .lfsec, .lgtitle';
+          for (const host of document.querySelectorAll(scope)) {
+            if (host.closest('.cap, .lgnote, caption, .hint')) continue;
+            const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+            for (let n = w.nextNode(); n; n = w.nextNode()) {
+              const p = n.parentElement;
+              if (!p || p.closest('script,style,svg,abbr,.cap')) continue;
+              if ((n.nodeValue || '').indexOf('^') >= 0) out.push((n.nodeValue || '').trim().slice(0, 60));
+            }
+          }
+          return out; }""")
+        assert not bare, (h, bare[:4])
+        marks = page.eval_on_selector_all("abbr.cmark", "els => els.map(e => [e.textContent.trim(), e.title])")
+        for txt, title in marks:
+            assert txt == "^", (h, txt)
+            assert len(title) > 20, (h, title)
+        found += len(marks)
+    assert found, "no ^ marker was drawn on any of the four routes — the check is asserting nothing"
+
+
+@check("V6-no-double-escape", phase="V6")
+def _v6_escapes(page, base):
+    """no route shows a double-escaped entity — "SOURCES &AMP; AS OF" and its family (NUM11)"""
+    rx = re.compile(r"&(amp|lt|gt|quot|#\d+);", re.I)
+    bad = []
+    for _, h in ROUTES + SHEET_ROUTES:
+        goto(page, base, h)
+        page.wait_for_timeout(700)
+        for line in body_text(page).splitlines():
+            if rx.search(line):
+                bad.append(f"{h}: {line.strip()[:80]!r}")
+    assert not bad, bad[:6]
+
+
+@check("V6-study-row-first-screen", phase="V6", viewport="1366x768")
+def _v6_study_row_top(page, base):
+    """at 1366x768 the study row starts inside the first screen on the area page and the property
+    (audit AREA9, AC-R2)"""
+    for h in ["#area/kunta/091", "#area/postinumero/00100", "#property?p=60.2448,24.8665"]:
+        goto(page, base, h)
+        page.wait_for_timeout(2200)
+        row = boxes(page, "[data-testid=study-row]")
+        assert row, (h, "no study row")
+        assert row[0]["y"] < 768, (h, f"the study row starts {row[0]['y']:.0f} px down")
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

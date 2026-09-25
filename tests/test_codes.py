@@ -19,6 +19,10 @@ APP = ROOT / "src" / "app.js"
 PROC = ROOT / "data" / "processed"
 
 
+# an argument that names an area key — the only kind of value a leading zero belongs to
+CODEISH = re.compile(r"\b(code|codes|kcode|kom|kunta|kunnat|muni|nr|postinumero|osa_alue|id)\b", re.I)
+
+
 def strip_comments(js: str) -> str:
     """Block and line comments out, so a cautionary note about an idiom is not read as a use."""
     js = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
@@ -30,8 +34,23 @@ class AppJsNeverStripsALeadingZero(unittest.TestCase):
         self.code = strip_comments(APP.read_text(encoding="utf-8"))
 
     def test_string_number_is_not_used_to_normalise_a_code(self):
-        hits = re.findall(r"String\(Number\([^)]*\)\)", self.code)
+        """The idiom is only a bug when it is applied to a *code*.
+
+        This test used to flag every `String(Number(x))` in the file, which made it permanently
+        red on `csvNum` (`src/app.js`) — the CSV **value** formatter, where turning 0090.0 into
+        "90" is exactly the wanted behaviour and no leading zero is in play. A lint nobody can
+        get green is a lint nobody reads, so it now flags the idiom on a code-named argument, and
+        the test below pins the one remaining use by name (audit GLOB5).
+        """
+        hits = [h.strip() for h in re.findall(r"String\(Number\(([^()]*)\)\)", self.code)
+                if CODEISH.search(h)]
         self.assertEqual(hits, [], "use kcode() — String(Number(\"091\")) is \"91\": " + "; ".join(hits))
+
+    def test_every_string_number_left_in_the_file_formats_a_value(self):
+        """…and there is exactly one, `csvNum`. A second one has to justify itself here first."""
+        lines = [l.strip() for l in self.code.splitlines() if "String(Number(" in l]
+        self.assertEqual(len(lines), 1, "a new String(Number(…)) appeared: " + " | ".join(lines))
+        self.assertIn("csvNum", lines[0], lines[0])
 
     def test_kcode_exists_and_pads_to_three(self):
         self.assertIn("const kcode =", self.code)

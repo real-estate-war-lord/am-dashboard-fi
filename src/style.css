@@ -2182,3 +2182,60 @@ main{overflow-x:hidden}
 .mklegs{top:auto;bottom:22px;right:12px;max-height:72%;align-items:flex-end;pointer-events:auto;
   max-width:min(60%,300px)}
 .mklegs .maplegend{position:static;flex:0 0 auto;max-width:100%}
+
+/* =====================================================================================
+   v2.1 V6 — responsive, the number marks, accessibility, empty / loading / error states
+   ===================================================================================== */
+
+/* §4.10. One shape for all three states, ported from the Danish build: a noun the reader can act
+   on, the file or the publisher under it, and — while something is in flight — three skeleton
+   bars rather than a spinner, so the page keeps its shape instead of blocking. */
+.statecard{display:flex;flex-direction:column;gap:var(--s2);align-items:flex-start;
+  background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);
+  padding:var(--s3) var(--s4);margin:var(--s2) 0}
+.statecard b{font-family:var(--body);font-size:13.5px;font-weight:600;color:var(--ink)}
+.statecard p{margin:0;font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--ink2);max-width:66ch}
+.statecard[data-kind=error]{border-color:#E0C3BA;background:#FBF2EF}
+.statecard[data-kind=error] b{color:var(--bad2,#8A2E17)}
+.statecard .skel{display:grid;gap:6px;width:min(320px,100%)}
+.statecard .skel i{display:block;height:9px;border-radius:3px;background:var(--line);
+  animation:v6skel 1.4s ease-in-out infinite}
+.statecard .skel i:nth-child(2){width:78%}
+.statecard .skel i:nth-child(3){width:54%}
+@keyframes v6skel{0%,100%{opacity:.5}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.statecard .skel i{animation:none}}
+/* the same card inside a map's legend slot: the map is the frame, so it drops its own */
+.maplegend .statecard{margin:0;padding:0;border:0;background:none;gap:5px}
+.maplegend .statecard b{font-size:11.5px}
+.maplegend .statecard p{font-size:10.5px;max-width:30ch}
+.maplegend .statecard .skel{width:100%}
+
+/* The `^` marker explains itself now (audit NUM10): an <abbr> with a title, not a bare glyph.
+   Browsers give `abbr[title]` a dotted underline that reads as a typo next to a number, so the
+   mark carries its own hint instead — raised, mono, and a `help` cursor. */
+abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em;
+  vertical-align:.32em;color:var(--muted);cursor:help}
+
+/* TILE5 — at 390 the RENT tile printed "21,3 EUR/m²/mont": `EUR/m²/month` is one unbreakable
+   12-character token, and at 26 px it is wider than a two-column tile, so it ran under the tile
+   to its right and was painted over. The figure type is fluid below the five-column breakpoints,
+   and `overflow-wrap:anywhere` is the floor: whatever the unit, a tile can no longer be clipped. */
+.hlc b{overflow-wrap:anywhere}
+/* the money denominator, on the figure's baseline and a little smaller — see `tileValueHtml()` */
+/* `.hlc span` is the tile's LABEL rule and it matches any span in the tile, so the denominator has
+   to say no to all of it: it is not a mono uppercase label, it is part of the figure. */
+.hlc b .hu{font:inherit;font-size:.64em;letter-spacing:0;text-transform:none;color:inherit;
+  opacity:.72;white-space:nowrap;overflow:visible}
+@media (max-width:1180px){.arhead .hlc b,.anhead .hlc b{font-size:23px}}
+@media (max-width:820px){.arhead .hlc b,.anhead .hlc b{font-size:20px}
+  .card.outlook .hlc b{font-size:20px}}
+
+/* LEG5 + DK Q1 — on a phone Leaflet's attribution wraps to two lines and spans the whole bottom
+   edge of the map, and the `Legend ▾` pill sat straight on top of it. The credit is a licence
+   condition, so the pill and the stack it opens move to the top-right corner, where nothing else
+   on a mini map or the macro map lives (the zoom control is top-left, ⤢ is in the card head). */
+@media (max-width:1024px){
+  .legpill{top:8px;right:8px;bottom:auto;left:auto}
+  .mapwrap.legs-open .maplegs{top:42px;right:8px;bottom:auto;left:auto;
+    max-height:calc(100% - 54px);align-items:flex-end}
+}

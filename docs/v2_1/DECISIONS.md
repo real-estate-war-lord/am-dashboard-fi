@@ -216,3 +216,66 @@ replaces one.
   pass by reading the wrong one. `P7-menu` asserted the export menu is exactly five items; EXP10
   adds a sixth, so it now asserts the five v2.0 items are still there in their old order and that
   `climate` is the only addition.
+- **V6** — **A coordinate keeps its `.` decimal, and it is the only number on screen that does.**
+  NUM8 says every decimal a reader sees is fi-FI. A coordinate is the exception and has to be: the
+  pair is written `60.24480, 24.86650`, where the comma is what separates latitude from longitude,
+  so `60,24480, 24,86650` is unreadable — and the same string goes verbatim into `p=`, into `pin=`
+  and into the OpenStreetMap link, where a comma decimal is simply wrong. `V6-fi-decimals` allows a
+  coordinate, a licence name as its publisher writes it (`CC BY 4.0`), a Finnish date (`31.12.`),
+  a version (`v2.1`), a URL and a file name, and nothing else.
+- **V6** — **`Transport projects within 1.2 km` stays on screen tonight, and is logged instead.**
+  It is an indicator description in `config/indicators.json`, and `config/` is one of the paths the
+  wrapper rolls a phase back for touching. Reformatting registry prose in the UI would be worse than
+  the dot: the registry is meant to be quoted, not rewritten, and a rule that reformats descriptions
+  would also reformat a publisher's own table title. So `V6-fi-decimals` is split the way DK split
+  AC-G1: what `src/app.js` writes must be fi-FI, and a hit that is verbatim out of the built
+  registry is a data fix. **Morning task**: one character in `config/indicators.json`.
+  Three hits that *were* the app's own were fixed: `tpRadLabel` (`1.2 km` → `1,2 km`, DK Q13), the
+  SYKE depth legend (`under 0.5 m`, `0.5–1 m`) and the building-register note (`3.8 million`).
+- **V6** — **AC-G1's two sentences were rewritten, not exempted.** Finland's school prose said "a
+  school whose candidates sit more exams scores higher for that reason alone" (four places) and
+  "Candidate-weighted over the lukios of the municipality that publish a figure". Neither invents a
+  score or a weight — the first is a warning about a confound, the second names an official
+  aggregation — so an exemption list would have been defensible. They were rewritten anyway
+  ("…ends up with more points for that reason alone"; "the municipality figure is per candidate,
+  not per school: every lukio that publishes a figure counts in proportion to the candidates who
+  sat that session") because both read better without the words, and because an allow-list is how
+  the next phase's invented score gets in. AC-G1 now holds in Finland as written, with no exemption.
+- **V6** — **The `Legend ▾` pill and its stack move to the map's top-right corner on a phone.**
+  At 390 Leaflet's attribution wraps to two lines and spans the whole bottom edge of the map, so the
+  bottom-left pill sat on top of a licence condition (DK Q1) — visible in every screenshot set since
+  v2.0 and flagged by V2, V3, V4 and V5 as "V6's". Raising the pill by a fixed offset would have been
+  a guess about how tall the credit is at a given width and in a given language. The top-right corner
+  is empty on all three maps (the zoom control is top-left, `⤢` is in the card head), so the two can
+  no longer meet at any width; `V6-legend-pill-clear-390` asserts it opened and closed.
+- **V6** — **A tile's money denominator is set smaller than the figure, on the same baseline.**
+  TILE5 asks for "figure and unit on one baseline, not clipped". Shrinking the whole figure until
+  `EUR/m²/month` fitted would have taken the headline number below 18 px on a phone; setting the
+  denominator at `.64em` keeps the figure at its own size, fits the unit on one line, and is how a
+  unit is normally set. Money only (`EUR_DEC`): `133 / 1,000` has no denominator to split off, and a
+  rule that split on the last space would have called `1,000` the unit.
+- **V6** — **The tile figure is fluid below 1180 px, and `overflow-wrap:anywhere` is the floor.**
+  `21,3 EUR/m²/mont` was not a clipping bug in the tile: `EUR/m²/month` is one unbreakable
+  12-character token, wider at 26 px than a two-column tile, so it ran out of the tile and the next
+  tile's background painted over it. Shrinking the type at the breakpoints the grid already has
+  (23 px ≤ 1180, 20 px ≤ 820) fits it; `overflow-wrap:anywhere` means a longer unit in some later
+  build breaks ugly rather than disappearing. The check measures the **text** with a `Range` — a
+  `getBoundingClientRect()` on the `<b>` returns its border box, which stayed inside the tile the
+  whole time, which is why nothing caught this for two phases.
+- **V6** — **The drawer traps Tab, and Esc returns focus to the trigger that was used.**
+  `exportClose()` and `layersClose()` had no focus return at all; adding one that focused
+  `document.querySelector("[data-exopen]")` would have sent a reader who opened the menu from the
+  Data header or the property header to the **sidebar's** copy instead. `UI.exBtn` / `UI.lyBtn`
+  remember the element, and the focus is only handed back from the Esc key — an outside click must
+  not take the focus the reader just moved somewhere else.
+- **V6** — **`tests/test_codes.py`'s lint was narrowed rather than `csvNum` changed** (GLOB5, and
+  DECISIONS V1 said this is the fix). It flagged every `String(Number(x))` in `src/app.js`; the only
+  one is the CSV **value** formatter, where dropping a leading zero is the wanted behaviour. It now
+  flags the idiom on a code-named argument, and a second test pins the survivor: exactly one
+  `String(Number(…))` may exist and it must be `csvNum`. The python unit suite is green for the
+  first time this run, so the gate's "informational" line now means something.
+- **V6** — **`schoolsLoad()`'s failure is a state, not an empty list.** Its `catch` set
+  `SCHOOLS = {schools: []}`, so "schools.json could not be loaded" and "this kunta has no lukio"
+  drew the same page — a dashboard whose first principle is that a missing figure is never a zero.
+  There is a `SCH_ERR` flag now and the two states say different things. Found while writing STATE4,
+  not looked for.

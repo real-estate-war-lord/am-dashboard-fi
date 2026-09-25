@@ -112,7 +112,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | LEG2 | Legends stack in one column, never overlap, never leave the map (AC-LG1) | done | `.maplegs` `src/style.css:1461`; checks `P10-legends-inside-map`, `P6-legends-stack` | — | MUST |
 | LEG3 | The stack never exceeds the map; the oldest layer legend folds to its title | done | `LEG_FOLD` / `mmFoldable()` `src/app.js:991-1004`; check `P10-legends-inside-map` | — | MUST |
 | LEG4 | The stack must not cover Leaflet's attribution (licence condition — DK Q1) | done / n/a | FI's stack is anchored top-right (`src/style.css:1461`), DK's was bottom-right; `docs/ui_v2/map_1440.png` shows the credit clear | — | MUST |
-| LEG5 | On a phone the legends fold behind one `Legend ▾` pill | done | `legendPill()`, `src/style.css:2103`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
+| LEG5 | On a phone the legends fold behind one `Legend ▾` pill | **done (V6 for the last width)** | `legendPill()`, `src/style.css`; the pill sat **on top of Leaflet's attribution** at 390 (`docs/ui_v2/map_390.png`, flagged since V2) because the credit wraps to two full-width lines there. Pill and open stack moved to the map's top-right corner at ≤ 1024, where nothing else lives; check `V6-legend-pill-clear-390` asserts it on the macro map and both mini maps, opened and closed (DK Q1) | — | MUST |
 | LEG6 | Indicator legend carries title, unit, 5 bins with values, `no data`, level footer, and the lower-is-better note | done | `legendHtml()` `src/app.js:962`; `docs/ui_v2/map_1440.png` | — | MUST |
 | LEG7 | Legend for a **signed** indicator shows fixed breaks centred on zero, red below / green above | **done (V2)** | was five greens (`> +0,3 %` … `≤ −1,6 %`, zero invisible); now `legendHtml()` `src/app.js:975` renders `RAMP_CORE.labels()` with a `.lgzero` rule on the zero line and the footer "fixed breaks, centred on zero"; checks `V2-signed-legend`, `V2-signed-lower-better` | — | MUST |
 
@@ -142,7 +142,7 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | AREA6 | Sub-areas table (postal codes / osa-alueet) | done | `areaSubTable()` `:2157`; check `P5-toggles` | — | MUST |
 | AREA7 | Sub-areas sparkline column | missing | SHOULD in DK §9, deferred there too | — | LATER |
 | AREA8 | At 390 the panel stacks above the mini map, each ≥ 300 px, no overflow (AC-P5) | done | check `P9-stacks`, `P9-no-overflow-390`; `docs/ui_v2/area_kunta_390.png` | — | MUST |
-| AREA9 | At 1366×768 the study row starts inside the first screen (AC-R2) | done | check `P9-no-overflow-1366` + `P2-map-top-1366` (same shell metrics) | V6 (add explicit check) | SHOULD |
+| AREA9 | At 1366×768 the study row starts inside the first screen (AC-R2) | **done (V6)** | was inferred from two other checks' shell metrics; check `V6-study-row-first-screen` now measures the row's own top at 1366×768 on the kunta page, the postinumero page and the property | — | SHOULD |
 | AREA10 | Osa-alue pages keep the safety-survey block and the two-forecast note | done (FI-specific) | `kkCard()` `:2336`, `osaFcCaveat()` `:1427` | — | MUST |
 
 ## 9. Chart panel modes (spec §5.2, AC-P3, E2)
@@ -163,8 +163,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | TILE1 | Five tiles, clickable, `.on` for the active indicator (AC-H2) | done | `headlineHtml()` `src/app.js:2019`; checks `P4-card-tiles-select`, `P6-five-tiles` | — | MUST |
 | TILE2 | Inherited tiles dimmed with "municipality figure", never a lone `°` (AC-H1) | done | `tileStats()` `:2000`; checks `P5-inherited-labelled`, `P8-no-lone-degree` | — | MUST |
 | TILE3 | Projection tiles carry a `Projection` pill | done | `projValueHtml` path, `docs/ui_v2/area_kunta_390.png` (outlook card) | — | MUST |
-| TILE4 | No grey filler cell when a row is short (DK Q4 / AC-SH1) | done | `docs/ui_v2/area_kunta_390.png` — the lone CRIME tile ends the row cleanly; check `P6-five-tiles` | V6 (re-verify at 1180) | MUST |
-| TILE5 | A tile's figure and unit sit on one baseline and are not clipped | **partial** | `docs/ui_v2/area_kunta_390.png`: the RENT tile reads `21,3 EUR/m²/mont` — clipped at 390 | V6 | MUST |
+| TILE4 | No grey filler cell when a row is short (DK Q4 / AC-SH1) | **done (V6)** | check `V6-tiles-not-clipped` re-reads every `[data-testid=tiles]` row at 1536 · 1440 · 1366 · **1180** · 820 · 390: no row carries a background of its own (which is what used to show through as a slab) and no cell is empty | — | MUST |
+| TILE5 | A tile's figure and unit sit on one baseline and are not clipped | **done (V6)** | the cause was one unbreakable 12-character token: `EUR/m²/month` at 26 px is wider than a two-column tile, so it ran under the next tile and was painted over. Three parts to the fix: `tileValueHtml()` sets the **money denominator** at `.64em` on the figure's own baseline (which is how a unit is normally set, and is what actually makes it fit), the figure type is fluid below the tile grid's own breakpoints (23 px ≤ 1180, 20 px ≤ 820), and `overflow-wrap:anywhere` is the floor for whatever unit a later build adds. Check `V6-tiles-not-clipped` measures the **text** with a `Range`, not the `<b>`'s border box, which is what let the clipping pass unnoticed for two phases | — | MUST |
 
 ## 11. MiniMap (spec §4.6, AC-MM1–MM3)
 
@@ -256,31 +256,31 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 | NUM5 | "vs median" is a difference (pp or the unit), never a percent of a median | done | `vsMedianText()` `:1995`; checks `P5-vs-median`, `P8-vs-median-text` | — | MUST |
 | NUM6 | `–` for "the publisher has no figure", `n/c` for "not computed at this level", never `0` | done | `fmtCell()` `:1607`, `MUNI_TAG` `:1606` | — | MUST |
 | NUM7 | Projection: total change over the window **and** a compound annual rate | done | check `P8-outlook-rate` | — | MUST |
-| NUM8 | Every decimal on screen is fi-FI (DK Q13: `1.2 km` → `1,2 km`) | **missing** | `tpRadLabel` `src/app.js:360` is `(m / 1000) + " km"` → `1.2 km` for the 1 200 m ring, with a `.` under a fi-FI UI | V6 | MUST |
-| NUM9 | No visible text matches `/\b(score\|weighted\|index of)\b/i` (AC-G1) | **missing** | `P10-retired-words` sweeps six v1.1 control names only (`tests/ui_v2.spec.py:1343`); `score` / `weighted` are not in the list | V6 | MUST |
-| NUM10 | The `^` "coarser area" marker explains itself (DK Q12: `<abbr title=…>`) | **missing** | no `abbr` anywhere in `src/app.js`; the `^` is explained only in the table caption (`vTable()` `:1676`) | V6 | SHOULD |
-| NUM11 | No double-escaped entity on any route (DK Q3 / AC-Q5) | done | `&amp;` appears only as a literal in HTML templates (`src/app.js:3447`, `:4892`, `:5209`), never through `esc()` twice | V6 (add sweep) | SHOULD |
+| NUM8 | Every decimal on screen is fi-FI (DK Q13: `1.2 km` → `1,2 km`) | **done (V6)** | `tpRadLabel` goes through `nf()` now (whole kilometres keep no decimal); the SYKE depth legend said `under 0.5 m` / `0.5–1 m` and the building-register note `3.8 million` — both fi-FI now. Check `V6-fi-decimals` walks every visible text node on all 26 routes, with `Layers ▾` open, and allows only a coordinate, a licence name, a date, a version, a URL and a file name. One hit is left and is **registry text, not app text** — `Transport projects within 1.2 km` in `config/indicators.json`, out of this run's reach (DECISIONS V6); the check asserts exactly that, so a new app-written `1.2` fails | — | MUST |
+| NUM9 | No visible text matches `/\b(score\|weighted\|index of)\b/i` (AC-G1) | **done (V6)** | check `V6-no-scores`, DK's own two halves: the app's chrome may not say the words at all, and any other occurrence must be verbatim out of the built registry. Two sentences the app wrote were rewritten rather than exempted — "…ends up with more points for that reason alone" for the school warning, and "the municipality figure is per candidate, not per school" for the aggregation, which says the same thing and says it better | — | MUST |
+| NUM10 | The `^` "coarser area" marker explains itself (DK Q12: `<abbr title=…>`) | **done (V6)** | `caretMark(why)` `src/app.js:105` — one `<abbr class="cmark" title>` with the right sentence for each of the two meanings (a peruspiiri figure, a coarser-area figure), used by `peruspiiriMark()`, `inhMark()` and the KK-survey popup heading, which was still a bare glyph; check `V6-caret-explains-itself` | — | SHOULD |
+| NUM11 | No double-escaped entity on any route (DK Q3 / AC-Q5) | done | `&amp;` appears only as a literal in HTML templates, never through `esc()` twice; check `V6-no-double-escape` sweeps all 26 routes for `&amp;` · `&lt;` · `&gt;` · `&quot;` · `&#nn;` in `innerText` | — | SHOULD |
 
 ## 17. Responsive (spec §6, AC-S1–S3, R1/R2, DK Q7/Q11)
 
 | # | DK item | FI status | Evidence | Phase | Pri |
 |---|---|---|---|---|---|
-| RESP1 | No horizontal overflow at 1366×768, 1440×900, 1536×864, 390×844 on every route (AC-R1) | done | checks `P9-no-overflow-*` | — | MUST |
+| RESP1 | No horizontal overflow at 1366×768, 1440×900, 1536×864, 390×844 on every route (AC-R1) | done (**widened V6**) | `P9-no-overflow-*` swept the ten main routes; `V6-sweep-sheets-*` adds the other sixteen — the three detail sheets, the two list panels, a pinned map, a property with every layer — at the same four widths | — | MUST |
 | RESP2 | ≤ 1024: 52 px top bar + `☰` drawer, Esc closes, focus returns (AC-S1, S2) | done | `navToggle()` `src/app.js:613`; check `P9-drawer` | — | MUST |
 | RESP3 | ≤ 1024: study row, map card and toolbars stack; tables scroll inside their card | done | check `P9-stacks`; `.scrollx` on every table | — | MUST |
 | RESP4 | Chips never wrap — the row scrolls sideways (DK Q7) | done | `docs/ui_v2/area_kunta_390.png` — the chips row scrolls, "Med…" clipped at the edge | — | MUST |
 | RESP5 | Tiles 5 → 3 + 2 → 2 columns | done | `src/style.css:1378-1389` | — | MUST |
-| RESP6 | Zero `pageerror` at every route × width (AC-R1) | done | checks `P1-zero-js-errors`, `P10-every-route-clean` | — | MUST |
+| RESP6 | Zero `pageerror` at every route × width (AC-R1) | done (**widened V6**) | `P1-zero-js-errors`, `P10-every-route-clean` walk every route at 1440; `V6-sweep-sheets-*` asserts `ERRORS` empty on the sheet routes at all four widths as well | — | MUST |
 | RESP7 | The screenshot set covers 1440 and 390 for the morning review | done | `docs/ui_v2/*_1440.png`, `*_390.png` (38 files) | V7 (refresh) | MUST |
 
 ## 18. Keyboard and accessibility (spec §7, AC-A1/A2)
 
 | # | DK item | FI status | Evidence | Phase | Pri |
 |---|---|---|---|---|---|
-| A11Y1 | Zero serious/critical accessibility violations on the main routes (AC-A1 — DK ran a DOM sweep, not axe) | **missing** | no accessibility check in `tests/ui_v2.spec.py` at all | V6 | MUST |
-| A11Y2 | Tab from the page start reaches `ind-picker-btn` within 12 tabs; Enter opens, Esc closes (AC-A2) | **missing** | same | V6 | MUST |
-| A11Y3 | `aria-expanded` on every trigger | **partial** | 17 occurrences (`src/app.js`), incl. picker `:1053`, export `:1692`, nav toggle `:620` — not swept | V6 | MUST |
-| A11Y4 | Popovers use `role=dialog` (Layers, Export) or `role=listbox` (picker) | **partial** | Layers `role=dialog` `:1480`, picker `role=listbox` `:1057`, but the export menu is `role=menu` (acceptable) and nothing is focus-trapped except the drawer | V6 | SHOULD |
+| A11Y1 | Zero serious/critical accessibility violations on the main routes (AC-A1 — DK ran a DOM sweep, not axe) | **done (V6)** | check `V6-a11y-sweep` on all 26 routes: every visible `button`/`input`/`select`/`a[href]`/`[role=button]` outside Leaflet's own controls has an accessible name (`aria-label` → `aria-labelledby` → `title` → `<label>` → placeholder → text), every `[aria-haspopup]`/`[aria-controls]` carries `aria-expanded`, every `img` an `alt`. Same offline stand-in DK used — the run installs nothing and `src/vendor/axe.min.js` is not vendored (audit "Later") | — | MUST |
+| A11Y2 | Tab from the page start reaches `ind-picker-btn` within 12 tabs; Enter opens, Esc closes (AC-A2) | **done (V6)** | check `V6-keyboard-popovers`: Tab from a blurred `#map` reaches the picker inside the twelve, Enter opens it, Esc closes it and hands focus back — and the same three assertions run on `Layers ▾` and on `Export ▾` | — | MUST |
+| A11Y3 | `aria-expanded` on every trigger | **done (V6)** | swept on all 26 routes for all six triggers — picker, `Layers ▾`, `Export ▾`, `☰`, the `Legend ▾` pill and the map card's fold — each must read `"true"` or `"false"`, never absent (`V6-a11y-sweep`) | — | MUST |
+| A11Y4 | Popovers use `role=dialog` (Layers, Export) or `role=listbox` (picker) | **done (V6)** | roles were already right (Layers `role=dialog`, picker `role=listbox`, export `role=menu`). What was missing: **the drawer did not trap Tab**, and `Layers ▾` / `Export ▾` did not return focus on Esc — and `exportClose()` would have focused the *first* `[data-exopen]` in the document, which is the sidebar's, not the one the reader opened. `UI.exBtn` / `UI.lyBtn` remember the trigger; checks `V6-drawer-traps-focus`, `V6-keyboard-popovers` | — | SHOULD |
 | A11Y5 | Focus visible everywhere (`:focus-visible` ring) | done | `src/style.css:1721` | — | MUST |
 | A11Y6 | Colour is never the only carrier (values in legend bins, labels on inherited, pill on projections) | done | LEG6, TILE2, TILE3 | — | MUST |
 | A11Y7 | Shortcuts `/`, `g m / g d / g c / g p` | **missing** | the global keydown (`src/app.js:835`) has Esc, arrows, Enter and the H/T/U/O/F camera jumps only | — | LATER |
@@ -292,8 +292,8 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 |---|---|---|---|---|---|
 | STATE1 | `state-empty` with a focused input on `#property` with no pin (AC-E1) | done | `src/app.js:3467`; check `P6-empty-state` | — | MUST |
 | STATE2 | `state-nohistory` + distribution strip when an indicator has no series (AC-E2) | done | `:2265`; check `P5-panel-modes` | — | MUST |
-| STATE3 | `state-loading` — a noun, never a bare spinner; skeleton, not a blocked page | **partial** | only the property has one (`:3522`, `anSkel()`); the map's postal-boundary wait writes a plain sentence into the legend (`:3795`), and Data / Charts have none | V6 | SHOULD |
-| STATE4 | `state-error` names the file that failed and offers the source | **partial** | property only (`:3528`, `:3531`); the map's boundary failure message is a legend string | V6 | SHOULD |
+| STATE3 | `state-loading` — a noun, never a bare spinner; skeleton, not a blocked page | **done (V6)** | `stateCard(kind, title, note, action)` ported from `ref/dk_src/app.js:1960` — one shape for all three states, `role="status" aria-live="polite"` while loading, three skeleton bars instead of a spinner. Now on the school sheet and school list, the public-building sheet, the map's postal-boundary wait, Charts' history wait and the property's own wait (which had the only one before tonight); check `V6-states` | — | SHOULD |
+| STATE4 | `state-error` names the file that failed and offers the source | **done (V6)** | the same card with `data-kind=error`: `schools.json`, `public/<kunta>.json`, `area/<kunta>.json`, `history.json` are each named, with the publisher and a link or a way back. `schoolsLoad()` used to swallow its failure into an empty school list (`SCHOOLS = {schools: []}`), so "could not load" and "no schools here" read identically — there is a `SCH_ERR` flag now; check `V6-states` drives both branches | — | SHOULD |
 | STATE5 | "Not covered yet" for a layer with no data in this kunta (hard-data principle) | done | `tpMapTools()` `:3512-3514` tooltips | — | MUST |
 
 ## 20. Colour, ramps and families (spec §2.1 + the owner's new rule)
@@ -313,9 +313,9 @@ sheets, Data, Export; V6 responsive, numbers, accessibility, states; V7 QA and d
 |---|---|---|---|---|---|
 | GLOB1 | Hash round-trips on every route, after an interaction and after `history.back()` (AC-U1) | done | checks `P1-hash-roundtrip`, `P10-hash-stable-everywhere` | — | MUST |
 | GLOB2 | One picker, one period control, one tab bar per view | done | check `P10-picker-once` | — | MUST |
-| GLOB3 | The retired v1.1 controls are named nowhere | done | check `P10-retired-words` | V6 (extend, see NUM9) | MUST |
+| GLOB3 | The retired v1.1 controls are named nowhere | done | check `P10-retired-words`, plus `V6-no-scores` for AC-G1's own vocabulary (see NUM9) | — | MUST |
 | GLOB4 | Budgets: `src/app.js` ≤ 460 KB, `src/style.css` ≤ 165 KB | done | 400 KB / 137 KB today — ~60 KB of headroom for V2–V6 | — | MUST |
-| GLOB5 | `tests/test_codes.py` is red: it flags `String(Number(v))` in `src/app.js` | open (housekeeping) | the hit is `csvNum` `src/app.js:1731`, which formats **values**, not codes — a false positive of a grep-based lint. The gate treats the python suite as informational, so it does not block | V6 | SHOULD |
+| GLOB5 | `tests/test_codes.py` is red: it flags `String(Number(v))` in `src/app.js` | **done (V6)** | the lint now flags the idiom only on a **code-named** argument (`code`, `kom`, `muni`, `nr`, …), which is the bug it exists for, and a second test pins the one remaining use by name: exactly one `String(Number(…))` may be in the file and it must be `csvNum`. Strictly stronger than the old grep, and green — `src/app.js` was not changed for it | — | SHOULD |
 | GLOB6 | `docs/UI_PLAN.md`, `CHANGELOG.md`, README screenshots kept current | partial | v2.0 state; V7 updates them for v2.1 | V7 | MUST |
 
 ---
@@ -347,10 +347,14 @@ eleven checks registered under phase V5, plus four new sweep routes (`area_clima
 sheet was **unreachable** (the FI register publishes no id) and `prMapInit()` **threw** on every
 project sheet before the lazy alignments landed. Both fixed.
 
-**V6 — responsive, numbers, accessibility, states**
-A11Y1, A11Y2, A11Y3 (accessibility sweep), NUM8 (`1,2 km`), NUM9 (`score` / `weighted` sweep),
-TILE5 (the clipped RENT tile at 390), TILE4 (re-verify the tile grid at 1180 px).
-*Also if there is room:* NUM10, NUM11, STATE3, STATE4, A11Y4, AREA9, GLOB5.
+**V6 — responsive, numbers, accessibility, states** ☑ shipped
+A11Y1, A11Y2, A11Y3, NUM8, NUM9, TILE5, TILE4 — and **every one** of its "if there is room"
+rows: NUM10, NUM11, STATE3, STATE4, A11Y4, AREA9, GLOB5. LEG5 came with them (the `Legend ▾`
+pill had sat on Leaflet's attribution at 390 since v2.0, flagged in every phase since V2), and
+RESP1/RESP6 were widened from the ten main routes to all 26. All `done (V6)` above, fifteen
+checks registered under phase V6. One NUM8 hit is left on purpose and is logged, not hidden:
+`Transport projects within 1.2 km` is an indicator description in `config/indicators.json`,
+which no night phase may touch — a morning one-word fix (DECISIONS V6).
 
 **V7 — QA and docs**
 GLOB6, RESP7, and a re-read of every MUST row above.
