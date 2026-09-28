@@ -1114,7 +1114,9 @@ const mmFoldLater = id => setTimeout(() => mmFoldable(id), 0);
 function mmFoldable(id) {
   const el = document.getElementById(id);
   if (!el || !el.closest(".maplegs") || !el.innerHTML.trim()) return;
-  const isInd = /^(maplegend|armaplegend|anmaplegend)$/.test(id);
+  /* the legend that explains the colours underneath starts open; the feature layers start folded.
+     `prlegend` is a sheet's own choropleth legend and is the same kind of thing as the three above. */
+  const isInd = /^(maplegend|armaplegend|anmaplegend|prlegend)$/.test(id);
   if (!(id in LEG_FOLD)) LEG_FOLD[id] = !isInd;
   el.classList.toggle("folded", !!LEG_FOLD[id]);
   const t = el.querySelector(".lgtitle");
@@ -1394,6 +1396,30 @@ function asofText(i) {
   const asofSrc = (MK.year !== LATEST && i.hist_asof && i.hist_asof[MK.year]) ? i.hist_asof[MK.year] : i.asof;
   return asofSrc ? Object.entries(asofSrc).map(([g, p]) => `${g === "postinumero" ? "postal codes" : g === "osa_alue" ? "osa-alueet" : "municipalities"}: ${esc(p)}`).join(" · ") : "";
 }
+/* ---------- W2 §5: the level the map actually draws ----------
+   The info strip carried the indicator's *publication* level, so the national map — one polygon per
+   kunta — read "postal-code level" whenever a Paavo indicator was selected. The level a reader can
+   see is the one `muniAreas()` hands the map: kunnat until a kunta is opened, then its postal codes
+   (or its osa-alueet in the Helsinki region), and buildings in Buildings mode. */
+function mapDrawLevel() {
+  if (microMode()) return "building";
+  return MK.muni ? subLevelOf(MK.muni) : "kunta";
+}
+const DRAWN_LABEL = { kunta: "municipalities", postinumero: "postal codes", osa_alue: "osa-alueet", building: "buildings" };
+/* what the strip's level tag says on the map: the polygons drawn, and — where the indicator is
+   published finer than that — that there is more to see one level in */
+function drawnLevelText(i) {
+  const lv = mapDrawLevel();
+  const finer = lv === "kunta" && i && (i.level === "postinumero" || i.level === "osa_alue");
+  return `${DRAWN_LABEL[lv]} drawn${finer ? ` · zoom in for ${i.level === "osa_alue" ? "osa-alueet" : "postal codes"}` : ""}`;
+}
+/* the tag is rewritten in place when a zoom or a drill changes the layer — no re-render, so an open
+   popup and the camera survive it */
+function mkLevelTag() {
+  if (S.view !== "makro" || microMode()) return;
+  const el = document.querySelector("#mkexplain [data-testid=ind-level]");
+  if (el) el.textContent = drawnLevelText(curInd());
+}
 function indExplain(i) {
   const pool = curPool();
   const cov = i.level === "osa_alue" ? `${OSA.areas.filter(a => a[i.key] != null).length}/${OSA.areas.length} osa-alueet` : `${MUNI.filter(m => m[i.key] != null).length}/${MUNI.length} municipalities${i.level === "postinumero" ? `, ${AREAS.filter(a => a[i.key] != null).length}/${AREAS.length} postal codes` : ""}`;
@@ -1404,7 +1430,7 @@ function indExplain(i) {
   const lb = lowerBetter(i.key);
   const src = srcLine(i, asofShort());
   return `<details class="indx" ${UI.indxOpen ? "open" : ""}>
-    <summary><b>${esc(i.label)}</b><span class="tag">${esc(i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level"))}</span><span class="tag">${esc(unitLabel(i))}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.frozen ? `<span class="tag warnline">Last published ${esc(i.frozen)} — discontinued</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
+    <summary><b>${esc(i.label)}</b><span class="tag" data-testid="ind-level" title="${esc(S.view === "makro" ? `Published at ${i.level === "osa_alue" ? "osa-alue" : i.level === "postinumero" ? "postal-code" : "kunta"} level; this is the level the map is drawing.` : "The finest geography this indicator is published at.")}">${esc(S.view === "makro" ? drawnLevelText(i) : (i.level_label || (i.level === "osa_alue" ? "osa-alue level" : i.level === "postinumero" ? "postal-code level" : "kunta level")))}</span><span class="tag">${esc(unitLabel(i))}</span>${lb ? `<span class="tag">↓ lower is better</span>` : ""}${i.proj ? `<span class="tag proj">Projection ${esc(i.proj.from)}→${esc(i.proj.to)}</span><span class="tag">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}${asofShort() ? `<span class="dim">as of ${esc(asofShort())}</span>` : ""}${i.frozen ? `<span class="tag warnline">Last published ${esc(i.frozen)} — discontinued</span>` : ""}${i.warn ? `<span class="warnline">⚠</span>` : ""}<i class="more">ⓘ details</i></summary>
     <div class="indx-body"><p>${esc(i.desc || "")}${lb ? ` <b>↓ Lower is better</b> — rank #1 is the lowest value.` : ""}${neutralDir(i.key) ? ` <b>Neither end is better</b> — a shrinking area is not failing and a growing one is not succeeding, so this is ranked by size only, never good to bad.` : ""}</p>
     ${i.proj && i.proj.caveat ? `<p class="warnline">⚠ ${esc(i.proj.caveat)}</p>` : ""}
     ${i.note ? `<p class="dim"><em>Note</em> ${esc(i.note)}</p>` : ""}
@@ -1432,7 +1458,9 @@ function srcLine(i, asof) {
 /* geometry helpers: largest ring, centroid */
 const mainRing = a => (a.rings || []).slice().sort((x, y) => y.length - x.length)[0] || [];
 const centroid = ring => ring.reduce((o, p) => [o[0] + p[0] / ring.length, o[1] + p[1] / ring.length], [0, 0]);
-function muniAreas(code) { return (osaMode() && isOsaMuni(code)) ? OSA.areas.filter(a => String(a.muni) === String(code)) : AREAS.filter(a => a.muni === code); }
+/* which sub-level a kunta is drawn by — the one definition `mapDrawLevel()` and the info strip read */
+const subLevelOf = code => (osaMode() && isOsaMuni(code)) ? "osa_alue" : "postinumero";
+function muniAreas(code) { return subLevelOf(code) === "osa_alue" ? OSA.areas.filter(a => String(a.muni) === String(code)) : AREAS.filter(a => a.muni === code); }
 /* Bounds from whatever the object has: its rings if they are loaded, otherwise the bounding
    box the build ships inline for every area. A camera move must never wait on a fetch. */
 function boundsOf(list) {
@@ -1446,7 +1474,8 @@ function boundsOf(list) {
 function applyPendingFit() {
   if (!LF.map || !LF.pendingFit) return;
   const b = boundsOf(muniAreas(LF.pendingFit)); LF.pendingFit = null;
-  if (b) LF.map.fitBounds(b, { padding: [12, 12] });
+  /* a drilled kunta fills the card as tightly as Finland does — 8 px, not a comfortable margin */
+  if (b) LF.map.fitBounds(b, { padding: [8, 8] });
 }
 /* page links for the three entity types */
 const pageOf = o => o.nr ? `area/postinumero/${o.nr}` : o.peruspiiri != null ? `area/osa_alue/${o.code}` : `area/kunta/${o.code}`;
@@ -1798,6 +1827,8 @@ function mkRefreshTools() {
   const st = document.getElementById("mkstrip"), mu = MK.muni ? byCode[MK.muni] : null;
   if (st) st.innerHTML = mu && !microMode() ? muniStrip(mu) : "";
   mkRefreshPin();
+  mkLevelTag();
+  mkFitHeight();     /* the toolbar above the map just changed height */
 }
 function vMakro() {
   if (!AREAS.length || !MUNI.length) return `<div class="card"><p class="empty">No macro data built yet — run <code>make fetch</code>, <code>make geo</code> and <code>make build</code>.</p></div>`;
@@ -2323,22 +2354,62 @@ function headlineHtml(e) {
     <em>${inh ? `<span class="tag-muni">municipality figure</span>`
       : `${s.yoy != null ? `<i class="${cls(s.yoy, i.key)}">${sign(s.yoy, x => nf(x, 1))}${s.unit}</i> y/y` : ""}${s.rk ? `${s.yoy != null ? " · " : ""}${rankText(s.rk)}` : ""}`}</em></button>`; }).join("")}</div>`;
 }
+/* ---------- W2 §3: one y axis for every chart in the build ----------
+   `SCALE_CORE.axis()` decides the ticks (1 / 2 / 2,5 / 5 × 10^n, 0 on a gridline whenever the range
+   crosses it), the range (from the years every drawn series covers) and which years hold a value it
+   cannot show. The indicator's own number format decides how many ticks can carry distinct labels. */
+const SCL = (typeof window !== "undefined" && window.SCALE_CORE) || {};
+const chAxis = (series, labels, ind) => SCL.axis ? SCL.axis(series, labels, { fmt: fmtTight(ind), want: 6 }) : null;
+/* one predicate for "does this chart need a zero line" — the same SIGNED list the ramp reads */
+const chSigned = ind => !!(RMP.isSigned && ind && RMP.isSigned(ind.key));
+/* the same nice axis for a chart that has no year series — a plain range and the caller's own
+   number format, so a gridline is never drawn at 0,185 and labelled "0,2" */
+const chSpan = (lo, hi, fmt, want) => SCL.axis ? SCL.axis([{ pts: [{ v: lo }, { v: hi }] }], ["", ""], { fmt, want: want || 4 }) : null;
+/* Why a year is off the scale. The registry can say so itself (`breaks[].text`); where it does not —
+   and nothing in this edition's data does yet — the note states the fact it can prove and no cause.
+   A boundary change is a claim about the publisher's geography, not something to infer from a jump. */
+function chClipNote(ax, inds) {
+  if (!ax || !ax.clipped.length) return "";
+  const b = (inds || []).filter(Boolean).flatMap(i => i.breaks || [])
+    .find(br => ax.clipped.some(l => String(l).slice(0, 4) === String(br.at).slice(0, 4)));
+  return `${ax.note} (${b && b.text ? b.text : "years not every series shown covers"})`;
+}
+/* a point the axis cannot reach is drawn on the edge with a ▲ / ▼ and keeps its real figure in the
+   tooltip — the plan's "never silently drop data" */
+const CLIP_MARK = 'class="ax clipmk" data-testid="chart-clip"';
 function multiLine(series, ind, ys) {
-  const all = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v != null);
-  if (!all.length || ys.length < 2) return `<p class="empty">no history for this indicator</p>`;
+  const ax = chAxis(series, ys, ind);
+  if (!ax || ys.length < 2) return `<p class="empty">no history for this indicator</p>`;
+  /* §3c — the x axis starts where the data does: an osa-alue published from 2014 no longer opens
+     with three empty columns of 2011–2013 */
+  const i0 = ax.from > 0 && ys.length - ax.from >= 2 ? ax.from : 0;
+  const yy = i0 ? ys.slice(i0) : ys;
+  const ser = i0 ? series.map(s => ({ ...s, pts: s.pts.slice(i0) })) : series;
   const W = 900, H = 240, L0 = 78, R = 16, T0 = 14, B = 26;
-  const lo = Math.min(...all), hi = Math.max(...all), sp = (hi - lo) || 1;
-  const x = i => L0 + i / (ys.length - 1) * (W - L0 - R), y = v => T0 + (1 - (v - lo) / sp) * (H - T0 - B);
-  const ticks = [lo, lo + sp / 2, hi];
-  const paths = series.map(s => { const pts = s.pts.map((p, i) => p.v == null ? null : `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`); let d = "", open = false;
-    pts.forEach(p => { if (!p) { open = false; return; } d += (open ? "L" : "M") + p; open = true; });
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.w || 2}" ${s.dash ? 'stroke-dasharray="5 4"' : ""}/>` + s.pts.map((p, i) => p.v == null ? "" : `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${s.w ? 3 : 2.4}" fill="${s.color}"><title>${esc(s.name)} ${p.y}: ${fmtOf(ind)(p.v)}</title></circle>`).join(""); }).join("");
-  const si = ys.indexOf(MK.year); const selX = si >= 0 ? `<line x1="${x(si).toFixed(1)}" x2="${x(si).toFixed(1)}" y1="${T0}" y2="${H - B}" class="splitline"/>` : "";
+  const lo = ax.lo, hi = ax.hi, sp = (hi - lo) || 1;
+  const x = i => L0 + i / Math.max(1, yy.length - 1) * (W - L0 - R), y = v => T0 + (1 - (v - lo) / sp) * (H - T0 - B);
+  const yc = v => y(Math.max(lo, Math.min(hi, v)));                 /* the line stops at the edge */
+  const out = v => v > hi + 1e-9 ? "▲" : v < lo - 1e-9 ? "▼" : "";
+  const paths = ser.map(s => { let d = "", open = false;
+    s.pts.forEach((p, i) => { if (p.v == null) { open = false; return; } d += (open ? "L" : "M") + x(i).toFixed(1) + "," + yc(p.v).toFixed(1); open = true; });
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.w || 2}" ${s.dash ? 'stroke-dasharray="5 4"' : ""}/>` + s.pts.map((p, i) => { if (p.v == null) return "";
+      const o = out(p.v), t = `<title>${esc(s.name)} ${p.y}: ${fmtOf(ind)(p.v)}${o ? " — off the scale" : ""}</title>`;
+      return o ? `<text ${CLIP_MARK} x="${x(i).toFixed(1)}" y="${(yc(p.v) + (o === "▲" ? 9 : -3)).toFixed(1)}" text-anchor="middle" fill="${s.color}">${o}${t}</text>`
+               : `<circle cx="${x(i).toFixed(1)}" cy="${yc(p.v).toFixed(1)}" r="${s.w ? 3 : 2.4}" fill="${s.color}">${t}</circle>`; }).join(""); }).join("");
+  const si = yy.indexOf(MK.year); const selX = si >= 0 ? `<line x1="${x(si).toFixed(1)}" x2="${x(si).toFixed(1)}" y1="${T0}" y2="${H - B}" class="splitline"/>` : "";
+  /* §3a — a signed indicator gets a zero line a reader can see, not just a gridline label */
+  const zero = chSigned(ind) && lo <= 0 && hi >= 0
+    ? `<line class="czero" data-testid="chart-zero" x1="${L0}" x2="${W - R}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>` : "";
+  const note = chClipNote(ax, [ind]);
+  /* every fifth year is labelled once a series runs long, so the labels never collide */
+  const every = Math.ceil(yy.length / 14);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}">
-      ${ticks.map(t => `<line class="grid" x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="ax" x="${L0 - 6}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end">${fmtTight(ind)(t)}</text>`).join("")}
-      ${ys.map((yy, i) => `<text class="ax" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${yy}</text>`).join("")}
+      ${ax.ticks.map(t => `<line class="grid" x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="ax" x="${L0 - 6}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end">${esc(fmtTight(ind)(t))}</text>`).join("")}
+      ${zero}
+      ${yy.map((v, i) => i % every && i !== yy.length - 1 ? "" : `<text class="ax" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${v}</text>`).join("")}
       ${selX}${paths}</svg>
-    <div class="bleg">${series.map(s => { const last = [...s.pts].reverse().find(p => p.v != null); return `<span><i style="background:${s.color}${s.dash ? ";height:2px" : ""}"></i>${esc(s.name)}${last ? ` <b>${fmtOf(ind)(last.v)}</b> <span class="dim">${last.y}</span>` : ""}</span>`; }).join("")}</div>`;
+    <div class="bleg">${ser.map(s => { const last = [...s.pts].reverse().find(p => p.v != null); return `<span><i style="background:${s.color}${s.dash ? ";height:2px" : ""}"></i>${esc(s.name)}${last ? ` <b>${fmtOf(ind)(last.v)}</b> <span class="dim">${last.y}</span>` : ""}</span>`; }).join("")}</div>
+    ${note ? `<p class="cap chclip" data-testid="chart-scale-note">${esc(note)}</p>` : ""}`;
 }
 /* ---------- Population outlook chart (docs/OUTLOOK_FI.md §5.6) ----------
    Two series, never one: the observed population (Tilastokeskus vaerak for kunnat, Aluesarjat for
@@ -2361,11 +2432,14 @@ function popOutlookChart(o, opts) {
   const vals = ys.map(y => av(y) ?? pv(y)).filter(v => v != null);
   if (vals.length < 2) return "";
   const W = 900, H = 236, L0 = 78, R = 16, T0 = 16, B = 26;
-  const lo0 = Math.min(...vals), hi0 = Math.max(...vals), pad = (hi0 - lo0) * .08 || 1;
-  const lo = Math.max(0, lo0 - pad), hi = hi0 + pad, sp = (hi - lo) || 1;
+  const fmtN = v => nf(Math.round(v), 0);
+  /* W2 §3a — nice ticks here too: an 8 % pad put the three gridlines on 612 345 / 663 210 / 714 075,
+     which are readings of the data rather than a scale to read the data against */
+  const lo0 = Math.min(...vals), hi0 = Math.max(...vals);
+  const ax = chSpan(lo0, hi0, fmtN);
+  const lo = ax ? ax.lo : Math.max(0, lo0 - (hi0 - lo0) * .08), hi = ax ? ax.hi : hi0, sp = (hi - lo) || 1;
   const x = y => L0 + ys.indexOf(y) / (ys.length - 1) * (W - L0 - R);
   const yy = v => T0 + (1 - (v - lo) / sp) * (H - T0 - B);
-  const fmtN = v => nf(Math.round(v), 0);
   const line = (getter, from, cls_, dash) => {
     let d = "", open = false, dots = "";
     ys.forEach(y => {
@@ -2377,7 +2451,7 @@ function popOutlookChart(o, opts) {
     });
     return `<path d="${d}" fill="none" stroke="${cls_}" stroke-width="${dash ? 2.2 : 2.6}"${dash ? ' stroke-dasharray="6 4"' : ""}/>${dots}`;
   };
-  const ticks = [lo, lo + sp / 2, hi];
+  const ticks = ax ? ax.ticks : [lo, lo + sp / 2, hi];
   const every = ys.length > 14 ? 2 : 1;
   const cutX = x(cut).toFixed(1);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}">
@@ -2539,10 +2613,13 @@ function climBars(e, ind) {
   /* two return periods over 790 px is a 350 px bar — cap the marks so the chart reads as bars
      rather than as blocks of colour */
   const half = Math.min(bw * .22, 46), medHalf = Math.min(bw * .3, 62);
-  const y = v => T0 + (1 - v / hi) * (H - T0 - B);
   const f = fmtTight(ind);
+  /* W2 §3a — the gridlines were 0, hi/2 and hi, so the middle one sat wherever the taller bar
+     happened to end and still printed a rounded label a reader would measure against */
+  const ax = chSpan(0, hi, f), top = ax ? ax.hi : hi;
+  const y = v => T0 + (1 - v / top) * (H - T0 - B);
   return `<svg class="chart" data-testid="clim-bars" viewBox="0 0 ${W} ${H}">
-    ${[0, hi / 2, hi].map(t => `<line class="grid" x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="ax" x="${L0 - 6}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end">${f(t)}</text>`).join("")}
+    ${(ax ? ax.ticks : [0, hi / 2, hi]).map(t => `<line class="grid" x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="ax" x="${L0 - 6}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end">${f(t)}</text>`).join("")}
     ${rows.map((r, k) => { const cx = L0 + bw * k + bw / 2;
       return (r.v == null ? "" : `<rect class="cbar" data-rp="${esc(r.rp)}" x="${(cx - half).toFixed(1)}" y="${y(r.v).toFixed(1)}" width="${(half * 2).toFixed(1)}" height="${(y(0) - y(r.v)).toFixed(1)}"><title>${esc(r.label)}: ${f(r.v)}</title></rect>`)
         + (r.med == null ? "" : `<line class="cmed" x1="${(cx - medHalf).toFixed(1)}" x2="${(cx + medHalf).toFixed(1)}" y1="${y(r.med).toFixed(1)}" y2="${y(r.med).toFixed(1)}"><title>median ${f(r.med)}</title></line>`)
@@ -2557,6 +2634,17 @@ function panelMode(e, ind) {
   if (PC.rpParts(ind.key)) return "climate";
   return eYears(e, ind.key).filter(y => eVal(e, ind.key, y).v != null).length > 1 ? "history" : "snapshot";
 }
+/* W2 §4 — one title, not two. The card head repeated the picker directly above it ("POPULATION
+   GROWTH" in 20-px caps under "Growth ▾"), which told the reader nothing they had not just clicked.
+   It says which area and which years instead; the indicator is named on the picker and on the mini
+   map beside it, and its unit stays in the head's hint exactly once. */
+function panelPeriod(e, ind) {
+  const mode = panelMode(e, ind);
+  if (mode === "outlook" && ind.proj) return `${ind.proj.from}–${ind.proj.to}`;
+  if (mode === "history") { const ys = eYears(e, ind.key).filter(y => eVal(e, ind.key, y).v != null);
+    return ys.length > 1 ? `${ys[0]}–${ys[ys.length - 1]}` : ys[0] || ""; }
+  return asofShortOf(ind) || MK.year || "";
+}
 function chartPanel(e, ind) {
   const mode = panelMode(e, ind);
   let body = "";
@@ -2569,8 +2657,9 @@ function chartPanel(e, ind) {
   else body = areaChart(e, ind);
   const src = srcLine(ind, asofShortOf(ind));
   const link = indSrcLink(ind, e.type === "postinumero" ? e.o.nr : srcCode(e.o, e.type), null, e.type);
+  const per = panelPeriod(e, ind);
   return `<div class="card panel" data-testid="chart-panel" data-mode="${mode}">
-    <div class="card-head"><h3>${esc(ind.label)}</h3><span class="hint">${esc(unitLabel(ind))}</span></div>
+    <div class="card-head"><h3 data-testid="panel-title">${esc(e.name)}${per ? ` · ${esc(per)}` : ""}</h3><span class="hint">${esc(unitLabel(ind))}</span></div>
     ${panelHead(e, ind)}
     ${body}
     <p class="cap">${esc(ind.desc || "")}${ind.warn ? `<br>⚠ ${esc(ind.warn)}` : ""}</p>
@@ -2585,7 +2674,7 @@ function studyRow(e, ind, mapId, mapHint, extraLegends) {
       <div class="card-head"><h3>${esc(ind.short || ind.label)}</h3><span class="hint">${esc(mapHint || "")}</span>
         <button class="tbtn mmfull" data-testid="minimap-full" data-mmfull="${esc(mapId)}" title="Full screen (Esc closes)">⤢</button></div>
       <div class="mm-chips"></div>
-      <div class="mapwrap"><div id="${esc(mapId)}"></div>${legendPill()}
+      <div class="mapwrap mini"><div id="${esc(mapId)}"></div>${legendPill()}
         <div class="maplegs mmlegs">${extraLegends || ""}<div class="maplegend small" data-testid="legend" id="${esc(mapId)}legend"></div></div></div>
     </div></div>`;
 }
@@ -3455,7 +3544,7 @@ function pinCard() {
         title="Open this pin as a test property — every layer read against it">View test property ›</button>
       <button class="lk mini pcx" data-pinrm aria-label="Remove the pin" title="Remove the pin">×</button></span></div>`;
 }
-function mkRefreshPin() { const el = document.getElementById("mkpin"); if (el) el.innerHTML = pinCard(); }
+function mkRefreshPin() { const el = document.getElementById("mkpin"); if (el) { el.innerHTML = pinCard(); mkFitHeight(); } }
 function tpPopup() {
   const r = tpRes(); if (!r) return "";
   if (r.error) return `<div class="lfpop tppop"><b>${esc(TP.label || TP_LABEL)}</b><span class="dim">${TP.lat.toFixed(5)}, ${TP.lon.toFixed(5)} — ${esc(r.error)}</span>
@@ -4303,7 +4392,11 @@ function lfLayers() {
   lfServicesLayers();
   climLayers();
   lfLabels();
-  setLegend("maplegend", sc, ind, ind.key, micro ? (osaMode() ? "osa-alueet" + (peruspiiriLevel(ind) ? " · ^ one figure per peruspiiri" : "") : "postal codes") : (ind.level === "postinumero" && !MK.muni ? "municipalities · zoom in for postal codes" : "municipalities" + (fine ? ` · ${osaMode() ? "osa-alueet" : "postal codes"} take the kunta's value where they publish none` : "")));
+  /* W2 — the legend no longer repeats which level is drawn: the info strip above the map names it
+     (`drawnLevelText()`), and three wrapped lines of it here cost the stack its 60 % budget. What is
+     left is the one thing the strip cannot say — that a sub-area with no figure of its own is
+     wearing the kunta's. */
+  setLegend("maplegend", sc, ind, ind.key, micro ? (osaMode() ? "osa-alueet" + (peruspiiriLevel(ind) ? " · ^ one figure per peruspiiri" : "") : "postal codes") : (fine ? `${osaMode() ? "osa-alueet" : "postal codes"} take the kunta's value` : "municipalities"));
   if (LF.ownG) { LF.map.removeLayer(LF.ownG); LF.ownG = null; }
   if (MK.own && D.portfolio) {
     const marks = D.portfolio.properties.filter(p => p.lat != null).map(p => {
@@ -4315,6 +4408,7 @@ function lfLayers() {
     LF.ownG = L.layerGroup(marks).addTo(LF.map);
   }
   tpLayers();
+  mkLevelTag();     /* W2 §5 — the strip names the layer this pass just drew */
 }
 /* Leaflet's canvas renderer draws into `this._ctx`, which exists only while the renderer is on
    a map. A redraw that lands just after a map is torn down — an async building/services/public
@@ -4353,13 +4447,39 @@ function mapJump(id) {
   const j = MAP_JUMPS[id]; if (!j || !LF.map) return;
   const b = j.codes ? boundsOf(AREAS.filter(a => j.codes.includes(String(a.muni)))) : null;
   if (b && b.isValid()) LF.map.fitBounds(b, { padding: [24, 24] });
-  else LF.map.fitBounds(FI_BOX, { padding: [24, 24] });
+  else LF.map.fitBounds(fiBounds(), { padding: [6, 6] });
 }
+/* ---------- W2 §1: the map card is as tall as the window allows ----------
+   Finland is tall and the card is wide, so height is the one thing that makes the map readable —
+   and a fixed `calc(100vh - 250px)` cannot know how tall the toolbar above it is today (the search
+   row, the quick chips, the info strip, a pin card and a kunta's figure strip all come and go). So
+   it is measured: from the map's own top edge to the bottom of the window, less the collapsed
+   "Data information" line under it, never under 560 px — the floor the plan sets at 1366 × 768.
+   Below 1025 px the phone rules own the height (55vh): a 560-px map under a phone's tall toolbar
+   would push the source note two screens down. */
+const MK_MAP_MIN = 560, MK_MAP_MAX = 1040, MK_MAP_TAIL = 42;
+function mkFitHeight() {
+  const el = document.getElementById("lfmap"); if (!el) return;
+  const card = document.getElementById("mapcard");
+  const full = !!document.fullscreenElement || !!(card && card.classList.contains("fs-fallback"));
+  if (window.innerWidth <= 1024 || full) { if (el.style.height) { el.style.height = ""; if (LF.map) LF.map.invalidateSize(); } return; }
+  /* measured as if the column were scrolled to the top, so scrolling cannot grow the map */
+  const main = document.getElementById("main");
+  const top = el.getBoundingClientRect().top + (main ? main.scrollTop : 0);
+  const h = Math.round(Math.max(MK_MAP_MIN, Math.min(MK_MAP_MAX, window.innerHeight - top - MK_MAP_TAIL)));
+  if (el.style.height !== h + "px") { el.style.height = h + "px"; if (LF.map) LF.map.invalidateSize(); }
+}
+/* Finland framed by the polygons actually drawn, not by a typed-in box: `FI_BOX` reaches past the
+   last kunta on every side, and fitting it added a band of empty sea to the empty flanks the aspect
+   ratio already costs. `zoomSnap: .25` is what lets the fit land between whole zooms instead of
+   rounding down and giving that space back. */
+const fiBounds = () => boundsOf(MUNI) || L.latLngBounds(FI_BOX);
 function lfInit() {
   const el = document.getElementById("lfmap");
   if (!el || typeof L === "undefined") return;
   dropMap("map");
-  const map = L.map(el, { center: LF.center, zoom: LF.zoom, maxBounds: L.latLngBounds(FI_BOX).pad(0.35), minZoom: 4, scrollWheelZoom: true, zoomSnap: 0.5, zoomDelta: 1, wheelPxPerZoomLevel: 60, wheelDebounceTime: 20 });
+  mkFitHeight();
+  const map = L.map(el, { center: LF.center, zoom: LF.zoom, maxBounds: L.latLngBounds(FI_BOX).pad(0.35), minZoom: 4, scrollWheelZoom: true, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 60, wheelDebounceTime: 20 });
   LF.map = map;
   /* Services sit in their own pane above the choropleth (overlayPane, z 400) and below the
      labels and popups (markerPane, z 600). Without it the canvas element is created before
@@ -4393,8 +4513,16 @@ function lfInit() {
     if (lvl !== LF.level) lfLayers(); else if (fine) lfLabels();
   });
   lfLayers();
+  /* the national view frames Finland the first time it is opened, and again whenever the reader
+     comes back up from a kunta; a pan on the national map is theirs to keep */
+  if (!LF.fitted && !MK.muni && !LF.pendingFit && !TP.fit) { LF.fitted = true; map.fitBounds(fiBounds(), { padding: [6, 6] }); }
+  if (MK.muni) LF.fitted = false;
   applyPendingFit();
 }
+/* The window changed shape: re-measure the map card. Debounced, because a drag of the window edge
+   fires this dozens of times and each one is an invalidateSize + a Leaflet redraw. */
+let MK_RS = null;
+window.addEventListener("resize", () => { clearTimeout(MK_RS); MK_RS = setTimeout(mkFitHeight, 120); });
 
 /* A mini map at full screen: a fixed overlay rather than the Fullscreen API, because the card is
    inside a scrolling column and `requestFullscreen` on it loses the legend's positioning context.
@@ -4434,11 +4562,12 @@ function toggleFullscreen() {
   if (document.fullscreenElement) { document.exitFullscreen(); return; }
   if (el.requestFullscreen) el.requestFullscreen().catch(() => el.classList.toggle("fs-fallback"));
   else el.classList.toggle("fs-fallback");
-  setTimeout(() => LF.map && LF.map.invalidateSize(), 300);
+  setTimeout(() => { mkFitHeight(); LF.map && LF.map.invalidateSize(); }, 300);
 }
 document.addEventListener("fullscreenchange", () => {
   const b = document.querySelector("[data-fs]"); if (b) b.textContent = document.fullscreenElement ? "⤡ Exit full screen" : "⤢ Full screen";
-  setTimeout(() => LF.map && LF.map.invalidateSize(), 250);
+  /* full screen has its own height rule, and the measured inline one would outrank it */
+  setTimeout(() => { mkFitHeight(); LF.map && LF.map.invalidateSize(); }, 250);
 });
 
 /* ---------- Chart generator ---------- */
@@ -4521,7 +4650,13 @@ function chartSeries() {
   });
   if (CH.median) { const pool = ents.length && ents.every(e => e.type === "osa_alue") && osaOwn(ind.key) ? OSA.areas : MUNI;
     series.push({ name: pool === MUNI ? "Finland — median of municipalities" : "Helsinki region — median of quarters", color: "#8A8C81", dash: true, pts: ys.map(y => ({ y, v: median(pool.map(p => chVal(p, ind, y))) })) }); }
-  return { ind, inds, ys, series: series.filter(s => s.pts.some(p => p.v != null)) };
+  const live = series.filter(s => s.pts.some(p => p.v != null));
+  /* W2 §3c — the axis starts where the data does. The trim happens here, not in the drawing code,
+     so the chart, the Data table under it and the CSV all describe the same periods. */
+  const i0 = SCL.firstLive ? SCL.firstLive(live, ys.length) : 0;
+  return i0 > 0 && ys.length - i0 >= 2
+    ? { ind, inds, ys: ys.slice(i0), series: live.map(s => ({ ...s, pts: s.pts.slice(i0) })) }
+    : { ind, inds, ys, series: live };
 }
 /* series breaks from the registry (`breaks`), placed on the axis: "2013K3" → that quarter or year 2013, "2023" → 2023 / 2023K1 */
 function chartBreaks(inds, ys) {
@@ -4586,8 +4721,13 @@ function chartSvgBar(withTitle) {
   const W = 1200, H = 640, L0 = 96, R = 170, T0 = withTitle ? 96 : 30, B = 70;
   if (!rows.length) return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-family="${CH_FONT}" font-size="18" fill="#8A8C81">Add areas with the search box — nothing to plot yet</text></svg>`;
   const pool = ents.length && ents.every(e => e.type === "osa_alue") ? OSA.areas : MUNI; const med = CH.median ? median(pool.map(p => V(p, ind.key))) : null;
-  const vals = rows.map(r => r.v).concat(med != null ? [med] : []); const lo = Math.min(0, ...vals), hi = Math.max(...vals) || 1;
+  const vals = rows.map(r => r.v).concat(med != null ? [med] : []);
+  /* W2 §3a — the value axis ends on a round number and always contains 0: a bar is read from the
+     zero line out, so that line is part of the scale, not a decoration */
+  const bax = chSpan(Math.min(0, ...vals), Math.max(0, ...vals), fmtTight(ind), 6) || SCL.niceTicks(Math.min(0, ...vals), Math.max(0, ...vals), 6);
+  const lo = bax.lo, hi = bax.hi;
   const labW = 260; const x0 = L0 + labW, x1 = W - R; const x = v => x0 + (v - lo) / (hi - lo || 1) * (x1 - x0);
+  const grid = bax.ticks.map(t => `<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${T0 - 4}" y2="${T0 + rows.length * Math.min(52, (H - T0 - B) / rows.length)}" stroke="#EFEFEA"/><text x="${x(t).toFixed(1)}" y="${(T0 + rows.length * Math.min(52, (H - T0 - B) / rows.length) + 18).toFixed(1)}" text-anchor="middle" font-family="${CH_MONO}" font-size="11" fill="#8A8C81">${esc(fmtTight(ind)(t))}</text>`).join("");
   const rowH = Math.min(52, (H - T0 - B) / rows.length), bh = rowH * .62;
   const bars = rows.map((r, i) => { const y = T0 + i * rowH + (rowH - bh) / 2; return `<text x="${x0 - 12}" y="${(y + bh / 2 + 5).toFixed(1)}" text-anchor="end" font-family="${CH_FONT}" font-size="15" fill="#16170F">${esc(r.name)}${r.inh ? " (kunta)" : ""}</text>
     <rect x="${x(Math.min(0, r.v)).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.abs(x(r.v) - x(0)).toFixed(1)}" height="${bh.toFixed(1)}" fill="${r.color}" rx="3"/>
@@ -4595,7 +4735,7 @@ function chartSvgBar(withTitle) {
   const medLine = med != null ? `<line x1="${x(med).toFixed(1)}" x2="${x(med).toFixed(1)}" y1="${T0 - 8}" y2="${T0 + rows.length * rowH}" stroke="#5C5F52" stroke-width="2" stroke-dasharray="7 5"/><text x="${(x(med) + 6).toFixed(1)}" y="${T0 - 12}" font-family="${CH_MONO}" font-size="12" fill="#5C5F52">${pool === MUNI ? "Finland median" : "Osa-alue median"} ${esc(fmtOf(ind)(med))}</text>` : "";
   const asof = asofText(ind);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${chTitleBlock(withTitle, ind, L0, `${ind.desc || ""}${asof ? " · as of " + asof : ""}`)}
-    <line x1="${x(0).toFixed(1)}" x2="${x(0).toFixed(1)}" y1="${T0}" y2="${T0 + rows.length * rowH}" stroke="#E6E6E0"/>${bars}${medLine}${chFoot(L0, H, ind, rows.some(r => r.inh) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : "")}</svg>`;
+    ${grid}<line ${chSigned(ind) ? 'data-testid="chart-zero" ' : ""}x1="${x(0).toFixed(1)}" x2="${x(0).toFixed(1)}" y1="${T0}" y2="${T0 + rows.length * rowH}" stroke="#4A4C43" stroke-width="1.5"/>${bars}${medLine}${chFoot(L0, H, ind, rows.some(r => r.inh) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : "")}</svg>`;
 }
 /* distributions from the building register: one donut per area */
 const DIST_DEFS = { size: ["Dwelling size", ["< 50 m²", "50–79 m²", "80–119 m²", "120+ m²"]], rooms: ["Rooms", ["1 room", "2 rooms", "3 rooms", "4+ rooms"]],
@@ -4623,33 +4763,50 @@ function chartSvgLine(withTitle) {
   const all = series.flatMap(s_ => s_.pts.map(p => p.v)).filter(v => v != null);
   const F = "Inter, 'Helvetica Neue', Arial, sans-serif", M = "'IBM Plex Mono', Menlo, monospace";
   if (!all.length) return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#FFFFFF"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-family="${F}" font-size="18" fill="#8A8C81">Add areas with the search box — nothing to plot yet</text></svg>`;
-  /* padding never pushes an all-positive scale below zero (counts and rates) */
-  const lo0 = Math.min(...all), hi0 = Math.max(...all), pad = (hi0 - lo0 || Math.abs(hi0) || 1) * .08; const lo = lo0 >= 0 ? Math.max(0, lo0 - pad) : lo0 - pad, hi = hi0 + pad, sp = hi - lo;
-  const x = i => L0 + i / (ys.length - 1) * (W - L0 - R), y = v => T0 + (1 - (v - lo) / sp) * (H - T0 - B);
-  const ticks = [0, .25, .5, .75, 1].map(t => lo + t * sp);
-  const paths = series.map(s_ => { let d = "", open = false; s_.pts.forEach((p, i) => { if (p.v == null) { open = false; return; } d += (open ? "L" : "M") + x(i).toFixed(1) + "," + y(p.v).toFixed(1); open = true; });
+  /* W2 §3 — nice ticks, the range off the years every series covers, a value outside it clipped and
+     marked. The 8 % padding this replaced could not put a tick on a round number and could not keep
+     one series' pre-merger spike from flattening every other line in the card. */
+  const ax = chAxis(series, ys, ind);
+  const lo = ax.lo, hi = ax.hi, sp = (hi - lo) || 1;
+  const x = i => L0 + i / Math.max(1, ys.length - 1) * (W - L0 - R), y = v => T0 + (1 - (v - lo) / sp) * (H - T0 - B);
+  const yc = v => y(Math.max(lo, Math.min(hi, v)));
+  const outOf = v => v > hi + 1e-9 ? "▲" : v < lo - 1e-9 ? "▼" : "";
+  const ticks = ax.ticks;
+  const paths = series.map(s_ => { let d = "", open = false; s_.pts.forEach((p, i) => { if (p.v == null) { open = false; return; } d += (open ? "L" : "M") + x(i).toFixed(1) + "," + yc(p.v).toFixed(1); open = true; });
     return `<path d="${d}" fill="none" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""} stroke-linejoin="round"/>` +
-      s_.pts.map((p, i) => p.v == null || s_.dash ? "" : `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${q ? 2.2 : 4}" fill="${s_.color}"><title>${esc(s_.name)} ${fmtP(p.y)}: ${fmtOf(ind)(p.v)}</title></circle>`).join(""); }).join("");
+      s_.pts.map((p, i) => { if (p.v == null) return ""; const o = outOf(p.v);
+        if (o) return `<text data-testid="chart-clip" x="${x(i).toFixed(1)}" y="${(yc(p.v) + (o === "▲" ? 14 : -5)).toFixed(1)}" text-anchor="middle" font-family="${M}" font-size="13" fill="${s_.color}">${o}<title>${esc(s_.name)} ${fmtP(p.y)}: ${fmtOf(ind)(p.v)} — off the scale</title></text>`;
+        return s_.dash ? "" : `<circle cx="${x(i).toFixed(1)}" cy="${yc(p.v).toFixed(1)}" r="${q ? 2.2 : 4}" fill="${s_.color}"><title>${esc(s_.name)} ${fmtP(p.y)}: ${fmtOf(ind)(p.v)}</title></circle>`; }).join(""); }).join("");
+  /* §3a — the zero line a signed indicator needs: darker than a gridline, drawn under the series */
+  const zeroLine = chSigned(ind) && lo <= 0 && hi >= 0
+    ? `<line data-testid="chart-zero" x1="${L0}" x2="${W - R}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#4A4C43" stroke-width="1.5"/>` : "";
+  const clipNote = chClipNote(ax, inds);
   /* series breaks: thin dotted marker, short label, the registry text as tooltip */
   const brks = chartBreaks(inds, ys).map(b => `<g><line x1="${x(b.idx).toFixed(1)}" x2="${x(b.idx).toFixed(1)}" y1="${T0}" y2="${H - B}" stroke="#8A8C81" stroke-width="1" stroke-dasharray="2 3"/>
     <text x="${(x(b.idx) + 5).toFixed(1)}" y="${T0 + 12}" font-family="${M}" font-size="11" fill="#8A8C81">break ${esc(fmtP(b.at))}</text>
     <line x1="${x(b.idx).toFixed(1)}" x2="${x(b.idx).toFixed(1)}" y1="${T0}" y2="${H - B}" stroke="transparent" stroke-width="12"><title>${esc(b.text)}</title></line></g>`).join("");
-  const legY = H - B + 46; const perRow = 3, colW = (W - L0 - R) / perRow;
+  /* the clipped-years note sits between the year labels and the legend, and pushes the legend down */
+  const legY = H - B + 46 + (clipNote ? 16 : 0); const perRow = 3, colW = (W - L0 - R) / perRow;
   const legend = series.map((s_, k) => { const lx = L0 + (k % perRow) * colW, ly = legY + Math.floor(k / perRow) * 24; const last = [...s_.pts].reverse().find(p => p.v != null);
     return `<line x1="${lx}" x2="${lx + 26}" y1="${ly - 4}" y2="${ly - 4}" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""}/><text x="${lx + 34}" y="${ly}" font-family="${F}" font-size="14" fill="#16170F">${esc(s_.name)}${s_.inherited ? " (kunta)" : ""}${last ? ` <tspan font-family="${M}" fill="#4A4C43">${esc(fmtOf(ind)(last.v))} (${fmtP(last.y)})</tspan>` : ""}</text>`; }).join("");
   const title = chTitleBlock(withTitle, ind, L0);
   const foot = `<text x="${L0}" y="${H - 14}" font-family="${M}" font-size="11" fill="#8A8C81">Source: ${esc(ind.source || "")} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${series.some(s_ => s_.inherited) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : ""}</text>`;
+  /* the clipped years are named on the chart itself, so the downloaded PNG carries the caveat too */
+  const note = clipNote ? `<text data-testid="chart-scale-note" x="${L0}" y="${H - B + 38}" font-family="${M}" font-size="11" fill="#8A8C81">${esc(chClip(clipNote, CH_W - L0 - CH_PAD, "11px " + CH_MONO))}<title>${esc(clipNote)}</title></text>` : "";
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${title}
     ${ticks.map(t => `<line x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#EFEFEA"/><text x="${L0 - 10}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-family="${M}" font-size="12" fill="#8A8C81">${esc(fmtTight(ind)(t))}</text>`).join("")}
+    ${zeroLine}
     ${ys.map((yy, i) => q && !yy.endsWith("K1") ? "" : `<text x="${x(i).toFixed(1)}" y="${H - B + 22}" text-anchor="middle" font-family="${M}" font-size="12" fill="#8A8C81">${q ? yy.slice(0, 4) : yy}</text>`).join("")}
-    ${brks}${paths}${legend}${foot}</svg>`;
+    ${brks}${paths}${legend}${note}${foot}</svg>`;
 }
 function vCharts() {
-  const ind = chartInd(), ys = chartYears(); const ents = CH.areas.map(chEntity).filter(Boolean);
+  const ind = chartInd(); const ents = CH.areas.map(chEntity).filter(Boolean);
   const quick = [["Top 5 municipalities", MUNI.slice().sort((a, b) => (b.pop || 0) - (a.pop || 0)).slice(0, 5).map(m => "kunta:" + m.code)],
                  ["Helsinki region metro", ["101", "147", "157", "159", "173", "230"].filter(c => byCode[c]).map(c => "kunta:" + c)],
                  ["Big four", ["101", "751", "461", "851"].filter(c => byCode[c]).map(c => "kunta:" + c)]];
-  const { series } = chartSeries(); const q = isQuarter(ys[0] || "");
+  /* the periods come from `chartSeries()`, which trims the leading years nothing is published for
+     (W2 §3c) — so the Data table under the chart lists exactly the columns the chart draws */
+  const { ys, series } = chartSeries(); const q = isQuarter(ys[0] || "");
   const hasNat = !!NAT && (NAT[ind.key] != null || !!(NAT.hist && NAT.hist[ind.key]));
   /* §4: a Helsinki-region osa-alue carries Helsingin kaupunki's own projection and a municipality carries
      Tilastokeskus's Väestöennuste 2024. They may be
@@ -5603,7 +5760,7 @@ function vProject() {
   <div class="grid-2">
     <div class="card">
       <div class="card-head"><h3>Where it runs</h3><span class="hint">over ${esc(curInd().short || curInd().label)}</span></div>
-      <div class="mapwrap"><div id="prmap"></div><div class="maplegend small" id="prlegend"></div></div>
+      <div class="mapwrap mini"><div id="prmap"></div>${legendPill()}<div class="maplegs mmlegs"><div class="maplegend small" id="prlegend"></div></div></div>
       <p class="cap" id="prmapnote" style="display:none"></p>
     </div>
     <div class="card">
@@ -5749,7 +5906,7 @@ function vPublic() {
   </div>
   <div class="grid-2">
     <div class="card"><div class="card-head"><h3>Where it is</h3><span class="hint">over ${esc(curInd().short || curInd().label)}</span></div>
-      <div class="mapwrap"><div id="prmap"></div><div class="maplegend small" id="prlegend"></div></div></div>
+      <div class="mapwrap mini"><div id="prmap"></div>${legendPill()}<div class="maplegs mmlegs"><div class="maplegend small" id="prlegend"></div></div></div></div>
     <div class="card"><div class="card-head"><h3>Details</h3><span class="hint">as the register publishes them</span></div>
       <table class="tbl compact"><tbody>
         <tr><th>Category</th><td>${esc(c.label)}</td></tr>

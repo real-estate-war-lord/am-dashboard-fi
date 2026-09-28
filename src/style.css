@@ -2239,3 +2239,51 @@ abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em
   .mapwrap.legs-open .maplegs{top:42px;right:8px;bottom:auto;left:auto;
     max-height:calc(100% - 54px);align-items:flex-end}
 }
+
+/* =====================================================================================
+   v2.2 W2 — maps and charts readable at a glance
+   ===================================================================================== */
+
+/* §1. The macro map's height is measured in `mkFitHeight()` and written as an inline style, because
+   the toolbar above it changes height with the indicator, the quick chips, a dropped pin's card and
+   a drilled kunta's figure strip — a fixed `calc(100vh - 250px)` cannot know any of that, and at
+   1366 × 768 it gave a 518-px map where the plan asks for at least 560. The rule here is the floor
+   for the moment before the first measurement; the measured inline value outranks it. */
+@media (min-width:1025px){#lfmap{height:clamp(560px,calc(100vh - 200px),1040px)}}
+
+/* §2. A mini map's legends are guests on a map that is already small: five open cards took 40–60 %
+   of it for something the reader had not asked for. One `Legend ▾` pill, bottom-left — clear of
+   Leaflet's zoom control (top-left), of its attribution (bottom-right) and of the card head's ⤢ —
+   and the stack opens over the map only when it is clicked. Below 1025 px the phone rules already
+   do exactly this and put the pill top-right, where it cannot cover the attribution (LEG5), so this
+   is scoped above them rather than layered over them. */
+@media (min-width:1025px){
+  .mapwrap.mini>.maplegs,.mapwrap.mini>.maplegend{display:none}
+  .mapwrap.mini.legs-open>.maplegs{display:flex}
+  .mapwrap.mini.legs-open>.maplegend{display:block}
+  .mapwrap.mini>.legpill{display:inline-flex;left:8px;bottom:8px;top:auto;right:auto}
+}
+/* the open stack grows upward from the pill rather than jumping to the opposite corner, takes at
+   most half a mini map and scrolls inside itself */
+@media (min-width:1025px){
+  .mapwrap.mini.legs-open>.maplegs{left:8px;right:auto;top:auto;bottom:40px;
+    align-items:flex-start;max-height:50%}
+}
+.mmlegs{max-height:50%}
+
+/* The macro map keeps every legend open and now takes at most 60 % of the map (it was 72 %). At
+   1366 × 768 that is 336 px, and five cards at v2.1's spacing came to 382 — so the stack is denser
+   by exactly the things that were slack in it: the gap between cards, each card's padding, the row
+   leading, and a wider note column that turns three wrapped lines into one. */
+.mklegs{max-height:60%;gap:6px}
+.mklegs .maplegend{padding:6px 9px 5px}
+.mklegs .maplegend .lgrow{padding:0}
+.mklegs .maplegend .lgnote{max-width:250px;margin-top:4px}
+.mklegs .maplegend .lgtitle{margin-bottom:4px}
+
+/* §3. A chart's zero line is darker than a gridline: on a signed indicator it is what the values
+   are read against, not one tick among six. A point the axis cannot reach is drawn on the edge as
+   ▲ / ▼ in its series colour and keeps the real figure in its tooltip. */
+.czero{stroke:var(--ink2);stroke-width:1.4}
+.clipmk{font-family:var(--mono);font-size:11px}
+.chclip{color:var(--ink2);font-style:italic}

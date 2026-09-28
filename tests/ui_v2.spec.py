@@ -18,6 +18,7 @@ from __future__ import annotations
 import functools
 import http.server
 import json
+import math
 import os
 import pathlib
 import re
@@ -896,6 +897,7 @@ def _tp_legends(page, base):
     """the infra and public-building legends stack inside the map and never overlap"""
     goto(page, base, PROP + "&lay=infra,public")
     page.wait_for_timeout(3500)
+    open_legends(page)     # W2 §2: they start behind the pill now — the stacking rule is unchanged
     mapbox = boxes(page, "[data-testid=minimap] .mapwrap")[0]
     legs = [b for b in boxes(page, "[data-testid=minimap] .maplegend") if b["w"] > 4 and b["h"] > 4]
     assert len(legs) >= 3, len(legs)
@@ -1879,7 +1881,18 @@ def mini_markers(page, kind):
     }""", kind)
 
 
+def open_legends(page, scope="[data-testid=minimap]"):
+    """v2.2 W2 §2 — a mini map keeps every legend behind one `Legend ▾` pill at every width, so a
+    check that asks whether a legend is live has to open the stack first. Idempotent, and a no-op
+    on a map whose legends are already shown (the macro map)."""
+    page.evaluate("""s => { const w = document.querySelector(s + ' .mapwrap');
+        if (w && !w.classList.contains('legs-open')) { const p = w.querySelector('.legpill');
+            if (p && p.offsetParent !== null) p.click(); } }""", scope)
+    page.wait_for_timeout(200)
+
+
 def legend_live(page, testid):
+    open_legends(page)
     return page.evaluate("""s => { const e = document.querySelector(s);
         return !!(e && e.offsetHeight > 0 && e.textContent.trim()); }""",
                          f"[data-testid=minimap] [data-testid={testid}]")
@@ -2913,6 +2926,279 @@ def _w1_school_override(page, base):
     page.wait_for_timeout(2500)
     txt = body_text(page)
     assert "Oulu" in txt and "Helsinki" not in txt.split("Sources")[0], txt[:300]
+
+
+# ===========================================================================
+# W2 — maps and charts readable at a glance
+# ===========================================================================
+
+# a number as the page writes it (fi-FI: comma decimal, no-break-space groups, U+2212 minus)
+_NUM_CHARS = "0123456789,.+-−"
+
+
+def fi_num(s):
+    t = "".join(c for c in (s or "") if c in _NUM_CHARS)
+    t = t.replace("−", "-").replace(",", ".").replace("+", "")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def is_nice_step(step, tol=0.02):
+    """1, 2, 2.5 or 5 times a power of ten — the only gridline spacings W2 §3a allows"""
+    if not step or step <= 0:
+        return False
+    m = step / (10 ** math.floor(math.log10(step)))
+    return any(abs(m - x) <= x * tol for x in (1, 2, 2.5, 5, 10))
+
+
+@check("W2-map-card-tall-1366", phase="W2", viewport="1366x768")
+def _w2_map_tall_1366(page, base):
+    """the map card fills the window below its toolbar and is at least 560 px at 1366x768"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    vh = page.evaluate("window.innerHeight")
+    assert b["h"] >= 560, ("the map is shorter than the 560 px floor", b["h"], vh)
+    # it fills the window rather than reaching far past it — the toolbar above is ~230 px here,
+    # so the 560 floor may push the very bottom edge a little below the fold, never a screenful
+    assert b["bottom"] <= vh + 96, (b, vh)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W2-map-card-tall-1440", phase="W2", viewport="1440x900")
+def _w2_map_tall_1440(page, base):
+    """at 1440 the same map ends inside the window: measured, not a fixed calc()"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    vh = page.evaluate("window.innerHeight")
+    assert b["h"] >= 560, (b["h"], vh)
+    assert b["bottom"] <= vh + 4, (b, vh)
+
+
+@check("W2-map-card-tall-1536", phase="W2", viewport="1536x864")
+def _w2_map_tall_1536(page, base):
+    """and at 1536 — the height follows the window, it is not one number for every laptop"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    assert b["h"] >= 560, b
+    assert b["bottom"] <= page.evaluate("window.innerHeight") + 4, b
+
+
+@check("W2-map-height-mobile-untouched", phase="W2", viewport="390x844")
+def _w2_map_mobile(page, base):
+    """a phone keeps the 55vh map: the desktop floor must not be forced on it"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    assert 300 <= b["h"] <= 560, b
+    assert no_overflow(page), "the page scrolls sideways"
+
+
+@check("W2-map-fits-finland", phase="W2")
+def _w2_fit_finland(page, base):
+    """the national view frames Finland tightly — the drawn polygons, not a hand-typed box"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2800)
+    st = page.evaluate("""() => { const m = window.__maps[0]; if (!m) return null;
+        const b = m.getBounds();
+        return {n: b.getNorth(), s: b.getSouth(), z: m.getZoom(), h: m.getSize().y}; }""")
+    assert st, "the macro map did not initialise"
+    # Finland reaches 59.8 N (Hanko) to 70.09 N (Utsjoki): the view contains it …
+    assert st["s"] <= 60.2 and st["n"] >= 69.7, st
+    # … and wastes little doing so. zoomSnap .25 lets the fit land between whole zooms, so the
+    # visible span may exceed Finland's own 10.3 degrees by at most one quarter-zoom step.
+    assert (st["n"] - st["s"]) <= 10.3 * 1.40, ("the map is not fitted to Finland", st)
+    # a drilled kunta is fitted to the kunta, not left at the national frame
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(3000)
+    k = page.evaluate("""() => { const m = window.__maps[0]; const b = m.getBounds();
+        return {n: b.getNorth(), s: b.getSouth(), z: m.getZoom()}; }""")
+    assert k["n"] - k["s"] <= 1.0, ("a drilled kunta still shows the whole country", k)
+    assert 59.8 <= (k["n"] + k["s"]) / 2 <= 60.6, k
+
+
+@check("W2-minimap-legend-pill", phase="W2")
+def _w2_minimap_pill(page, base):
+    """§2 — a mini map's legends start behind one `Legend ▾` pill and, opened, take at most half
+    the map, scrolling inside it rather than growing over it"""
+    for h in [AREA + "?ind=growth", PROP + "&lay=infra,public", "#project/kruunusillat"]:
+        goto(page, base, h)
+        page.wait_for_timeout(3200)
+        wrap = boxes(page, ".mapwrap.mini")
+        assert wrap, (h, "the mini map's wrap is not marked .mini")
+        w = wrap[0]
+        for lg in boxes(page, ".mapwrap.mini .maplegend"):
+            assert lg["h"] <= 4, (h, "a mini-map legend is open before it is asked for", lg)
+        pill = boxes(page, ".mapwrap.mini .legpill")
+        assert pill, (h, "no Legend pill on a mini map")
+        p = pill[0]
+        assert p["x"] >= w["x"] - 1 and p["bottom"] <= w["bottom"] + 1, (h, "the pill hangs outside the map", p, w)
+        for other in boxes(page, ".mapwrap.mini .leaflet-control-zoom") + boxes(page, "[data-mmfull]"):
+            assert not overlap(p, other), (h, "the pill covers a control", p, other)
+        page.click(".mapwrap.mini .legpill")
+        page.wait_for_timeout(400)
+        # the click scrolls the pill into view, so the map's own box has to be read again
+        w = boxes(page, ".mapwrap.mini")[0]
+        st = [b for b in boxes(page, ".mapwrap.mini .maplegs") if b["h"] > 4]
+        assert st, (h, "the pill did not open the stack")
+        assert st[0]["h"] <= w["h"] * .5 + 2, (h, "the open stack is more than half the map", st[0]["h"], w["h"])
+        assert st[0]["x"] >= w["x"] - 2 and st[0]["right"] <= w["right"] + 2, (h, st[0], w)
+        assert st[0]["y"] >= w["y"] - 2 and st[0]["bottom"] <= w["bottom"] + 2, (h, st[0], w)
+        legs = [b for b in boxes(page, ".mapwrap.mini .maplegend") if b["w"] > 4 and b["h"] > 4]
+        assert legs, (h, "the open stack is empty")
+        for i, a in enumerate(legs):
+            assert a["x"] >= w["x"] - 2 and a["right"] <= w["right"] + 2, (h, "a legend hangs outside its map", a)
+            for c in legs[i + 1:]:
+                assert not overlap(a, c), (h, a, c)
+        assert page.get_attribute(".mapwrap.mini .legpill", "aria-expanded") == "true", h
+
+
+@check("W2-main-legends-under-60", phase="W2")
+def _w2_main_legends(page, base):
+    """§2 — the macro map keeps its legends open, and the stack never takes more than 60 % of it"""
+    goto(page, base, "#map/091?ind=flood_sea_100&infra=1&public=1&services=1")
+    page.wait_for_timeout(3800)
+    m = boxes(page, "#lfmap")[0]
+    st = [b for b in boxes(page, ".mklegs") if b["h"] > 4]
+    assert st, "no legend stack on the macro map"
+    assert st[0]["h"] <= m["h"] * .6 + 2, ("the macro legend stack is over 60 % of the map", st[0]["h"], m["h"])
+    assert st[0]["y"] >= m["y"] - 2 and st[0]["bottom"] <= m["bottom"] + 2, (st[0], m)
+    assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetHeight > 10"), \
+        "the macro map's indicator legend is not open"
+    # and 60 % is enough for every legend at once: the cap must not be hiding one behind a scrollbar
+    fit = page.evaluate("""() => { const e = document.querySelector('.mklegs');
+        return {scroll: e.scrollHeight, client: e.clientHeight}; }""")
+    assert fit["scroll"] <= fit["client"] + 2, ("the macro legend stack has to be scrolled", fit, m["h"])
+
+
+@check("W2-chart-nice-ticks", phase="W2")
+def _w2_nice_ticks(page, base):
+    """§3a — y ticks are 1 / 2 / 2,5 / 5 × 10^n apart, include 0 where the range crosses it, and a
+    signed indicator gets a zero line of its own"""
+    for h, sel in [("#charts?ind=growth&a=kunta:091", "#chsvg text[text-anchor=end]"),
+                   (AREA + "?ind=growth", "[data-testid=chart-panel] svg.chart:not(.dist) text.ax[text-anchor=end]")]:
+        goto(page, base, h)
+        page.wait_for_timeout(3000)
+        raw = texts(page, sel)
+        vals = [v for v in (fi_num(t) for t in raw) if v is not None]
+        assert len(vals) >= 3, (h, "fewer than three y ticks", raw)
+        steps = [abs(vals[i] - vals[i + 1]) for i in range(len(vals) - 1)]
+        assert min(steps) > 0, (h, "two ticks carry the same value", vals)
+        assert max(steps) - min(steps) <= max(steps) * .03, (h, "the ticks are not evenly spaced", vals)
+        assert is_nice_step(steps[0]), (h, "not a nice step", steps[0], vals)
+        if min(vals) < 0 < max(vals):
+            assert any(abs(v) < 1e-9 for v in vals), (h, "0 is not on the axis", vals)
+            assert page.query_selector("[data-testid=chart-zero]"), (h, "no zero line on a signed indicator")
+        assert not ERRORS, (h, ERRORS[:3])
+
+
+@check("W2-chart-x-starts-with-data", phase="W2")
+def _w2_x_start(page, base):
+    """§3c — the x axis starts at the first period any plotted series has a figure for"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091,osa_alue:091010")
+    page.wait_for_timeout(3600)
+    row = page.evaluate("""() => {
+      const t = [...document.querySelectorAll('table.tbl')].find(
+          x => /^(Year|Osa-alue)$/.test(((x.querySelector('thead th') || {}).textContent || '').trim()));
+      if (!t) return null; const tr = t.querySelector('tbody tr'); if (!tr) return null;
+      return {p: tr.cells[0].textContent.trim(),
+              vals: [...tr.cells].slice(1).map(c => c.textContent.trim())}; }""")
+    assert row, "no Data table under the chart"
+    assert any(v and v != "–" for v in row["vals"]), ("the first period on the axis is empty", row)
+    xs = [t.strip() for t in texts(page, "#chsvg text[text-anchor=middle]") if re.fullmatch(r"\d{4}", t.strip())]
+    assert xs, "no year labels on the x axis"
+    assert xs[0] == row["p"][:4], ("the chart and its Data table start on different years", xs[:3], row["p"])
+
+
+@check("W2-chart-outlier-scale", phase="W2")
+def _w2_outlier_scale(page, base):
+    """§3b — the range comes from the years every series shares; a point outside it is clipped,
+    marked and named, never dropped"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(2400)
+    # the rule itself, on the page's own module: an osa-alue published from 2014 against a median
+    # whose 2011–2012 jumps ±17 % where the areas were redrawn
+    ax = page.evaluate("""() => { const S = window.SCALE_CORE; if (!S) return null;
+        const ys = ['2011','2012','2013','2014','2015','2016'];
+        const mk = v => ({pts: v.map((x, i) => ({y: ys[i], v: x}))});
+        const a = S.axis([mk([null, null, null, 1.2, 0.9, 1.5]),
+                          mk([17.6, -7.8, 0.4, 0.5, 0.6, 0.7])], ys, {});
+        return {lo: a.lo, hi: a.hi, clipped: a.clipped, note: a.note, ticks: a.ticks}; }""")
+    assert ax, "window.SCALE_CORE is not in the page"
+    assert ax["hi"] < 17.6 and ax["lo"] > -7.8, ("the outlier still sets the scale", ax)
+    assert ax["clipped"] == ["2011", "2012"], ax
+    assert ax["note"] == "scale excludes 2011–2012", ax
+    # the surviving range is the shared years', and its ticks are still nice ones
+    assert ax["lo"] <= 0.5 and ax["hi"] >= 1.5, ax
+    assert is_nice_step(ax["ticks"][1] - ax["ticks"][0]), ax
+    # and the drawn contract: a note and a ▲/▼ marker always come together
+    seen = page.evaluate("""() => ({note: !!document.querySelector('[data-testid=chart-scale-note]'),
+                                   mark: !!document.querySelector('[data-testid=chart-clip]')})""")
+    assert seen["note"] == seen["mark"], ("a clipped-scale note without markers, or the reverse", seen)
+
+
+@check("W2-chart-one-title", phase="W2")
+def _w2_one_title(page, base):
+    """§4 — the chart card head is the area and the period, not the picker's label again"""
+    goto(page, base, AREA + "?ind=growth")
+    page.wait_for_timeout(2800)
+    t = (page.text_content("[data-testid=panel-title]") or "").strip()
+    assert "Helsinki" in t, t
+    assert re.search(r"\d{4}–\d{4}", t), ("no period in the chart card head", t)
+    picker = (page.text_content("[data-testid=ind-picker]") or "").strip()
+    assert picker, "the indicator picker is gone"
+    for word in ("Population growth", "Growth"):
+        assert word not in t, ("the card head repeats the picker", t, picker)
+    # the unit is still said, once, in the same head
+    hints = [x for x in texts(page, "[data-testid=chart-panel] .card-head .hint") if x]
+    assert len(hints) == 1, hints
+    # and the mini map beside it still names the indicator
+    assert "Growth" in (page.text_content("[data-testid=minimap] .card-head h3") or ""), \
+        "the indicator is named nowhere next to the chart"
+
+
+@check("W2-info-strip-level", phase="W2")
+def _w2_info_level(page, base):
+    """§5 — the info strip names the layer the map is drawing, and changes when a kunta is opened"""
+    def level_tag():
+        return (page.text_content("#mkexplain [data-testid=ind-level]") or "").strip()
+
+    def polys():
+        return len(page.query_selector_all("#lfmap path.leaflet-interactive"))
+
+    # growth is published per postal code; nationally the map draws one polygon per kunta
+    goto(page, base, "#map?ind=growth")
+    page.wait_for_timeout(3000)
+    tag, n = level_tag(), polys()
+    assert "municipalities" in tag, tag
+    assert "postal-code level" not in tag, ("the strip still claims the publication level", tag)
+    assert "zoom in for postal codes" in tag, ("it does not say there is a finer level", tag)
+    assert n > 200, ("the national map is not drawing kunta polygons", n)
+
+    # a kunta-level indicator (crime_1000) has nothing finer to promise
+    goto(page, base, "#map?ind=crime_1000")
+    page.wait_for_timeout(2600)
+    tag = level_tag()
+    assert "municipalities" in tag and "zoom in" not in tag, tag
+
+    # opened, the same strip names the sub-areas that are now on screen: Tampere's postal codes …
+    goto(page, base, "#map/837?ind=growth")
+    page.wait_for_timeout(3800)
+    tag, n = level_tag(), polys()
+    assert "postal codes" in tag, tag
+    assert "municipalities" not in tag, tag
+    assert 5 <= n <= 200, ("the drilled map is not drawing postal codes", n)
+    # … and Helsinki's osa-alueet, which is what `muniAreas()` actually hands the map there
+    goto(page, base, "#map/091?ind=growth")
+    page.wait_for_timeout(3800)
+    tag = level_tag()
+    assert "osa-alueet" in tag, tag
+    assert "municipalities" not in tag and "postal codes" not in tag, tag
+    assert not ERRORS, ERRORS[:3]
 
 
 # ===========================================================================

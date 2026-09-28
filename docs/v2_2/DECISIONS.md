@@ -87,3 +87,103 @@ The decisions v2.0 took are in `docs/UI_PLAN.md` §2 (D1–D16) and v2.1's are i
   `bld_m2_per_dwelling`) are **left alone and flagged instead**: that violet is within 6° of the
   projection family hue, which is the same fault one group over, and picking a second new hue
   unreviewed would have been a bigger change than the audit row asks for.
+- **W2** — **The map card's height is measured in JavaScript, not written in CSS.** The plan asks for
+  "fill the viewport below the toolbar, min 560 px at 1366 × 768", and no `calc(100vh - X)` can
+  honour both halves of that: the chrome above the map is between ~230 px (national view, one
+  toolbar row) and ~300 px (a drilled kunta, whose figure strip and pin card sit between the strip
+  and the map), so v2.1's `100vh - 250px` gave 518 px at 768 and overshot the window at 900.
+  `mkFitHeight()` reads the map's own top edge, subtracts 42 px for the collapsed *Data information*
+  line under it, clamps to [560, 1040] and writes an inline height; it is re-run on resize, on every
+  toolbar refresh, when a pin card appears and on entering or leaving full screen (where it clears
+  the inline value so the `:fullscreen` rule can win). **Below 1025 px it clears the inline height
+  and the phone's own `55vh` rule owns it** — a 560-px map under a phone's tall toolbar would push
+  the source note two screens down, and `V6-legend-pill-clear-390` and `P9-*` describe that layout.
+- **W2** — **Finland is framed by the polygons that are drawn, not by `FI_BOX`.** `FI_BOX` is a
+  hand-typed rectangle that reaches past the last kunta on every side; fitting it added a band of
+  empty sea to the empty flanks a tall country in a wide card already costs. `fiBounds()` is
+  `boundsOf(MUNI)` (every kunta's own inline bbox, so no fetch is waited on) and falls back to
+  `FI_BOX`. `zoomSnap` goes from 0.5 to **0.25**, which is what lets the fit land between whole
+  zooms rather than rounding down and giving the space straight back. The camera is fitted when the
+  national view is opened and again whenever the reader comes back up from a kunta — a pan on the
+  national map is theirs to keep (`LF.fitted`) — and a drilled kunta is fitted by `applyPendingFit()`
+  at 8 px rather than 12.
+- **W2** — **A mini map's legends live behind one `Legend ▾` pill at every width; the macro map's
+  stay open.** The pill and the collapse were built in v2.1 for ≤ 1024 px only (spec §6); on a
+  desktop the area page, the property page and the two sheets still opened with 40–60 % of a 360–460
+  px map under legend cards nobody had asked for. `.mapwrap` gains a `mini` class, the rules are
+  scoped `@media (min-width:1025px)` so the phone's own geometry (pill top-right, clear of Leaflet's
+  attribution — LEG5) is untouched, and the opened stack is anchored above the pill at bottom-left
+  rather than jumping to the opposite corner. The two sheet maps (`#prmap` on the project and
+  public-building sheets) had a bare `.maplegend` with no stack and no fold at all; they now use the
+  same `.maplegs` and pill, and `prlegend` joins `mmFoldable()`'s "starts open" list because it is a
+  choropleth legend like the other three, not a feature layer.
+- **W2** — **The macro stack's cap goes 72 % → 60 %, and the legends are made to fit it rather than
+  scroll.** 60 % of the 560-px floor is 336 px and five cards at v2.1's spacing measured 382, so
+  `P10-legends-inside-map`'s "the stack never has to be scrolled" would have broken. The 46 px came
+  out of slack: the gap between cards (8 → 6), each card's padding, the row leading, a 250-px note
+  column instead of 190 — and the indicator legend no longer repeats **which level is drawn**, now
+  that the info strip above the map says it. What is left of that note is the one thing the strip
+  cannot say: *"postal codes take the kunta's value"*.
+- **W2** — **One shared chart axis, in `src/scale_core.js` (`window.SCALE_CORE`), with
+  `node --test tests/scale.test.js`.** Ticks are 1 / 2 / 2,5 / 5 × 10^n and the range is widened out
+  to whole steps instead of padded by 8 %, which is what puts **0 on a gridline whenever the range
+  crosses zero** — every tick is a multiple of the step, so it cannot be otherwise. An all-positive
+  range is never widened below 0 (a count has no negative part), and the number of ticks is reduced
+  until no two carry the same label under the indicator's own format. The area page, the property
+  page, the Charts view and the downloaded PNG all read it, so they cannot disagree. The two panel
+  charts with an axis but no year series — the climate bars and the population outlook — go through
+  the same module by way of a two-point series (`chSpan()`), because the fault §3a describes was
+  worst in them: the climate bars drew their middle gridline at `hi / 2`, wherever the taller bar
+  happened to end, and labelled it with a rounded number a reader would then measure against.
+- **W2** — **The y-range comes from the years every plotted series covers, and nothing is dropped.**
+  The plan's case: an osa-alue published from 2014 against the median of all osa-alueet, whose
+  2011–2012 jumps ±17 % where areas were redrawn — the area's own line rendered as a flat thread.
+  The shared years are the ones a reader can actually compare, so they set the scale; a value the
+  axis cannot reach is drawn **on the edge with a ▲ / ▼ in its series colour**, keeps the real figure
+  in its tooltip, and the years the scale leaves out are named in a note under the chart (and inside
+  the SVG, so the PNG carries it too). A single series excludes nothing — its own years *are* the
+  shared ones.
+- **W2** — **The note says "scale excludes 2011–2012 (years not every series shown covers)", not
+  "(area boundaries changed)".** The plan's example wording names a *cause*. Nothing in this edition's
+  data records one: `breaks` is read by `chartBreaks()` but no indicator in `config/indicators.json`,
+  `makro.json` or `osa_alue.json` carries a single entry, and Aluesarjat's own metadata says nothing
+  about 2011–2012 either. So the parenthesis is taken from `breaks[].text` when the registry has one
+  for a clipped year, and is otherwise the fact the chart can prove. A boundary change is a claim
+  about the publisher's geography, not something to infer from a jump — hard data only.
+- **W2** — **The x axis is trimmed inside `chartSeries()`, not in the drawing code.** The Charts
+  view's Data table and its CSV read the same function, so trimming the leading periods nothing is
+  published for in one place keeps all three describing the same years; `vCharts()` now takes `ys`
+  from `chartSeries()` rather than calling `chartYears()` a second time. The trim is skipped when it
+  would leave fewer than two periods.
+- **W2** — **The chart card's heading is the area and the period; the indicator keeps its two other
+  names.** "POPULATION GROWTH" in caps sat directly under the picker button that said "Growth ▾", and
+  told the reader nothing they had not just clicked. The head is `Helsinki · 2011–2025` (the years
+  the *area's own* series covers, the projection window for an Outlook indicator, the as-of for
+  anything published once), the unit stays in the head's hint exactly once, and the indicator is
+  still named on the picker and on the mini map beside the chart. The Charts view's own SVG title is
+  **left alone**: it is what the downloaded PNG is identified by, and a reader who opens that file
+  weeks later has nothing else to tell them which indicator it is.
+- **W2** — **The info strip names the level the map draws, and it is the only place that claim is
+  made.** It carried `i.level`, the indicator's *publication* level, so the national map — one
+  polygon per kunta — read "postal-code level" whenever a Paavo indicator was selected.
+  `mapDrawLevel()` answers from the same predicate `muniAreas()` uses (`subLevelOf()`), so the tag
+  and the polygons cannot drift: *municipalities drawn · zoom in for postal codes* nationally,
+  *postal codes drawn* inside Tampere, *osa-alueet drawn* inside Helsinki (where the Helsinki-region
+  drill really is by osa-alue), *buildings drawn* in Buildings mode. `mkLevelTag()` rewrites the tag
+  in place at the end of `lfLayers()`, so a zoom or a drill updates it without a re-render, and the
+  tag's `title` still gives the publication level. On the table view, which draws no map, the tag is
+  unchanged.
+- **W2** — **Two v2.1 checks are adapted rather than weakened, because §2 voids their premise.**
+  `legend_live()` (used by six V4/V5 assertions) and `P6-legends-stack` asserted that a mini map's
+  legends are *visible*; behind a pill they are not, so both now open the stack first through one new
+  `open_legends()` helper — what each then asserts about the legend is unchanged.
+  `P10-legends-inside-map` is left exactly as it was: its per-legend geometry loop skips a hidden
+  stack, so on its two mini-map routes it now checks nothing, and `W2-minimap-legend-pill` makes the
+  same inside-the-map and never-overlapping assertions about the *opened* stack instead.
+- **W2** — **`src/app.js` ends the phase 3,0 KB under its 460 KB ceiling, and W3 should move a module
+  out before adding to it.** The honest candidates are already pure: `pip` / `bboxOf` / `inBox` /
+  `areaOf` and `havM` / `featDistM` / `R_EARTH` are DOM-free, state-free geometry with no test file of
+  their own — a `src/geom_core.js` plus `tests/geom.test.js` would free ~3,5 KB and gain coverage.
+  W2 did not do it because it is not a W2 item, and an unattended refactor of the point-in-polygon
+  code that places every pin, school and public building is the wrong risk to take for a budget that
+  is not yet breached.
