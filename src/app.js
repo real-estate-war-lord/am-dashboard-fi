@@ -29,6 +29,10 @@ const IND = D.indicators || [];
 const MUNI = D.municipalities || [];
 const AREAS = D.areas || [];
 const LOCALE = "fi-FI";
+/* The release this page is. One constant, read by the sidebar build line and by nothing else —
+   v2.0 spelled it into the footer's markup, so the line still said `v2.0` a whole release after
+   v2.1 shipped. A version that is written twice is a version that goes stale in one of them. */
+const APP_VERSION = "2.2";
 
 /* ---------- helpers ---------- */
 const nf = (n, d = 1) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleString(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -38,19 +42,24 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&am
    ON the number. v1.1 printed a price per square metre as "5 225 EUR" and a monthly rent per square
    metre as "21,3 EUR", which read as a total price and a total rent. */
 const unitLabel = i => String((i && i.unit) || "").replace(/\s*\/\s*/g, "/").replace(/€/g, "EUR");
+/* A year is a label, not a quantity: `1 987` is not a number of anything, and fi-FI's thousands
+   space made the buildings legend read `1 987 — 2 000`. Every year on screen goes through here —
+   the legend bins, the axis ticks and a building's "Completed" row — and none of them ever gets a
+   group separator. (`nf(v, 0)` is still right for a count of dwellings, which *is* a quantity.) */
+const fmtYear = v => (v == null || isNaN(v)) ? "–" : String(Math.round(Number(v)));
 const FMT = {
   pct0: v => nf(v, 0) + " %", pct1: v => nf(v, 1) + " %", pct2: v => nf(v, 2) + " %", signpct1: v => sign(v, x => nf(x, 1) + " %"),
   keur: v => nf(v / 1000, 0) + " k€", eur0: v => nf(v, 0) + " EUR", eur1: v => nf(v, 1) + " EUR",
   int: v => nf(v, 0), days: v => nf(v, 0) + " d", m2: v => nf(v, 0) + " m²", per1000: v => per1000(v) + " / 1,000", idx: v => nf(v, 1),
-  bq: v => nf(v, 0) + " Bq/m³",
-  /* grade points: signed, one decimal, no unit — the socioeconomic reference difference */
+  bq: v => nf(v, 0) + " Bq/m³", year: fmtYear,
+  /* grade points: signed, one decimal, no unit — a school's difference from its kunta or Finland */
   signdec1: v => sign(v, x => nf(x, 1))
 };
 /* rates per 1,000 (crime, homes for sale): no % sign — the unit is in the label, the legend title and the column head.
    Whole numbers once the rate is large enough for a decimal to be noise. */
 const per1000 = v => nf(v, Math.abs(v) >= 20 ? 0 : 1);
 /* map labels, legend bins, chart axis ticks: value only — the unit is in the title above them */
-const FMT_TIGHT = { per1000, eur0: v => nf(v, 0), eur1: v => nf(v, 1), keur: v => nf(v / 1000, 0) };
+const FMT_TIGHT = { per1000, eur0: v => nf(v, 0), eur1: v => nf(v, 1), keur: v => nf(v / 1000, 0), year: fmtYear };
 const EUR_DEC = { eur0: 0, eur1: 1 };
 function fmtOf(i) {
   /* a money figure carries its own denominator: EUR/m², EUR/m²/month, EUR/yr */
@@ -314,7 +323,7 @@ const MICRO = {};                                  /* code → {meta, b:[…]} o
    and "Small dwellings < 50 m²" — have no Finnish equivalent, so they are not offered as
    options that would always be blank. `col` is the column in the packed row. */
 const MICRO_INDS = [
-  { key: "year", label: "Year built", short: "Built", unit: "year", fmt: "int", hue: [10, 88, 70], col: 6 },
+  { key: "year", label: "Year built", short: "Built", unit: "year", fmt: "year", hue: [10, 88, 70], col: 6 },
   { key: "dwellings", label: "Dwellings in building", short: "Dwellings", unit: "dwellings", fmt: "int", hue: [150, 90, 30], col: 2 },
   { key: "avg_m2", label: "Floor area per dwelling", short: "m² / dwelling", unit: "m²", fmt: "m2", hue: [90, 60, 150], col: 5 },
   { key: "floors", label: "Floors", short: "Floors", unit: "floors", fmt: "int", hue: [92, 110, 140], col: 7 },
@@ -388,6 +397,8 @@ const T = { q: "", level: "kunta", region: "", minPop: 0 };                     
 const REGIONS = [...new Set(MUNI.map(m => m.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, LOCALE));
 /* the country box from docs/BUILD_PLAN_FI.md: 59.7–70.1 N, 19.0–31.6 E (mainland + Åland) */
 const FI_BOX = [[59.7, 19.0], [70.1, 31.6]];
+/* the centre of that box — what a map opens on before it knows what it is framing */
+const FI_CENTER = [(FI_BOX[0][0] + FI_BOX[1][0]) / 2, (FI_BOX[0][1] + FI_BOX[1][1]) / 2];
 const LF = { map: null, center: [64.8, 26.0], zoom: 5 };
 
 /* ---------- Leaflet lifecycle ----------
@@ -672,7 +683,7 @@ function renderNav() {
     ids.map(id => { const v = viewOf(id), h = id === "property" ? anNavLink() : id === "table" ? dataTabHash(dataTab()) : v[3];
       return `<button class="nav-item ${on === id ? "on" : ""}" data-testid="nav-item" data-go="${esc(h)}" title="${esc(v[2])}"><b>${v[1]}</b></button>`; }).join("")).join("");
   const foot = document.getElementById("sidefoot");
-  if (foot) foot.innerHTML = exportBtn("foot") + `<div class="buildline">built ${esc((D.meta && D.meta.built) || "—")} · v2.0</div>`;
+  if (foot) foot.innerHTML = exportBtn("foot") + `<div class="buildline">built ${esc((D.meta && D.meta.built) || "—")} · v${esc(APP_VERSION)}</div>`;
 }
 /* Data's three tabs. `navHas` keeps Projects out of the bar until the infrastructure file exists. */
 const navHas = id => id !== "projects" || INFRA_ALL.length > 0;
@@ -840,7 +851,7 @@ document.addEventListener("change", e => {
   if (el.id === "chmed") { CH.median = el.checked; syncHash(); renderKeep(); }
   if (el.id === "chdist") { CH.dist = el.value; syncHash(); renderKeep(); }
   if (el.id === "chq") { chartAdd(null, el.value); }
-  if (el.id === "chtitle") { CH.title = el.value; const t = document.getElementById("chsvgtitle"); if (t) t.textContent = CH.title || chartAutoTitle(); }
+  if (el.id === "chtitle") { CH.title = el.value; chTitleLive(); }
   if (el.id === "mf-type") { MF.type = el.value; lfLayers(); mfBtn(); }
   if (["mf-mindw", "mf-yfrom", "mf-yto"].includes(el.id)) { MF.minDw = Number(document.getElementById("mf-mindw").value) || 1; MF.yFrom = document.getElementById("mf-yfrom").value; MF.yTo = document.getElementById("mf-yto").value; lfLayers(); mfBtn(); }
   if (el.id === "pptype") { PIPE.type = el.value; syncHash(); renderKeep(); }
@@ -1936,7 +1947,7 @@ const LONG_COLS = ["level", "code", "name", "parent_code", "parent_name", "maaku
                    "inherited_from", "direction", "source", "table_id", "source_url", "as_of",
                    "fetched", "licence"];
 const PROJECT_COLS = ["id", "name", "type", "status", "opening", "budget_meur", "price_base",
-                      "agency", "kunnat", "geometry_kind", "length_km", "stations", "major",
+                      "agency", "kunnat", "postinumerot", "geometry_kind", "length_km", "stations", "major",
                       "curated", "notes", "source_doc", "source_url", "updated"];
 const NEARBY_COLS = ["kind", "name", "type", "status", "distance_m", "source", "source_url"];
 const SOURCE_COLS = ["key", "label", "publisher", "tables", "as_of", "fetched", "licence", "url", "used_for"];
@@ -2066,16 +2077,33 @@ function exportAll() {
   exportToast(`areas_long.csv · ${nf(out.length - 1, 0)} rows`);
 }
 
-/* the per-area mapping lives in the index, not on the feature: which kunnat a project serves */
-function projectKunnat(id) {
-  const out = [];
+/* Which kunnat a project serves. The per-area mapping lives in the spatial index and **only**
+   there: `properties.kunnat` is a Danish field, no Finnish project carries one, and reading it
+   left *Areas served* empty on all 169 project sheets and the Municipalities column of
+   Data › Projects empty on every row. The index is keyed the other way round (area → projects),
+   so it is inverted once and kept — the Pipeline table asks this for every row it draws.
+   `INFRA_IDX` arrives with `dist/infra.json`, so the cache is dropped when it does. */
+let INFRA_KOM = null;
+function infraKomIndex() {
+  if (INFRA_KOM) return INFRA_KOM;
+  const byId = {};
   Object.keys(INFRA_IDX || {}).forEach(k => {
     if (k.indexOf("kunta:") !== 0) return;
-    const e = INFRA_IDX[k];
-    if ((e.in || []).indexOf(id) >= 0 || (e.near || []).indexOf(id) >= 0)
-      out.push((byCode[k.slice(6)] || {}).name || k.slice(6));
+    const code = k.slice(6), e = INFRA_IDX[k] || {};
+    (e.in || []).concat(e.near || []).forEach(id => { (byId[id] = byId[id] || new Set()).add(code); });
   });
-  return [...new Set(out)].sort();
+  INFRA_KOM = byId;
+  return byId;
+}
+/* the kunta codes a project touches, in the order the municipality list is in */
+function projectKomCodes(id) {
+  const s = infraKomIndex()[id];
+  if (!s) return [];
+  return [...s].sort((a, b) => ((byCode[a] || {}).name || a).localeCompare((byCode[b] || {}).name || b));
+}
+const projectKom = id => projectKomCodes(id).map(c => byCode[c]).filter(Boolean);
+function projectKunnat(id) {
+  return projectKomCodes(id).map(c => (byCode[c] || {}).name || c);
 }
 /* the projects are their own kind of thing and get their own file — never a column in the long one */
 function exportPipelineCsv() {
@@ -2086,7 +2114,10 @@ function exportPipelineCsv() {
     out.push(csvRow(PROJECT_COLS, {
       id: p.id, name: p.name, type: INFRA_TYPE[p.type] || p.type, status: infraSt(p).label,
       opening: openLabel(p), budget_meur: p.budget_meur, price_base: p.price_base || "",
+      /* both read off the same spatial index the sheet's "Areas served" card reads — never off
+         the feature, which carries no area of its own */
       agency: p.agency || "", kunnat: projectKunnat(p.id).join(" | "),
+      postinumerot: infraAreas(p.id, "postinumero").sort().join(" | "),
       geometry_kind: !g ? "none" : g.type === "Point" ? "point" : isArea(f) ? "area" : (p.schematic ? "schematic" : "line"),
       length_km: st.km, stations: st.stations, major: p.major ? "yes" : "no",
       curated: p.curated ? "yes" : "no", notes: p.notes || "", source_doc: p.source_doc || "",
@@ -2860,7 +2891,7 @@ function infraLoad(then) {
           f.geometry = g.geometry || null;
           Object.assign(f.properties, g.properties);
         });
-        if (d.index) INFRA_IDX = d.index;
+        if (d.index) { INFRA_IDX = d.index; INFRA_KOM = null; }   /* the inverted kunta index is rebuilt from it */
         INFRA_GEO.done = true;
       })
       .catch(() => { INFRA_GEO.done = true; });   /* the table still works without the map */
@@ -2927,7 +2958,7 @@ function infraPopup(p) {
     + (p.price_base ? ` (${esc(p.price_base)})` : "");
   const row = (l, v) => v ? `<span class="lfrow"><span>${esc(l)}</span><b>${v}</b></span>` : "";
   const yr = p.open_year ? `${p.open_year}${p.open_year_original && p.open_year_original !== p.open_year ? ` <span class="dim">originally ${p.open_year_original}</span>` : ""}` : "–";
-  const komm = (p.kunnat || []).map(c => byCode[c]).filter(Boolean);
+  const komm = projectKom(p.id);
   return `<div class="lfpop"><b>${esc(p.name)}</b>
     <span class="infrapills"><i class="ipill">${esc(INFRA_TYPE[p.type] || p.type)}</i><i class="ipill st-${esc(p.status)}">${esc(infraSt(p).label)}</i>${p.schematic ? `<i class="ipill dim">schematic corridor</i>` : ""}</span>
     <div class="lfrows">${row("Opening", yr)}${row("Budget", bn)}${row("Agency", esc(p.agency || ""))}
@@ -4174,7 +4205,7 @@ function microPopup(r, code) {
   const area = areaAt(r[0], r[1]);
   return `<div class="lfpop"><b>${esc(MTYPE[r[8]] || "Building")} · ${r[2]} dwellings</b><span class="dim">${area ? esc(area.name) + " · " : ""}${m ? esc(m.name) : ""}${r[16] ? ` · rakennustunnus ${esc(r[16])}` : ""}</span>
     ${area ? `<span class="lfact"><button class="lk mini primary" data-go="${withQ(pageOf(area))}">${area.peruspiiri != null ? "Osa-alue" : "Postal code"}: ${esc(area.name)} ›</button>${m ? `<button class="lk mini" data-go="${withQ(pageOf(m))}">${esc(m.name)} ›</button>` : ""}</span>` : ""}
-    <span class="lfsec">Building</span>${row("Completed", r[6] ?? "–")}${row("Floors", r[7] ?? "–")}${row("Dwellings", r[2])}${row("Floor area / dwelling", r[5] != null ? r[5] + " m²" : "–", "the building's gross kerrosala divided by its dwellings — a building average, and it includes stairwells and common space")}
+    <span class="lfsec">Building</span>${row("Completed", r[6] == null ? "–" : fmtYear(r[6]))}${row("Floors", r[7] ?? "–")}${row("Dwellings", r[2])}${row("Floor area / dwelling", r[5] != null ? r[5] + " m²" : "–", "the building's gross kerrosala divided by its dwellings — a building average, and it includes stairwells and common space")}
     ${row("In use", r[4] ? "no — recorded as Tyhjillään" : "yes", "the register's own kaytossaolo field")}
     <p class="cap dim">Ryhti publishes no tenure and no per-dwelling area or room count, so this dashboard shows none.</p>
     <span class="lfact"><a class="lk mini" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${r[0]}&mlon=${r[1]}#map=18/${r[0]}/${r[1]}">Open in OpenStreetMap</a></span></div>`;
@@ -4505,8 +4536,43 @@ function chartSvg(withTitle) {
   return chartSvgLine(withTitle);
 }
 const CH_FONT = "Inter, 'Helvetica Neue', Arial, sans-serif", CH_MONO = "'IBM Plex Mono', Menlo, monospace";
+/* The chart is 1 200 units wide and is rasterised straight to PNG from a string, so a title or a
+   sub-title that is too long cannot be measured in the document and cannot wrap by itself: an
+   indicator description simply ran off the right edge and into the downloaded file. One canvas
+   measures the same font here, the line is cut on a word and gets an ellipsis, and the full text
+   stays in the element's <title> — hover on screen, and nothing is lost from the export either. */
+const CH_W = 1200, CH_PAD = 24;
+let CH_MEAS = null;
+function chTextW(s, font) {
+  if (CH_MEAS === null) { try { CH_MEAS = document.createElement("canvas").getContext("2d"); } catch (e) { CH_MEAS = false; } }
+  if (!CH_MEAS) return String(s).length * 7;     /* no canvas: assume a wide-ish character */
+  CH_MEAS.font = font;
+  return CH_MEAS.measureText(String(s)).width;
+}
+function chClip(s, maxW, font) {
+  s = String(s == null ? "" : s);
+  if (!s || chTextW(s, font) <= maxW) return s;
+  let lo = 0, hi = s.length;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (chTextW(s.slice(0, mid) + "…", font) <= maxW) lo = mid; else hi = mid - 1; }
+  if (!lo) return "…";
+  const cut = s.slice(0, lo), sp = cut.lastIndexOf(" ");
+  return (sp > lo * .6 ? cut.slice(0, sp) : cut).replace(/[\s·,;:—–-]+$/, "") + "…";
+}
+const chTitleFont = () => "600 24px " + CH_FONT, chSubFont = () => "12px " + CH_MONO;
+const chTextMax = L0 => CH_W - L0 - CH_PAD;
 function chTitleBlock(withTitle, ind, L0, sub) {
-  return withTitle ? `<text x="${L0}" y="40" font-family="${CH_FONT}" font-size="24" font-weight="600" fill="#16170F" id="chsvgtitle">${esc(CH.title || chartAutoTitle())}</text><text x="${L0}" y="64" font-family="${CH_MONO}" font-size="12" fill="#8A8C81">${esc(sub != null ? sub : (ind.desc || ""))}</text>` : "";
+  if (!withTitle) return "";
+  const t = CH.title || chartAutoTitle(), s = sub != null ? sub : (ind.desc || ""), max = chTextMax(L0);
+  return `<text x="${L0}" y="40" font-family="${CH_FONT}" font-size="24" font-weight="600" fill="#16170F" id="chsvgtitle">${esc(chClip(t, max, chTitleFont()))}<title>${esc(t)}</title></text>`
+    + `<text x="${L0}" y="64" font-family="${CH_MONO}" font-size="12" fill="#8A8C81" id="chsvgsub">${esc(chClip(s, max, chSubFont()))}<title>${esc(s)}</title></text>`;
+}
+/* the title box is typed into, live, without redrawing the chart — so it is re-clipped here too */
+function chTitleLive() {
+  const el = document.getElementById("chsvgtitle"); if (!el) return;
+  const full = CH.title || chartAutoTitle();
+  el.textContent = chClip(full, chTextMax(Number(el.getAttribute("x")) || 96), chTitleFont());
+  const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
+  t.textContent = full; el.appendChild(t);
 }
 function chFoot(L0, H, ind, extra) {
   const src = (ind.source || ""); const short = src.length > 90 ? src.slice(0, 88) + "…" : src;
@@ -4571,7 +4637,7 @@ function chartSvgLine(withTitle) {
   const legY = H - B + 46; const perRow = 3, colW = (W - L0 - R) / perRow;
   const legend = series.map((s_, k) => { const lx = L0 + (k % perRow) * colW, ly = legY + Math.floor(k / perRow) * 24; const last = [...s_.pts].reverse().find(p => p.v != null);
     return `<line x1="${lx}" x2="${lx + 26}" y1="${ly - 4}" y2="${ly - 4}" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""}/><text x="${lx + 34}" y="${ly}" font-family="${F}" font-size="14" fill="#16170F">${esc(s_.name)}${s_.inherited ? " (kunta)" : ""}${last ? ` <tspan font-family="${M}" fill="#4A4C43">${esc(fmtOf(ind)(last.v))} (${fmtP(last.y)})</tspan>` : ""}</text>`; }).join("");
-  const title = withTitle ? `<text x="${L0}" y="40" font-family="${F}" font-size="24" font-weight="600" fill="#16170F" id="chsvgtitle">${esc(CH.title || chartAutoTitle())}</text><text x="${L0}" y="64" font-family="${M}" font-size="12" fill="#8A8C81">${esc(ind.desc || "")}</text>` : "";
+  const title = chTitleBlock(withTitle, ind, L0);
   const foot = `<text x="${L0}" y="${H - 14}" font-family="${M}" font-size="11" fill="#8A8C81">Source: ${esc(ind.source || "")} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${series.some(s_ => s_.inherited) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : ""}</text>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${title}
     ${ticks.map(t => `<line x1="${L0}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#EFEFEA"/><text x="${L0 - 10}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-family="${M}" font-size="12" fill="#8A8C81">${esc(fmtTight(ind)(t))}</text>`).join("")}
@@ -5407,13 +5473,14 @@ function vSchool() {
         <tr><th>${esc(s.kunta)}</th><td class="num">${schCell(kb, schGrade)}</td><td class="dim">${g != null && kb != null ? schDiff(g - kb) + " vs kunta" : ""}</td></tr>
         <tr><th>Finland</th><td class="num">${schCell(fi, schGrade)}</td><td class="dim">${g != null && fi != null ? schDiff(g - fi) + " vs Finland" : ""}</td></tr>
       </tbody></table>
-      <p class="cap">Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school where candidates sit more exams ends up with more points for that reason alone. <b>It tracks intake at least as much as teaching</b>, and Finland publishes no measure of intake to set against it — unlike Denmark's socioeconomic reference, there is no Finnish equivalent to show here.</p></div>
+      <p class="cap">Grade points are YTL's own 0–7 scale summed over the exams a candidate sat, so a school where candidates sit more exams ends up with more points for that reason alone. <b>It tracks intake at least as much as teaching</b>, and Finland publishes nothing about a lukio's intake to set against it: no entry average, no catchment and no background figure per school. The two rows above are therefore the only comparison there is — this school against its own kunta, and against the national mean of the same exam session.</p></div>
   </div>` : `<div class="card"><div class="card-head"><h3>Results</h3></div>
     <p class="empty">${esc(SCH_NO_COMPREHENSIVE)}</p>
     <p class="cap">This is not a suppressed figure and not a gap in this dashboard: Finland does not run national comprehensive-school exams whose results are published per school. What the register does publish — the school's name, type, location and register year — is above.</p></div>`}
   <div class="card"><p class="cap"><b>Sources:</b> ${((SCH_META || {}).sources || []).map(x => `${esc(x.label)} (${esc(x.licence)})`).join(" · ")}. Retrieved ${esc((SCH_META || {}).retrieved || "")}.
     ${lukio && (SCH_META || {}).join ? `The school register and YTL share no key — Tilastokeskus numbers this school ${esc(s.nr)} and YTL numbers it something else entirely — so the two are joined on the school's name, and only on an exact match. ${esc(String(((SCH_META || {}).join || {}).matched || ""))} of ${esc(String(((SCH_META || {}).join || {}).lukios || ""))} lukios are joined; the rest are adult lines, schools abroad and renamed schools, and they carry no result rather than someone else's.` : ""}
-    Method and discretion rules: <code>docs/SCHOOLS_FI.md</code>.</p></div>`;
+    Method and discretion rules: <code>docs/SCHOOLS_FI.md</code>.</p>
+    ${s.coord_source ? `<p class="cap"><b>This school's coordinate is not the register's.</b> The published point named the wrong place, so it was replaced from another published dataset and the school's kunta was read from the corrected point: ${esc(s.coord_source)} The replacement is listed in <code>data/external/overrides/schools.csv</code>; nothing else about this school is overridden.</p>` : ""}</div>`;
 }
 /* --- the schools segment on an area card's PUBLIC line --- */
 function schoolLine(level, code) {
@@ -5509,10 +5576,11 @@ function vProject() {
   const priceNote = /2015 prices|price level|PL\d|09PL|PL09/i.test(p.notes || "") ? "price basis — see the note below" : "";
   /* a project with no published alignment frames the kunnat it serves instead, and those need
      their rings — lazy, like everywhere else, so ask for them and let the reload re-draw */
-  (p.kunnat || []).forEach(pnoWant);
+  const komCodes = projectKomCodes(p.id);
+  komCodes.forEach(pnoWant);
   setTimeout(prMapInit, 0);
   const tile = (l, v, sub) => v == null || v === "" ? "" : `<div><span>${esc(l)}</span><b>${v}</b>${sub ? `<em>${esc(sub)}</em>` : ""}</div>`;
-  const kom = (p.kunnat || []).map(c => byCode[c]).filter(Boolean);
+  const kom = komCodes.map(c => byCode[c]).filter(Boolean);
   const pnr = infraAreas(p.id, "postinumero").map(c => byNr[c]).filter(Boolean);
   const kva = infraAreas(p.id, "osa_alue").map(c => byQ[c]).filter(Boolean);
   const chips = (list, href) => list.map(o => `<button class="lk mini" data-go="${withQ(href(o))}">${esc(o.name || o.nr)}</button>`).join("");
@@ -5540,10 +5608,15 @@ function vProject() {
     </div>
     <div class="card">
       <div class="card-head"><h3>Areas served</h3><span class="hint">click to open it on the map</span></div>
-      ${kom.length ? `<p class="cap">Municipalities</p><div class="tfilters">${chips(kom, o => "map/" + o.code)}</div>` : ""}
+      <div data-testid="areas-served">
+      ${!kom.length && !pnr.length && !kva.length ? `<p class="empty">${INFRA_GEO.done
+          ? "Not covered yet — the areas this project serves are read off its published alignment, and the publisher has drawn none."
+          : "Loading the project index…"}</p>` : ""}
+      ${kom.length ? `<p class="cap">Municipalities (${kom.length})</p><div class="tfilters">${chips(kom, o => "map/" + o.code)}</div>` : ""}
       ${pnr.length ? `<p class="cap">Postal codes (${pnr.length})</p><div class="tfilters">${chips(pnr.slice(0, 14), o => pageOf(o))}${pnr.length > 14 ? `<span class="hint">+${pnr.length - 14} more</span>` : ""}</div>` : ""}
       ${kva.length ? `<p class="cap">Helsinki-region osa-alueet (${kva.length})</p><div class="tfilters">${chips(kva.slice(0, 10), o => pageOf(o))}${kva.length > 10 ? `<span class="hint">+${kva.length - 10} more</span>` : ""}</div>` : ""}
       ${(() => { const ol = outlookFor(kom, kva.slice(0, 8)); return ol ? `<div class="olsec"><p class="cap"><b>Outlook around this project</b> — how the areas it serves are projected to change. A projection carries no housing programme, so this project is not in these numbers.</p>${ol}</div>` : ""; })()}
+      </div>
       <p class="cap">${esc(p.notes || "")}</p>
       <p class="cap dim">${esc(p.source_doc || "")}${p.source_doc ? " · " : ""}geometry: ${esc(p.geometry_source || "–")} · updated ${esc(p.updated || "")}</p>
     </div>
@@ -5553,7 +5626,11 @@ function prMapInit() {
   const el = document.getElementById("prmap"); if (!el || typeof L === "undefined") return;
   const f = projectEntity(); if (!f) return;
   dropMap("pmap");
-  const map = L.map(el, { center: [56, 10.5], zoom: 7, scrollWheelZoom: true, zoomSnap: .5, attributionControl: false });
+  /* Opening frame: Finland. The port carried Denmark's own centre ([56, 10.5] is Jutland) here,
+     and a project whose bounds cannot be computed yet — no alignment, rings not loaded — opened
+     on another country for as long as it took the fitBounds below to find something. Every map
+     in this build starts inside `FI_BOX`. */
+  const map = L.map(el, { center: FI_CENTER, zoom: 5, scrollWheelZoom: true, zoomSnap: .5, attributionControl: false });
   LF.pmap = map; mapPanes(map); syncMaps();
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, className: "basemap" }).addTo(map);
   /* the current choropleth underneath, so the project is read against the market picture */
@@ -5571,10 +5648,11 @@ function prMapInit() {
      the sheet says so and `vProject()`'s own `infraLoad(… renderKeep)` rebuilds it if one arrives.
      Reading `f.geometry.type` here threw on every project sheet before V5. */
   if (!f.geometry) {
-    map.fitBounds(komBoundsOf(p.kunnat) || L.latLngBounds(FI_BOX), { padding: [30, 30], maxZoom: 11 });
-    prMapNote(INFRA_GEO.done
-      ? "No alignment is published for this project — the municipalities it serves are framed instead."
-      : "Loading the alignments…");
+    const kb = komBoundsOf(projectKomCodes(p.id));
+    map.fitBounds(kb || L.latLngBounds(FI_BOX), { padding: [30, 30], maxZoom: 11 });
+    prMapNote(!INFRA_GEO.done ? "Loading the alignments…"
+      : kb ? "No alignment is published for this project — the municipalities it serves are framed instead."
+      : "Not covered yet — this project has no published alignment, no area and no station, so there is nothing to draw. Finland is framed instead.");
     return;
   }
   prMapNote("");
@@ -5617,7 +5695,7 @@ function vPipeline() {
       </div></div>
     <div class="scrollx"><table class="tbl compact wraphead" data-testid="projects-table" data-sortable><thead><tr>
       <th>Project</th><th>Type</th><th>Status</th><th>Opening</th><th class="num">Budget<br><span class="dim">bn EUR</span></th><th>Agency</th><th>Municipalities</th></tr></thead>
-      <tbody>${rows.map(f => { const p = f.properties; const kom = (p.kunnat || []).map(c => (byCode[c] || {}).name).filter(Boolean);
+      <tbody>${rows.map(f => { const p = f.properties; const kom = projectKunnat(p.id);
         return `<tr class="clickrow" data-pipe="${esc(p.id)}"><th><span class="thn">${esc(p.name)} <span class="go">›</span></span>${p.schematic ? ` <span class="dim">schematic</span>` : ""}</th>
           <td class="dim">${esc(INFRA_TYPE[p.type] || p.type)}</td><td><span class="ipill st-${esc(p.status)}">${esc(infraSt(p).label)}</span></td>
           <td data-v="${p.open_year || ""}">${esc(openLabel(p))}${p.open_year_original && p.open_year_original !== p.open_year ? ` <span class="dim">orig. ${p.open_year_original}</span>` : ""}</td>

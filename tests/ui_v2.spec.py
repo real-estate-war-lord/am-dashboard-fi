@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import functools
 import http.server
+import json
 import os
 import pathlib
 import re
@@ -28,6 +29,7 @@ import traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 SHOTDIR = ROOT / "docs" / "ui_v2"
+HERO = ROOT / "docs" / "screenshot.png"      # the one screenshot README embeds
 
 PHASES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "W1", "W2", "W3", "W4", "W5", "W6"]
 
@@ -2814,6 +2816,106 @@ def _v6_study_row_top(page, base):
 
 
 # ===========================================================================
+# W1 — cleanup: the lost v2.1 V7 fixes and the small data items
+# ===========================================================================
+
+
+@check("W1-build-line-version", phase="W1")
+def _w1_build_line(page, base):
+    """the sidebar build line reads the release this page is, from one constant"""
+    goto(page, base, "#map")
+    line = (page.text_content(".buildline") or "").strip()
+    assert "v2.0" not in line, line
+    m = re.search(r"·\s*v(\d+\.\d+)", line)
+    assert m, line
+    src = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+    const = re.search(r'APP_VERSION\s*=\s*"([\d.]+)"', src)
+    assert const, "src/app.js has no APP_VERSION constant"
+    assert m.group(1) == const.group(1), (line, const.group(1))
+    # and it is spelled once: no other literal version string is written into the chrome
+    assert len(re.findall(r'·\s*v\$\{|>\s*v2\.\d\s*<', src)) <= 1, "a second hard-coded version"
+
+
+@check("W1-project-areas-served", phase="W1")
+def _w1_project_areas(page, base):
+    """a project sheet names the municipalities it serves, off the spatial index (never `kunnat`)"""
+    goto(page, base, "#project/vayla-helra---rakentaminen")
+    page.wait_for_timeout(2600)
+    card = page.text_content("[data-testid=areas-served]") or ""
+    assert "Municipalities" in card, card[:200]
+    chips = texts(page, "[data-testid=areas-served] .tfilters .lk")
+    assert chips, "no area chips on a project that runs through Helsinki"
+    assert any("Helsinki" in c for c in chips), chips[:8]
+    # and the table's Municipalities column is filled for the same project
+    goto(page, base, "#data/projects")
+    page.wait_for_timeout(2600)
+    filled = page.evaluate("""() => {
+      const rows = [...document.querySelectorAll('[data-testid=projects-table] tbody tr')];
+      return rows.filter(r => (r.cells[r.cells.length - 1].textContent || '').trim()).length; }""")
+    assert filled > 50, f"only {filled} project rows name a municipality"
+
+
+@check("W1-project-map-in-finland", phase="W1")
+def _w1_project_map(page, base):
+    """a project with no published alignment opens on Finland and says so — never on Denmark"""
+    goto(page, base, "#project/kruunusillat")
+    page.wait_for_timeout(2800)
+    c = map_state(page)
+    assert c, "the project mini map did not initialise"
+    assert 59.0 <= c["lat"] <= 70.5 and 18.0 <= c["lon"] <= 32.5, c
+    note = (page.text_content("#prmapnote") or "").strip()
+    assert note and "Denmark" not in note, note
+    assert "Not covered yet" in note, note
+    # and the card says the same thing rather than drawing an empty list
+    assert "Not covered yet" in (page.text_content("[data-testid=areas-served]") or "")
+
+
+@check("W1-years-have-no-separator", phase="W1")
+def _w1_years(page, base):
+    """a year is never written `1 987`: the buildings legend, its bins and a building popup"""
+    goto(page, base, "#map/091?micro=1&mind=year")
+    page.wait_for_timeout(3000)
+    leg = page.text_content("#maplegend") or ""
+    assert "Built" in leg, leg[:120]
+    bad = re.findall(r"\b[12]\s\d{3}\b", leg)
+    assert not bad, (bad, leg[:200])
+    assert re.search(r"\b(19|20)\d{2}\b", leg), leg[:200]
+
+
+@check("W1-chart-subtitle-fits", phase="W1")
+def _w1_chart_subtitle(page, base):
+    """the chart title and sub-title stay inside the 1200-unit canvas, with the full text kept"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(2000)
+    for sel in ("#chsvgtitle", "#chsvgsub"):
+        got = page.evaluate("""sel => { const t = document.querySelector(sel); if (!t) return null;
+          const full = t.querySelector('title');
+          return {x: t.x.baseVal.getItem(0).value, w: t.getComputedTextLength(),
+                  shown: (t.firstChild && t.firstChild.nodeValue) || '',
+                  full: full ? full.textContent : ''}; }""", sel)
+        assert got, f"{sel} is missing"
+        assert got["x"] + got["w"] <= 1200, (sel, got["x"], got["w"])
+        assert got["full"], f"{sel} keeps no full text"
+        if got["shown"].endswith("…"):
+            assert got["full"].startswith(got["shown"][:8]), got
+
+
+@check("W1-school-coord-override", phase="W1")
+def _w1_school_override(page, base):
+    """Oulun normaalikoulu is in Oulu, and the override says where its coordinate came from"""
+    schools = json.loads((DIST / "schools.json").read_text(encoding="utf-8"))
+    row = next((s for s in schools["schools"] if s["name"] == "Oulun normaalikoulu"), None)
+    assert row, "Oulun normaalikoulu is not in the layer"
+    assert row["kunta"] == "Oulu", row
+    assert 64.5 <= row["lat"] <= 65.5 and 24.5 <= row["lon"] <= 26.5, row
+    assert row.get("coord_source"), "a moved school must say where its coordinate came from"
+    goto(page, base, "#school/00599")
+    page.wait_for_timeout(2500)
+    txt = body_text(page)
+    assert "Oulu" in txt and "Helsinki" not in txt.split("Sources")[0], txt[:300]
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
@@ -2876,6 +2978,11 @@ def run(phase_upto="P10", shots=False, only=None):
                         goto(pg, base, route)
                         pg.wait_for_timeout(900)
                         pg.screenshot(path=str(SHOTDIR / f"{name}_{w}.png"), full_page=(w == 390))
+                        # README's one screenshot is the same shot, written where README points at
+                        # it. It went stale for a whole release because it was made by hand; it is
+                        # now build output like every other shot in this loop (W1).
+                        if (name, w) == ("map", 1440):
+                            pg.screenshot(path=str(HERO))
                     ctx.close()
                     print(f"  · screenshots at {w} px → docs/ui_v2/")
             browser.close()

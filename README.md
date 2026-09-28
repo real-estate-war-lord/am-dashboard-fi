@@ -11,6 +11,8 @@ address.
 
 Every route is captured at 1440 px and at 390 px by `make ui SHOTS=1`, which writes
 `docs/ui_v2/*.png`. Those are build output and are not committed — run it to regenerate them.
+The screenshot above is written by the same run (the map at 1440 px), so it cannot go stale
+while the rest of the set is current.
 
 **Live:** _(GitHub Pages link goes here once `main` is published)_
 
