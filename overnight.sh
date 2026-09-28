@@ -3,16 +3,16 @@
 # unattended Claude Code phases. Modelled on the Danish repo's overnight.sh.
 #
 #   ./overnight.sh preflight         # before bed: checks, Playwright, branch v2.1-ui, plan commit, test call
-#   ./overnight.sh run [V1 V2 …]     # the night (default V1…V7); AUTO_RELEASE=1 publishes if everything is green
-#   ./overnight.sh gate V3           # the self-check (used by the agent and by this wrapper)
-#   ./overnight.sh release           # morning: merge v2.1-ui → main, tag v2.1, push (GitHub Pages deploys)
+#   ./overnight.sh run [W1 W2 …]     # the night (default W1…W6); AUTO_RELEASE=1 publishes if everything is green
+#   ./overnight.sh gate W3           # the self-check (used by the agent and by this wrapper)
+#   ./overnight.sh release           # morning: merge v2.2-ui → main, tag v2.2, push (GitHub Pages deploys)
 #   ./overnight.sh status            # quick look at the report
 #
 # Never pushes except in `release` (or AUTO_RELEASE=1 after an all-green night). Logs live in logs/ (git-excluded).
 set -u
 REPO="$(cd "$(dirname "$0")" && pwd)"; cd "$REPO" || exit 1
-BRANCH="v2.1-ui"; TAG="v2.1"
-ALL_PHASES=(V1 V2 V3 V4 V5 V6 V7)
+BRANCH="v2.2-ui"; TAG="v2.2"
+ALL_PHASES=(W1 W2 W3 W4 W5 W6)
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-9000}"     # seconds per claude call (150 min)
 LIMIT_WAIT="${LIMIT_WAIT:-1200}"           # seconds to sleep when a usage limit is hit
 LIMIT_MAX_WAITS="${LIMIT_MAX_WAITS:-15}"
@@ -27,9 +27,9 @@ PY="$REPO/.venv-ui/bin/python3"; [ -x "$PY" ] || PY=python3
 RUN_ID="${RUN_ID:-$(date +%Y%m%d)}"
 LOGS="$REPO/logs/overnight-$RUN_ID"; mkdir -p "$LOGS"
 REPORT="$LOGS/OVERNIGHT_REPORT.md"
-PH_DIR="$REPO/docs/v2_1/phases"
-FORBIDDEN='^(\.github/|data/|config/|scripts/|docs/v2_1/ref/)'
-ALLOWED_SCRIPT='^scripts/build_dashboard\.py$'
+PH_DIR="$REPO/docs/v2_2/phases"
+FORBIDDEN='^(\.github/|data/raw/|data/geo/|data/processed/|config/(?!indicators\.json)|scripts/|docs/v2_1/ref/)'
+ALLOWED_SCRIPT='^(scripts/build_dashboard\.py|scripts/build_schools\.py|config/indicators\.json|data/external/overrides/.*)$'
 
 log()    { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$LOGS/run.log"; }
 report() { printf '%s\n' "$*" >> "$REPORT"; }
@@ -42,7 +42,7 @@ exclude_local() {   # keep venv, logs and the Danish reference copy out of git w
 }
 
 gate() {   # $1 = phase id. Exit 0 = green. Output → logs/<run>/<phase>.gate.log
-  local ph="${1:-V7}" out="$LOGS/${1:-adhoc}.gate.log"
+  local ph="${1:-W6}" out="$LOGS/${1:-adhoc}.gate.log"
   (
     echo "== build";    "$PY" scripts/build_dashboard.py || exit 1
     echo "== js tests"; node --test tests/*.test.js || exit 1
@@ -61,9 +61,9 @@ gate() {   # $1 = phase id. Exit 0 = green. Output → logs/<run>/<phase>.gate.l
 
 check_commit() {
   local ph="$1"
-  [ "$(git rev-list --count "v21-$ph-start..HEAD")" -ge 1 ] || { echo "no commit made"; return 1; }
+  [ "$(git rev-list --count "v22-$ph-start..HEAD")" -ge 1 ] || { echo "no commit made"; return 1; }
   [ -z "$(git status --porcelain)" ] || { echo "working tree not clean"; git status --porcelain | head; return 1; }
-  local bad; bad=$(git diff --name-only "v21-$ph-start..HEAD" | grep -E "$FORBIDDEN" | grep -vE "$ALLOWED_SCRIPT")
+  local bad; bad=$(git diff --name-only "v22-$ph-start..HEAD" | perl -ne "print if m{$FORBIDDEN}" | perl -ne "print unless m{$ALLOWED_SCRIPT}")
   [ -z "$bad" ] || { echo "forbidden paths changed: $bad"; return 1; }
   [ ! -f "$PH_DIR/$ph.FAILED.md" ] || { echo "agent reported failure ($ph.FAILED.md)"; return 1; }
 }
@@ -108,7 +108,7 @@ run_phase() {
 rollback() {
   local ph="$1"
   [ -f "$PH_DIR/$ph.FAILED.md" ] && cp "$PH_DIR/$ph.FAILED.md" "$LOGS/"
-  git reset -q --hard "v21-$ph-start"; git clean -qfd -e logs -e .venv-ui -e docs/v2_1/ref -e docs/ui_v2
+  git reset -q --hard "v22-$ph-start"; git clean -qfd -e logs -e .venv-ui -e docs/v2_1/ref -e docs/ui_v2
 }
 
 preflight() {
@@ -117,20 +117,20 @@ preflight() {
   echo "· python: $(python3 --version 2>&1)   node: $(node --version 2>&1)   claude: $(claude --version 2>&1 | head -1)"
   command -v node >/dev/null || { echo "✗ node missing"; bad=1; }
   command -v claude >/dev/null || { echo "✗ claude CLI missing"; bad=1; }
-  if [ -n "$(git status --porcelain -- . ':!docs/v2_1' ':!overnight.sh' ':!tests/ui_v2.spec.py')" ]; then
-    echo "✗ uncommitted changes outside docs/v2_1, overnight.sh, tests/ui_v2.spec.py:"; git status --porcelain | head; exit 1
+  if [ -n "$(git status --porcelain -- . ':!docs/v2_2' ':!overnight.sh' ':!tests/ui_v2.spec.py')" ]; then
+    echo "✗ uncommitted changes outside docs/v2_2, overnight.sh, tests/ui_v2.spec.py:"; git status --porcelain | head; exit 1
   fi
   if ! git rev-parse --verify -q "$BRANCH" >/dev/null; then
-    git stash -q -u -- docs/v2_1 overnight.sh tests/ui_v2.spec.py 2>/dev/null; local stashed=$?
+    git stash -q -u -- docs/v2_2 overnight.sh tests/ui_v2.spec.py 2>/dev/null; local stashed=$?
     git checkout -q main && git pull -q --ff-only origin main || { echo "✗ could not update main from GitHub"; [ $stashed -eq 0 ] && git stash pop -q; exit 1; }
     echo "· main is at $(git log -1 --format='%h %s')"
     git checkout -q -b "$BRANCH" main
     [ $stashed -eq 0 ] && git stash pop -q
   fi
   git checkout -q "$BRANCH" || { echo "✗ cannot switch to $BRANCH"; exit 1; }
-  if [ -n "$(git status --porcelain -- docs/v2_1 overnight.sh tests/ui_v2.spec.py)" ]; then
-    chmod +x overnight.sh; git add docs/v2_1 overnight.sh tests/ui_v2.spec.py
-    git commit -q -m "v2.1 P0: parity plan, phase prompts, overnight runner" && echo "✓ plan committed on $BRANCH"
+  if [ -n "$(git status --porcelain -- docs/v2_2 overnight.sh tests/ui_v2.spec.py)" ]; then
+    chmod +x overnight.sh; git add docs/v2_2 overnight.sh tests/ui_v2.spec.py
+    git commit -q -m "v2.2 P0: cleanup + readability + presentation plan, phase prompts" && echo "✓ plan committed on $BRANCH"
   fi
   if ! "$PY" -c "import playwright" 2>/dev/null; then
     echo "· creating .venv-ui with Playwright (one-off, ~150 MB)…"
@@ -143,17 +143,17 @@ preflight() {
   echo "· baseline ui suite (v2.0 checks, ~9 min)…"
   PHASE=P10 "$PY" -u tests/ui_v2.spec.py > "$LOGS/baseline.log" 2>&1 && echo "✓ baseline ui suite green" || echo "· baseline ui suite has failures — see $LOGS/baseline.log (the night can still run)"
   echo "· testing an unattended claude call…"
-  if with_timeout 180 claude -p "${CLAUDE_PERMS[@]}" "Run the shell command: ls docs/v2_1 — then reply with exactly: READY" 2>&1 | grep -q READY; then echo "✓ claude -p works unattended with the allow-list"; else echo "✗ claude -p did not answer READY — run 'claude' once interactively to log in"; bad=1; fi
+  if with_timeout 180 claude -p "${CLAUDE_PERMS[@]}" "Run the shell command: ls docs/v2_2 — then reply with exactly: READY" 2>&1 | grep -q READY; then echo "✓ claude -p works unattended with the allow-list"; else echo "✗ claude -p did not answer READY — run 'claude' once interactively to log in"; bad=1; fi
   [ $bad -eq 0 ] && echo "✓ PREFLIGHT OK — start the night with:  ./overnight.sh run" || { echo "✗ PREFLIGHT FAILED"; exit 1; }
 }
 
 release() {
   git checkout -q "$BRANCH" || exit 1
   [ -z "$(git status --porcelain)" ] || { echo "✗ tree not clean"; exit 1; }
-  gate V7 || { echo "✗ gate not green — not releasing"; exit 1; }
+  gate W6 || { echo "✗ gate not green — not releasing"; exit 1; }
   git fetch -q origin
   git checkout -q main && git merge -q --ff-only origin/main 2>/dev/null
-  git merge -q --no-ff "$BRANCH" -m "Release $TAG — Danish v3.0 parity and signed-indicator colours" || { echo "✗ merge conflict — resolve by hand"; git merge --abort; git checkout -q "$BRANCH"; exit 1; }
+  git merge -q --no-ff "$BRANCH" -m "Release $TAG — cleanup, readable maps and charts, test property first screen, present mode" || { echo "✗ merge conflict — resolve by hand"; git merge --abort; git checkout -q "$BRANCH"; exit 1; }
   git tag -f "$TAG" >/dev/null
   git push -q origin main && git push -q -f origin "$TAG" && echo "✓ $TAG pushed — GitHub Pages deploys in a few minutes: https://real-estate-war-lord.github.io/am-dashboard-fi/"
   git checkout -q "$BRANCH"
@@ -167,13 +167,13 @@ main_run() {
     report "| Phase | Result | Commit | Min | Notes |"; report "|---|---|---|---|---|"; }
   local fails=0 allgreen=1
   for ph in "${phases[@]}"; do
-    local t0=$SECONDS; git tag -f "v21-$ph-start" >/dev/null
+    local t0=$SECONDS; git tag -f "v22-$ph-start" >/dev/null
     if run_phase "$ph" 1 || { rollback "$ph"; run_phase "$ph" 2 "$LOGS/$ph.gate.log"; }; then
       report "| $ph | ✓ green | $(git rev-parse --short HEAD) | $(( (SECONDS - t0) / 60 )) | |"; fails=0
     else
       rollback "$ph"; allgreen=0; fails=$((fails + 1))
       report "| $ph | ✗ rolled back | – | $(( (SECONDS - t0) / 60 )) | $ph.attempt2.log, $ph.gate.log |"
-      [ "$ph" = V1 ] && { report ""; report "**Stopped: V1 (audit) failed — later phases depend on it.**"; break; }
+      :
       [ $fails -ge 2 ] && { report ""; report "**Stopped: two phases in a row failed.**"; break; }
     fi
   done
@@ -184,13 +184,13 @@ main_run() {
   else
     report "Not released. Review, then publish with: \`./overnight.sh release\`"
   fi
-  report ""; report "Morning: read docs/v2_1/RELEASE_NOTES_FI.md and docs/v2_1/QA.md; screenshots in docs/ui_v2/"
+  report ""; report "Morning: read docs/v2_2/RELEASE_NOTES_FI.md and docs/v2_2/QA.md; screenshots in docs/ui_v2/"
   log "done — $REPORT"
 }
 
 case "${1:-}" in
   preflight) preflight ;;
-  gate)      gate "${2:-V7}" ;;
+  gate)      gate "${2:-W6}" ;;
   release)   release ;;
   status)    cat "$REPORT" 2>/dev/null || ls -t logs/ ;;
   run)       shift
