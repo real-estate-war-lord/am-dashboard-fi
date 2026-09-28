@@ -34,7 +34,7 @@ serve:      ## open the dashboard locally
 	cd dist && $(PY) -m http.server 8080
 test-js:    ## parser unit tests (node --test)
 	node --test tests/*.test.js
-ui:         ## the v2.0 UI acceptance suite (Playwright); PHASE=P3 limits it, SHOTS=1 writes docs/ui_v2/*.png
+ui:         ## the UI acceptance suite, v2.0→v2.2 (Playwright); PHASE=W6 limits it, SHOTS=1 writes docs/ui_v2/*.png
 	$(PY) -u tests/ui_v2.spec.py
 test:       ## every unit test (python + js)
 	$(PY) -m unittest discover -s tests -p 'test_*.py' && $(MAKE) test-js

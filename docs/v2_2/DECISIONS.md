@@ -425,3 +425,47 @@ The decisions v2.0 took are in `docs/UI_PLAN.md` §2 (D1–D16) and v2.1's are i
   layer of the same area and produces the same string, so nothing is said. Buildings mode is
   announced by name with no count — the building file is lazy, and a count read before it lands
   would be a wrong number rather than a missing one.
+- **W6** — **A bar chart's canvas is measured from its rows, and the old geometry survives from nine
+  areas up.** The height was a fixed 640 units whatever was in it, so two areas got 104 units of bars
+  and ~300 px of white above the source line — on screen, in the ⤓ PNG, and on `#charts?…&mode=bar`
+  it pushed the Schools panel off the first screen. A row is 52 units until the rows stop fitting,
+  which is exactly what `rowH = Math.min(52, …)` already said about the *bars*; the canvas now says
+  the same thing. Nine rows is where the two rules meet, so every chart that was not mostly white is
+  drawn precisely as it was.
+- **W6** — **A chart's note is a second footer line, not a longer first one.** W5's climate-pair note
+  is 160 characters and the canvas has room for about 163 in total, so the source line and the note
+  ran off the right edge together and the viewBox cut them — and what was lost was the sentence
+  explaining why the median tick is missing, which is the one thing a reader of that chart needs.
+  Clipping the single line with W1's own `chClip` was the cheaper option and was rejected for the
+  same reason: it would have cut exactly that sentence. So `chFoot()` writes two lines, both
+  measured and both keeping the whole string in a `<title>`, and the line chart's bottom band grew
+  16 units so that its legend cannot grow into the new one. `chartSvgLine()` stopped writing its own
+  footer at the same time: one footer for all three chart kinds, the way W1 gave them one title.
+- **W6** — **A project label is not drawn where the map cannot show all of it, and the overhang is
+  measured rather than guessed.** v2.1 flipped a label's anchor within 95 px of an edge, which is a
+  guess about a width nobody knows before the label is in the document: a full project name is
+  ~300 px wide, so one anchored 100 px in still hung half of itself over the side, and one anchored
+  *off* the map was clipped by the container to a mid-word fragment at its edge (`än parantamin`).
+  Labels whose anchor is outside the container are now skipped, and the rest are measured once after
+  they are added and re-anchored if their box still crosses an edge. A label wider than the map is
+  left alone — flipping it would only move which half is lost. Because the placement is now a
+  function of the viewport, the labels are rebuilt on `moveend` as well as on `zoomend`, beside the
+  public-building and services layers that were already redrawn on a pan for the same reason.
+- **W6** — **The publisher's 28-character short label is marked as a cut, not lengthened.**
+  `label_short` is truncated upstream, mid-word (`Maantie 11746 Kilpilahden lä`), by a fetch script
+  this branch may not touch, and the map was printing half a word as if it were a project's name.
+  An ellipsis is added where the short label is a prefix of the full name **and is at the cut's own
+  length (≥ 24 characters)** — a curated short label (`Kruunusillat`, `Lentorata`) is far under it
+  and keeps its clean ending. The full name is one click away in the label's own popup, and nothing
+  is invented: the ellipsis says only what the two strings already prove.
+- **W6** — **Data › Sources is ink, like every other link in the build.** Those anchors were the only
+  ones with no class on them, so they carried the browser's blue and underline in a column of
+  ink-coloured titles. The rule is scoped to the title cell and excludes `.lk` and `.srclink`, so no
+  button-shaped link anywhere else in a table could be caught by it.
+- **W6** — **The 390-px study-row chart is written down, not fixed.** At a phone's width the
+  900 × 240 panel chart renders its tick labels at 3,7 px. The honest fix is a second geometry under
+  1025 px — fewer ticks, a taller box, larger type in user units — which is a feature; stretching it
+  to fit is ruled out by W4 ("a chart whose slopes lie"), and hiding the axis labels would leave
+  unlabelled gridlines. Every figure the chart plots is also printed as text around it, so the
+  release ships with the *scale* unreadable on a phone and the reason in QA.md, rather than with a
+  rushed chart rewrite in the last phase of the night.

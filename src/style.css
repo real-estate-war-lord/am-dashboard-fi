@@ -1478,6 +1478,13 @@ th .thn{display:inline}
   border-bottom:1px dotted var(--line);white-space:nowrap}
 .srclink:hover{color:var(--ink);border-bottom-color:var(--ink2)}
 .lfpop .srclink,.tbl .srclink{font-size:9px}
+/* W6 — Data › Sources names every table as a link to the publisher's own page, and those were the
+   only anchors in the build with no class on them: the browser's blue and its underline, in a
+   column of otherwise ink-coloured titles. They read as the page's own text now, and still as a
+   link. Scoped to the title cell, and never to a `.lk` button or a `.srclink`. */
+.tbl th a:not(.lk):not(.srclink){color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.tbl th a:not(.lk):not(.srclink):hover{border-bottom-color:var(--ink2)}
+.tbl th a:not(.lk):not(.srclink):focus-visible{outline:2px solid var(--ink2);outline-offset:2px}
 .olchg{font-family:var(--mono);font-size:11px;color:var(--ink);margin-top:3px}
 .olchg.big{font-size:12.5px;margin:6px 0 2px}
 .olsrc{margin-top:2px}

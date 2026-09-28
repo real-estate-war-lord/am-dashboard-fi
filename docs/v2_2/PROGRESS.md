@@ -461,3 +461,94 @@ moved file before a single W5 feature was written.
 - **A Climate *line* chart is still one return period.** The pair is a bar-chart rule, because the
   flood rasters have no year series at all in this edition. If SYKE ever publishes a second vintage,
   `chartSeries()` would need the same treatment and `chartInds()` is where it would go.
+
+---
+
+## W6 — final QA, the docs and the Finnish release notes ☑
+
+Gate: green — build ✓, node tests ✓ (132, unchanged: W6 wrote no new pure module), the full ui
+suite up to W6 ✓ (**162 checks, 4 of them new**), screenshots at 1440 and 390 for all 29 routes,
+budgets `src/app.js` 452,7 KB / 460, `src/style.css` 161,2 KB / 165, `dist/index.html`
+3 285 650 B / 3 300 000. The python unit suite is the one the gate runs informationally; W6 changed
+no Python and did not re-run it by hand.
+
+No new file. W6 is a QA and documentation phase: it added 2,2 KB to `app.js`, 0,7 KB to
+`style.css` and four checks, and everything else it wrote is in `docs/`.
+
+**§1 — every route looked at, at 1440 and at 390, present mode included**
+
+`docs/ui_v2/` was regenerated (58 images) and read: **every one of the 29 routes at 1440**, and a
+wide sample at 390 — the map, an area page, Test property, Charts, Data › Areas, a sheet, a list
+and three of the four present-mode views — on top of the four checks that sweep every route at
+390 for overflow and clipping. Four things were wrong enough to fix and are
+below; everything else that is not perfect is written down in **`docs/v2_2/QA.md`** with what it
+would take to fix it, and none of it blocks the release. The one worth knowing about before the
+next phase of work is **the study-row chart at 390 px**: a 900 × 240 SVG scaled to a phone's card
+renders its tick labels at 3,7 px. Every figure it plots is also printed as text around it, so
+nothing is lost but the scale — and the honest fix is a second chart geometry under 1025 px, which
+is a feature and not something to invent in the last hour of a night. DECISIONS W6 says so plainly.
+
+1. **A bar chart's canvas is as tall as its bars need** (`chartSvgBar()`). `H` was a fixed 640
+   units, so two areas got 104 units of bars and ~300 px of white above the source line — on
+   screen, in the ⤓ PNG, and far enough down `#charts?…&mode=bar` to push the Schools panel off the
+   first screen. A row is 52 units until the rows stop fitting, which is what the bar geometry
+   already said; from nine areas up the drawing is identical to v2.1's.
+   Check `W6-bar-chart-fits-rows`.
+2. **A chart's source line and its note are two lines, both measured** (`chFoot()`, and
+   `chartSvgLine()` now calls it instead of writing its own). W5's climate-pair note is 160
+   characters and the canvas holds about 163 in total, so the two ran together off the right edge
+   and the viewBox cut them — losing exactly the sentence that explains why the median tick is
+   missing. Both lines go through W1's `chClip`, both keep the whole string in a `<title>`, and the
+   line chart's bottom band grew 16 units so its legend cannot reach the new line.
+   Check `W6-chart-footer-fits`.
+3. **A project label is drawn only where the map can show all of it** (`lfInfraLabels()`, the macro
+   map's `moveend`). The 95-px edge rule was a guess about a width nobody knows before the label is
+   in the document: a full name is ~300 px wide, so a label anchored 100 px in still hung half of
+   itself over the side, and one anchored *off* the map was clipped by the container to a mid-word
+   fragment at its edge — the map read `än parantamin`. Anchors outside the container are skipped,
+   the rest are measured once and re-anchored if they still cross an edge, and the labels are
+   rebuilt on a pan as well as on a zoom. The publisher's own `label_short` is a 28-character cut
+   taken mid-word upstream, so it is now marked with an ellipsis rather than printed as if it were
+   a name. Check `W6-infra-labels-inside-map`.
+4. **Data › Sources names its tables in the page's ink** (`src/style.css`). Those were the only
+   anchors in the build with no class on them — the browser's blue and its underline in a column of
+   ink-coloured titles. Check `W6-source-links-styled`.
+
+**§2 — the documents**
+
+- **`docs/v2_2/QA.md`** — the four fixes above, then seventeen open items in three groups
+  (presentation · data and pipeline · limits carried forward from W3 and W5), the budget table with
+  what is left for the next release, and what this pass *could not* check: live basemap tiles, a
+  real printer, a real screen reader.
+- **`README.md`** — the screenshot set is named (which file to open first, and what each shows) and
+  **Present mode** has a section of its own: what it hides, what it never hides, that it is a
+  property of the link, what `Esc` does, and the phone and print rules.
+- **`CHANGELOG.md`** — a v2.2 section: present mode, maps and charts, Test property, the Danish
+  SHOULD list, the numbers and labels, and the test counts. It points at PROGRESS, DECISIONS and
+  QA for the detail, and at `docs/v2_1/PROGRESS.md` for the release before it.
+- **`docs/UI_PLAN.md`** — a new §7, *The URL, as of v2.2*: one table of every key and what its
+  absence means, including **`present=1`** and **`cols=`**, plus the two things deliberately *not*
+  in the URL and why — the **pinned chips** (a link must not change a stranger's tools) and the
+  **keyboard shortcuts** (a shortcut is a faster way to a link, never a state of its own).
+- **`docs/v2_2/RELEASE_NOTES_FI.md`** — in Finnish, for the owner: the five things to look at with
+  their URLs, present mode in a meeting in three steps, what was left out and why, the budget
+  numbers, and the release command.
+
+**Left for a later phase (found, not fixed)**
+
+Everything in `docs/v2_2/QA.md` §§1–17. The three that decide what a next release can do at all:
+
+- **`dist/index.html` ends at 3 285 650 B of 3 300 000 — 14,0 KB.** v2.2 added ~60 KB of source and
+  no data. Before anything substantial is added the build should strip comments from the *inlined*
+  copy of the JavaScript while the repo keeps them; the comments are where four releases' decisions
+  are written down, so deleting them at source is the wrong saving.
+- **`src/style.css` ends at 165 118 B of 168 960 — 3,8 KB.** The print block and the present block
+  share enough selectors to merge if a phase needs the room.
+- **`src/app.js` ends at 463 573 B of 471 040 — 7,3 KB.** The next module to move out is not yet
+  obvious; the three sparkline drawings (`tileSpark`, `schoolTrendSvg`, `W5_CORE.sparkSegments`)
+  are the best candidate, and folding them into one would pay for itself twice.
+
+**Not done by this phase, on purpose**
+
+`./overnight.sh release` is the morning's command and W6 did not run it: no phase pushes, merges or
+tags. The branch is `v2.2-ui`, six commits, and `main` is still v2.1.

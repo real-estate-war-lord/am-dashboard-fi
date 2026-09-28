@@ -3245,9 +3245,21 @@ function lfInfraLabels() {
   const z = LF.map.getZoom(), labs = [], placed = [];
   const size = LF.map.getSize();
   /* full name once there is room for it, the short label further out */
-  const text = p => z >= 11 ? infraShort(p) : (p.label_short || infraShort(p));
+  /* W6 — `label_short` is a 28-character cut taken upstream, and it is taken mid-word: the map
+     read "Maantie 11746 Kilpilahden lä" as if that were the project's name. The UI cannot
+     lengthen it (the whole name is one click away in the popup), but it can say that it is a cut
+     — an ellipsis where the short label is a prefix of the name and is at the cut's own length.
+     A curated short label ("Kruunusillat", "Lentorata") is well under that length and is left
+     exactly as it was written. */
+  const shortLab = p => { const raw = p.label_short || "", s = raw.replace(/\s+$/, ""), n = infraShort(p) || "";
+    return raw.length >= 24 && n.length > s.length && n.startsWith(s) ? s + "…" : raw; };
+  const text = p => z >= 11 ? infraShort(p) : (p.label_short ? shortLab(p) : infraShort(p));
   const put = (ll, html, cls, p) => {
     const pt = LF.map.latLngToContainerPoint(ll);
+    /* W6 — a label anchored off the map is clipped by the container to a mid-word fragment at the
+       edge ("än parantamin"), which reads as a broken page rather than as a project name. It is not
+       drawn at all; the map re-places its labels on moveend, so panning one into view names it. */
+    if (pt.x < 0 || pt.y < 0 || pt.x > size.x || pt.y > size.y) return;
     if (placed.some(q => Math.abs(q.x - pt.x) < 78 && Math.abs(q.y - pt.y) < 20)) return;
     placed.push(pt);
     /* keep the label inside the map: near an edge it hangs off the anchor the other way */
@@ -3268,6 +3280,17 @@ function lfInfraLabels() {
     put([c[1], c[0]], `<b>${esc(text(p))}</b>`, "infralab-line", p);
   });
   LF.infraLabG = L.layerGroup(labs).addTo(LF.map);
+  /* W6 — and then the overhang is *measured*, because the 95-px rule above is a guess about a
+     width nobody knows before the label is in the document: a full project name is ~300 px wide,
+     so one anchored 100 px from the edge still hung half of itself over the side. A label whose
+     box crosses an edge is anchored the other way (west = the text starts at the anchor, east =
+     it ends there), which puts it inside whenever the map is wider than the label. */
+  const box = LF.map.getContainer().getBoundingClientRect();
+  labs.forEach(m => { const el = m.getElement(); if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.width > box.width) return;                       /* wider than the map: nothing helps */
+    if (r.left < box.left) { el.classList.remove("infralab-e"); el.classList.add("infralab-w"); }
+    else if (r.right > box.right) { el.classList.remove("infralab-w"); el.classList.add("infralab-e"); } });
 }
 function infraLegendHtml(n) {
   const sw = s => `<div class="lgrow"><i class="ilg" style="border-color:${INFRA_ST[s].color};${INFRA_ST[s].dash ? `border-top-style:dashed` : ""};${INFRA_ST[s].fill ? `background:${INFRA_ST[s].color}22` : ""}"></i>${INFRA_ST[s].label}</div>`;
@@ -4562,7 +4585,9 @@ function lfInit() {
   map.on("moveend", () => { const c = map.getCenter(); LF.center = [c.lat, c.lng]; LF.zoom = map.getZoom();
     if (MK.pub) { lfPublicLayers(); lfPublicLabels(); }
     /* services draw only what is in the viewport, so a pan is a redraw, not just a load */
-    if (MK.srv) lfServicesLayers(); });
+    if (MK.srv) lfServicesLayers();
+    /* and so do the project labels since W6: one is placed only where the map can show all of it */
+    if (MK.infra) lfInfraLabels(); });
   /* Leaflet stops click propagation inside popups, so page links in popups are wired here */
   map.on("popupopen", ev => { const el = ev.popup.getElement(); if (!el) return;
     el.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));

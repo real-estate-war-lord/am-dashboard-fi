@@ -3896,6 +3896,141 @@ def _w5_live(page, base):
 
 
 # ===========================================================================
+# v2.2 W6 — the final QA pass. Four things the screenshots showed and no earlier check could see:
+# a chart footer running off its own canvas, a bar chart drawing 300 px of white under two bars,
+# a project label clipped to a mid-word fragment at the edge of the map, and the one column of
+# anchors in the build that still had the browser's blue on it.
+# ===========================================================================
+
+
+def _chart_svg(page):
+    """the chart's canvas, its foot lines and every text box on it, in SVG user units"""
+    return page.evaluate("""() => {
+      const svg = document.getElementById('chsvg'); if (!svg) return null;
+      const vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/\\s+/).map(Number);
+      const one = t => ({ text: (t.firstChild && t.firstChild.nodeValue || '').trim(),
+                          full: (t.querySelector('title') || {}).textContent || '',
+                          x: t.getBBox().x, y: t.getBBox().y,
+                          w: t.getBBox().width, h: t.getBBox().height });
+      return { w: vb[2], h: vb[3],
+               feet: [...svg.querySelectorAll('[data-testid=chart-foot]')].map(one),
+               texts: [...svg.querySelectorAll('text')].map(one),
+               bars: [...svg.querySelectorAll('rect')].slice(1).map(
+                   r => ({ y: r.getBBox().y, h: r.getBBox().height })) };
+    }""")
+
+
+@check("W6-chart-footer-fits", phase="W6")
+def _w6_chart_footer(page, base):
+    """the source line and its note stay on the canvas, on lines of their own, in every chart mode"""
+    def assert_fits(g, where):
+        assert g, ("no chart on " + where)
+        for f in g["feet"]:
+            assert f["x"] + f["w"] <= g["w"] - 8, (where, "the footer runs off the canvas",
+                                                   f["text"][:60], f["x"] + f["w"], g["w"])
+            # and it never lands on top of something else that is written on the chart
+            for t in g["texts"]:
+                if t is f or (t["x"], t["y"], t["text"]) == (f["x"], f["y"], f["text"]):
+                    continue
+                over = (f["x"] < t["x"] + t["w"] and t["x"] < f["x"] + f["w"]
+                        and f["y"] < t["y"] + t["h"] and t["y"] < f["y"] + f["h"])
+                assert not over, (where, "the footer overlaps", t["text"][:40], f["text"][:40])
+
+    # the longest note in the build: W5's climate pair, 160 characters on its own
+    goto(page, base, "#charts?ind=flood_sea_100&a=kunta:091,kunta:049")
+    page.wait_for_timeout(2200)
+    g = _chart_svg(page)
+    assert_fits(g, "climate bars")
+    assert len(g["feet"]) == 2, ("the note is not a line of its own", [f["text"][:40] for f in g["feet"]])
+    src, note = sorted(g["feet"], key=lambda f: -f["y"])
+    assert src["text"].startswith("Source:"), src["text"][:60]
+    assert "return period" in note["full"], note["full"][:80]
+    assert "return period" not in src["full"], "the note is still spliced onto the source line"
+
+    # a line chart whose series are the kunta's figure carries the other note there is
+    goto(page, base, "#charts?ind=crime_1000&a=postinumero:00100,postinumero:00120")
+    page.wait_for_timeout(2200)
+    g = _chart_svg(page)
+    assert_fits(g, "line chart (inherited)")
+    assert any("(kunta)" in f["full"] for f in g["feet"]), \
+        ("a chart drawing the kunta's figure never says so", [f["text"][:50] for f in g["feet"]])
+
+    # and the plain line chart is untouched: one line, still on the canvas
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(1800)
+    g = _chart_svg(page)
+    assert_fits(g, "line chart")
+    assert len(g["feet"]) == 1, [f["text"][:40] for f in g["feet"]]
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-bar-chart-fits-rows", phase="W6")
+def _w6_bar_height(page, base):
+    """a bar chart's canvas is as tall as its bars need, not a fixed 640 units under two areas"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091,kunta:837&mode=bar")
+    page.wait_for_timeout(2200)
+    two = _chart_svg(page)
+    assert two and len(two["bars"]) >= 2, ("no bars", two and len(two["bars"]))
+    assert two["h"] <= 420, ("two bars still draw a 640-unit canvas", two["h"])
+    # nothing is stranded: the last bar and the bottom of the canvas are within one row of the foot
+    low = max(b["y"] + b["h"] for b in two["bars"])
+    assert two["h"] - low <= 150, ("white space under the last bar", two["h"] - low, two["h"])
+
+    goto(page, base, "#charts?ind=growth&a=kunta:091,kunta:837,kunta:049,kunta:853,kunta:564,kunta:179&mode=bar")
+    page.wait_for_timeout(2400)
+    six = _chart_svg(page)
+    assert six and len(six["bars"]) >= 6, ("no bars", six and len(six["bars"]))
+    assert six["h"] > two["h"], ("six areas fit the same canvas as two", six["h"], two["h"])
+    assert six["h"] <= 640, ("the canvas grew past the old ceiling", six["h"])
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-infra-labels-inside-map", phase="W6")
+def _w6_infra_labels(page, base):
+    """a project label is drawn only where the map can show all of it — no clipped fragments"""
+    goto(page, base, "#map/091?infra=1")
+    page.wait_for_timeout(3600)
+    g = page.evaluate("""() => {
+      const m = document.querySelector('#lfmap'); if (!m) return null;
+      const b = m.getBoundingClientRect();
+      return {n: document.querySelectorAll('.infralab').length,
+              texts: [...document.querySelectorAll('.infralab')].map(e => e.textContent.trim()),
+              out: [...document.querySelectorAll('.infralab')].map(e => {
+                const r = e.getBoundingClientRect();
+                if (r.width > b.width) return null;     /* wider than the map: nothing helps */
+                const over = Math.max(b.left - r.left, r.right - b.right, b.top - r.top, r.bottom - b.bottom);
+                return over > 1 ? {t: e.textContent.trim().slice(0, 40), over: Math.round(over)} : null;
+              }).filter(Boolean)};
+    }""")
+    assert g and g["n"] > 0, ("no project labels are drawn at all", g)
+    assert not g["out"], ("labels hang over the edge of the map", g["out"][:4])
+    # the publisher's short label is a 28-character cut taken mid-word: it is marked as one
+    assert any(t.endswith("…") for t in g["texts"]), \
+        ("a cut label is still printed as if it were the whole name", g["texts"][:6])
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-source-links-styled", phase="W6")
+def _w6_source_links(page, base):
+    """Data › Sources names its tables in the page's own ink, not the browser's blue"""
+    goto(page, base, "#data/sources")
+    page.wait_for_timeout(1400)
+    g = page.evaluate("""() => {
+      const a = document.querySelector('.tbl th a[href]'); if (!a) return null;
+      const th = a.closest('th'), cs = getComputedStyle(a);
+      return {href: a.getAttribute('href'), color: cs.color, deco: cs.textDecorationLine,
+              ink: getComputedStyle(th.parentElement).color,
+              n: document.querySelectorAll('.tbl th a[href]').length};
+    }""")
+    assert g, "the sources table names no table with a link"
+    assert g["n"] > 5, ("too few source links to be the sources table", g["n"])
+    assert g["color"] == g["ink"], ("a source link is not the page's ink", g["color"], g["ink"])
+    assert g["deco"] == "none", ("the browser's underline is still on it", g["deco"])
+    assert g["href"].startswith("http"), g["href"]
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

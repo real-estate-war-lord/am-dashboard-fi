@@ -72,9 +72,19 @@ function chTitleLive() {
   const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
   t.textContent = full; el.appendChild(t);
 }
+/* W6 — the footer is measured like the title block above it, and a note gets a line of its own.
+   The source line alone fits the 1 200-unit canvas (≈163 characters at 11 px mono); a note beside
+   it does not — W5's climate-pair note is 160 characters on its own — so the two ran together off
+   the right edge and were cut by the viewBox, on screen and in the downloaded PNG. Both lines are
+   clipped on a word as a last resort and both keep the full string in their <title>. */
+const chFootFont = () => "11px " + CH_MONO;
 function chFoot(L0, H, ind, extra) {
   const src = (ind.source || ""); const short = src.length > 90 ? src.slice(0, 88) + "…" : src;
-  return `<text x="${L0}" y="${H - 14}" font-family="${CH_MONO}" font-size="11" fill="#8A8C81">Source: ${esc(short)} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${extra || ""}</text>`;
+  const max = chTextMax(L0), font = chFootFont();
+  const line = `Source: ${short} · Macro Dashboard — Finland, open data · built ${(D.meta && D.meta.built) || ""}`;
+  const note = String(extra || "").replace(/^[\s·]+/, "");
+  const t = (s, y) => `<text data-testid="chart-foot" x="${L0}" y="${y}" font-family="${CH_MONO}" font-size="11" fill="#8A8C81">${esc(chClip(s, max, font))}<title>${esc(s)}</title></text>`;
+  return t(line, H - 14) + (note ? t(note, H - 30) : "");
 }
 /* bars: latest value per selected area, sorted, median as a dashed marker */
 function chartSvgBar(withTitle) {
@@ -88,7 +98,11 @@ function chartSvgBar(withTitle) {
   const fam = (WC.rpFamilyOf ? WC.rpFamilyOf(PC, ind.key) : []);
   const rows = fam.length > 1 ? rpBarRows(ents, fam) : ents.map((e, k) => { const own = e.inds.some(i => i.key === ind.key); const v = own ? (V(e.o, ind.key) ?? (e.type === "postinumero" && e.muni ? V(e.muni, ind.key) : null)) : null;
     return { name: e.name, color: CH_COLORS[k % CH_COLORS.length], v, inh: own && V(e.o, ind.key) == null && v != null }; }).filter(r => r.v != null).sort((a, b) => b.v - a.v);
-  const W = 1200, H = 640, L0 = 96, R = 170, T0 = withTitle ? 96 : 30, B = 70;
+  const W = 1200, L0 = 96, R = 170, T0 = withTitle ? 96 : 30, B = 70;
+  /* W6 — the canvas is as tall as its bars need. A fixed 640 units left ~300 px of white between
+     a two-area chart and its source line, on screen and in the PNG; a row is 52 units until the
+     rows stop fitting, so from nine areas up this is the old geometry exactly. */
+  const H = Math.min(640, T0 + Math.max(rows.length, 1) * 52 + B + 26);
   if (!rows.length) return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-family="${CH_FONT}" font-size="18" fill="#8A8C81">Add areas with the search box — nothing to plot yet</text></svg>`;
   const pool = ents.length && ents.every(e => e.type === "osa_alue") ? OSA.areas : MUNI;
   /* two return periods on one axis are two measurements: a single "median" tick could only belong
@@ -151,7 +165,10 @@ function chartSvgDist(withTitle) {
 const fmtP = p => String(p).replace(/K(\d)$/, " Q$1");
 function chartSvgLine(withTitle) {
   const { ind, inds, ys, series } = chartSeries(); const q = isQuarter(ys[0] || "");
-  const W = 1200, H = 640, L0 = 96, R = 30, T0 = withTitle ? 84 : 24, B = 150;
+  /* W6 — the "(kunta)" note is a second footer line now (see chFoot), so the bottom band is 16
+     units taller when there is one: the legend, the year labels and the note all live in B. */
+  const footNote = series.some(s_ => s_.inherited) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : "";
+  const W = 1200, H = 640, L0 = 96, R = 30, T0 = withTitle ? 84 : 24, B = 150 + (footNote ? 16 : 0);
   const all = series.flatMap(s_ => s_.pts.map(p => p.v)).filter(v => v != null);
   const F = "Inter, 'Helvetica Neue', Arial, sans-serif", M = "'IBM Plex Mono', Menlo, monospace";
   if (!all.length) return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#FFFFFF"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-family="${F}" font-size="18" fill="#8A8C81">Add areas with the search box — nothing to plot yet</text></svg>`;
@@ -182,7 +199,7 @@ function chartSvgLine(withTitle) {
   const legend = series.map((s_, k) => { const lx = L0 + (k % perRow) * colW, ly = legY + Math.floor(k / perRow) * 24; const last = [...s_.pts].reverse().find(p => p.v != null);
     return `<line x1="${lx}" x2="${lx + 26}" y1="${ly - 4}" y2="${ly - 4}" stroke="${s_.color}" stroke-width="${s_.dash ? 2 : 3}" ${s_.dash ? 'stroke-dasharray="7 5"' : ""}/><text x="${lx + 34}" y="${ly}" font-family="${F}" font-size="14" fill="#16170F">${esc(s_.name)}${s_.inherited ? " (kunta)" : ""}${last ? ` <tspan font-family="${M}" fill="#4A4C43">${esc(fmtOf(ind)(last.v))} (${fmtP(last.y)})</tspan>` : ""}</text>`; }).join("");
   const title = chTitleBlock(withTitle, ind, L0);
-  const foot = `<text x="${L0}" y="${H - 14}" font-family="${M}" font-size="11" fill="#8A8C81">Source: ${esc(ind.source || "")} · Macro Dashboard — Finland, open data · built ${esc((D.meta && D.meta.built) || "")}${series.some(s_ => s_.inherited) ? " · (kunta) = the kunta's figure, shown where the area publishes none" : ""}</text>`;
+  const foot = chFoot(L0, H, ind, footNote);
   /* the clipped years are named on the chart itself, so the downloaded PNG carries the caveat too */
   const note = clipNote ? `<text data-testid="chart-scale-note" x="${L0}" y="${H - B + 38}" font-family="${M}" font-size="11" fill="#8A8C81">${esc(chClip(clipNote, CH_W - L0 - CH_PAD, "11px " + CH_MONO))}<title>${esc(clipNote)}</title></text>` : "";
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="chsvg"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${title}

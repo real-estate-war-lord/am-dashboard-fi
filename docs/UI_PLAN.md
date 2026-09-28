@@ -523,3 +523,42 @@ Gate: green — validate ✓, test 38 python + 48 node ✓, build clean, `make u
 Nothing. v2.0 is complete on `v2.0-ui`, ten phases, 70 acceptance checks green, **not merged, not
 tagged, not pushed**. The morning review checklist is at the end of the run summary; the screenshots
 are in `docs/ui_v2/`.
+
+v2.1 shipped on top of it (Danish v3.0 parity and the signed-indicator colours —
+`docs/v2_1/PROGRESS.md`), and v2.2 on top of that (`docs/v2_2/PROGRESS.md`).
+
+---
+
+## 7. The URL, as of v2.2
+
+`hashFor()` is still the one serialiser and `parseHash()` the one parser (D3), and every link ever
+written still opens: a key that is absent means what it has always meant. The keys v2.1 and v2.2
+added, and what "absent" means for each:
+
+| Key | Where | Absent means | Added |
+|---|---|---|---|
+| `show=` | every view | every `<details>` closed | v2.0 |
+| `card=0` | map | the area card is open | v2.0 |
+| `rp=` | map, area, charts | the indicator's own return period (D4) | v2.0 |
+| `lay=` | map, property | the layers each view opens with | v2.1 |
+| `pin=` / `rad=` | map | no pin, no radius ring | v2.1 |
+| **`present=1`** | map, area, property, charts | the ordinary view, sidebar and toolbars in place | **v2.2 W4** |
+| **`cols=`** | `#data/areas/*` | **every** indicator group is a column | **v2.2 W5** |
+
+Two things deliberately **not** in the URL:
+
+- **The pinned chips** (`+` on the chip row, PICK10). They live in `localStorage` under
+  `amfi.pins.v1`, max 12, read and written in `try/catch`. A link is something a reader sends to
+  someone else, and a link that silently re-pinned a stranger's chip row would change their tools
+  rather than show them a figure. DECISIONS W5.
+- **The keyboard shortcuts** (A11Y7). `/` focuses the search that is on screen; `g m` / `g d` /
+  `g c` / `g p` go to Map, Data, Charts and Test property; `[` / `]` step the chip row; `P` enters
+  and leaves present mode; `?` lists them all and `Esc` closes the list. They navigate to hashes
+  that already exist — a shortcut is a faster way to a link, never a state of its own. `g` is a
+  prefix the way it is in a mail client, and every key is ignored while you are typing or with a
+  modifier held.
+
+`present=1` is written **last** in `hashFor()`, after the two views that clear the query and rebuild
+their own key list (Charts and Test property), which is what keeps it on exactly the views the plan
+names. `cols=` is dropped rather than spelled out in full when every group is ticked back on, so one
+state has one spelling.

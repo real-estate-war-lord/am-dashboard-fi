@@ -7,14 +7,42 @@ side by side, plus map layers for services, public buildings, infrastructure pro
 schools, buildings and zoning, and a **Test property** sheet that reads all of it for one
 address.
 
+**Live:** <https://real-estate-war-lord.github.io/am-dashboard-fi/> — published from `main` by
+`./overnight.sh release`, which merges the release branch, tags it and pushes.
+
 ![The map: one toolbar — search, Layers ▾, indicator, period — over the choropleth](docs/screenshot.png)
 
 Every route is captured at 1440 px and at 390 px by `make ui SHOTS=1`, which writes
-`docs/ui_v2/*.png`. Those are build output and are not committed — run it to regenerate them.
-The screenshot above is written by the same run (the map at 1440 px), so it cannot go stale
-while the rest of the set is current.
+`docs/ui_v2/*.png` — 58 files, including present mode on all four views it applies to. Those are
+build output and are not committed; run it to regenerate them. The screenshot above is written by
+the same run (the map at 1440 px), so it cannot go stale while the rest of the set is current.
+The ones worth opening first after a build:
 
-**Live:** _(GitHub Pages link goes here once `main` is published)_
+| File | What it shows |
+|---|---|
+| `docs/ui_v2/map_1440.png` | the map filling the window, the info strip naming the layer that is drawn |
+| `docs/ui_v2/area_kunta_1440.png` | an area page: five tiles, the study row, the chart and its mini map |
+| `docs/ui_v2/property_1440.png` | Test property — the whole first screen, 265 px to the study row |
+| `docs/ui_v2/present_map_1440.png` | the same map in present mode: no sidebar, no toolbar, one source line |
+| `docs/ui_v2/study_png_area.png` | the study row exported as one image by **⤓ PNG** |
+| `docs/ui_v2/*_390.png` | every route on a phone, full page |
+
+## Present mode
+
+**`▶ Present` in the top bar, the `P` key, or `present=1` in the link** turns any of the four main
+views — Map, an area page, Test property, Charts — into something you can put on a screen in a
+meeting. The sidebar, the toolbars and the chip rows go; the indicator, the period and the area
+path collapse into one line across the top; the headline figures grow a quarter; a mini map's
+legends come out from behind their `Legend ▾` pill and stay open; and a one-line source footer —
+publishers, as-of date, the address of this page — is pinned to the bottom of the window, so a
+photograph of the screen carries its own provenance. **`Esc` leaves.**
+
+Nothing is removed from the data: an acceptance check counts the tiles, the folded sections and the
+caveats with and without `present=1` and requires the three counts to be equal. Present mode is a
+property of the *link*, so a presented view can be mailed to someone; every link written before it
+existed opens exactly as it always did. Below 1025 px the legend pill stays and the source line sits
+at the end of the page instead of across the bottom of it. `Ctrl/⌘-P` prints the same view on A4
+landscape, one view per page.
 
 ## What is in it
 
