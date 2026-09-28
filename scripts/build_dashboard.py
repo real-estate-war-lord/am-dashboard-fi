@@ -211,7 +211,8 @@ def main():
     args = ap.parse_args()
 
     check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "scale_core.js",
-              SRC / "geom_core.js", SRC / "testprop.js", SRC / "present.js",
+              SRC / "geom_core.js", SRC / "w5_core.js", SRC / "w5.js", SRC / "chartsvg.js",
+              SRC / "testprop.js", SRC / "present.js",
               SRC / "app.js"])
     makro = load(pathlib.Path(args.data)) or {}
     osa = load(pathlib.Path(args.osa))
@@ -285,6 +286,9 @@ def main():
                 .replace("{{RAMP_JS}}", (SRC / "ramp_core.js").read_text(encoding="utf-8"))
                 .replace("{{SCALE_JS}}", (SRC / "scale_core.js").read_text(encoding="utf-8"))
                 .replace("{{GEOM_JS}}", (SRC / "geom_core.js").read_text(encoding="utf-8"))
+                .replace("{{W5_JS}}", (SRC / "w5_core.js").read_text(encoding="utf-8"))
+                .replace("{{W5UI_JS}}", (SRC / "w5.js").read_text(encoding="utf-8"))
+                .replace("{{CHARTSVG_JS}}", (SRC / "chartsvg.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
                 .replace("{{PRESENT_JS}}", (SRC / "present.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))

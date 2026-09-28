@@ -342,3 +342,122 @@ New file: **`src/present.js`** → `window.PRESENT`, inlined as `{{PRESENT_JS}}`
 - **Print is asserted by media emulation, not by a rendered PDF.** Playwright's `emulate_media`
   proves the rules apply; it does not prove the pagination. A real `page.pdf()` in the suite would,
   and would add a binary artefact to every run — W6's manual QA pass is the cheaper place to look.
+
+---
+
+## W5 — the Danish SHOULD list (package E) ☑
+
+Gate: `./overnight.sh gate W5` green — build ✓, node tests ✓ (132: the 109 of W1–W4 and 23 new in
+`tests/w5_core.test.js`), the full ui suite up to W5 ✓ (158 checks, 7 of them new), budgets
+`src/app.js` 450,6 KB / 460, `src/style.css` 160,6 KB / 165. The python unit suite is green.
+
+**Three new files**, all wired into `src/index.html` and `scripts/build_dashboard.py` (and its
+`check_js()` list) in this commit, all inlined **before** app.js:
+
+- **`src/w5_core.js`** → `window.W5_CORE`, `{{W5_JS}}` — the phase's arithmetic, pure, 23 node tests.
+- **`src/w5.js`** → `window.W5`, `{{W5UI_JS}}` — the phase's drawing. A feature module like
+  `present.js`, not a pure core: it reads `S` / `UI` / `MK` / `T` / `IPK` out of the shared script
+  scope.
+- **`src/chartsvg.js`** → `window.CHARTSVG`, `{{CHARTSVG_JS}}` — **the move W4 scoped**, see §0.
+
+### 0. app.js had 109 bytes left, so the chart drawing moved out first
+
+W4 ended at 470 931 B of 471 040 and wrote the plan for this in PROGRESS: `chartSvg` … `chartSvgLine`
+is now `src/chartsvg.js`, exporting the four names the rest of app.js ever asked it for — `chartSvg`,
+`chTitleLive`, `DIST_DEFS`, `fmtP`. That freed **16,0 KB**. W5 then spent almost none of it on itself:
+the arithmetic went to `w5_core.js` and the drawing to `w5.js`, so app.js gained ~1,5 KB of aliases
+and hooks and **ends the phase at 450,6 KB of 460** — 9,4 KB of headroom for W6, where W4 left 109
+bytes. The whole of W1–W4's chart suite (`W1-chart-subtitle-fits`, `W2-chart-nice-ticks`,
+`-x-starts-with-data`, `-outlier-scale`, `-one-title`, `W4-study-png`) passed unchanged against the
+moved file before a single W5 feature was written.
+
+**Built — the seven items, smallest first**
+
+1. **PICK10 — the chip row becomes the reader's** (`src/w5.js`, `indChips()`, `src/style.css`).
+   Six default quick chips until someone presses **`+`**; from then on the row is **their** pins, in
+   the order they pinned them, each with a **×** that appears on hover or focus (the × is always
+   laid out, so the row never changes width under a moving pointer). `localStorage` under
+   `amfi.pins.v1`, every read and write in `try/catch`, **max 12** — and the thirteenth drops the
+   one pinned longest ago rather than refusing the click. The pins never touch the URL; DECISIONS W5
+   says why. Pinning repaints the chip row only, never the map. Check `W5-pinned-chips` pins two,
+   reloads, unpins one and hand-writes 60 keys into the store to prove the cap.
+2. **DATA8 — `Columns ▾` on Data › Areas** (`colsBtn()`, `colsMenuBody()`, `tableCols()`,
+   `hashFor()`, `parseHash()`). Indicator **groups**, not single columns — 40+ columns is the wall
+   the table already is, and a group is what a URL can carry: `cols=Market,Taxes`. No key means every
+   group, so every pre-W5 link opens the table it always did. The indicator the table is sorted by
+   never loses its column, and **the CSV keeps every column whatever is ticked** — what is hidden
+   here is a reading aid, not a claim that a figure does not exist. Ticking the last missing group
+   back on drops `cols=` rather than listing them all. The rows are buttons, not checkboxes in
+   labels: a `<label>` forwards its click to its input, and the delegated handler would have ticked
+   the group straight back off. Check `W5-columns-menu` also asserts the header and the body agree on
+   the column count — the one way this could print a figure under the wrong name.
+3. **AREA7 — a sparkline column in the sub-areas table** (`subSpark()`, `W5_CORE.sparkSegments`).
+   The last ten published years of the sorted indicator, inline SVG, no library, `currentColor` so it
+   prints. Each row on **its own scale** (the header says so, and the column is not sortable): a
+   shared scale across forty postal codes flattens every one of them against Helsinki's range, and
+   the figure is in the cell to the left. A year the publisher did not publish **breaks the line**;
+   fewer than two published years is a dash. Check `W5-subarea-sparkline` also asserts no charting
+   library was loaded.
+4. **A11Y7 — the shortcuts and the `?` overlay** (`W5_CORE.keySeq`, `runShortcut()`, `focusSearch()`,
+   `helpOverlay()`, the `?` button on the sidebar's build line). `/` focuses the search that is on
+   screen — the picker's own box when a picker is open; `g m` / `g d` / `g c` / `g p` go to Map,
+   Data, Charts and Test property; `[` / `]` step the chip row (the pins where there are any, the
+   defaults where there are none, so the keys do something on a page nobody has pinned on yet); `?`
+   opens the list and `Esc` closes it. `g` is a prefix the way it is in a mail client, and `g` + a
+   stray key is dropped rather than guessed at. Every one of them is ignored while typing and with a
+   modifier held. `present.js` now skips `p` while a `g` is pending, so `g p` is not eaten by present
+   mode. Check `W5-shortcuts` drives all nine, including typing `gd` into the search box and getting
+   the letters. The sidebar's `?` button is `tabindex="-1"` and the build line says *press ? for
+   shortcuts* instead: the first build of it was a thirteenth tab stop in front of the indicator
+   picker and `V6-keyboard-popovers` — which guarantees twelve — caught it. DECISIONS W5.
+5. **SHEET4 — the public-building list groups building parts** (`vPubList()`,
+   `W5_CORE.groupSame`). Grouped on name + category + type **and a distance ≤ 150 m**, deliberately
+   not on the address: Finland's register is not Denmark's BBR, and the duplicates that exist here
+   (`Päiväkoti Kesäheinä`, Helsinki) differ in exactly the field an address key would split on, 11 m
+   apart. The shape is the property sheet's TP9 rule at list scale. Nothing is dropped: the `×n`
+   badge is the register's own count, the card head says how many rows the register has, and the
+   grouped row still opens the first part's sheet. Check `W5-public-list-grouped` reconciles the
+   badges against the register's total and opens a grouped row.
+6. **A Climate bar chart draws both return periods** (`chartSvgBar()`, `rpBarRows()`,
+   `chartAutoTitle()`, `W5_CORE.tint`). One row per area × return period, the pairs kept together
+   and ordered by the commoner period, the rarer one in the area's own colour mixed 45 % toward
+   white so a pair reads as one area. The **median tick is off** in that mode and the footer says
+   why — one dashed line on an axis carrying two measurements could only belong to one of them. The
+   title names the family, not the period in `ind=`. Check `W5-climate-both-return-periods` asserts
+   four bars for two coastal kunnat, that no bar label is ever a year, and that an ordinary
+   indicator's bar chart is untouched.
+7. **A11Y8 — the drill is announced** (`src/index.html`'s one `aria-live="polite"` region,
+   `announceDrill()`, `W5_CORE.drillLine`). *"Showing Helsinki, 84 postal codes"*, written at the end
+   of `lfLayers()` and **only when the sentence changes** — which is what makes v2.0's "zooming never
+   changes the selection" true for a screen reader too: a zoom redraws the same layer and produces
+   the same string, so nothing is said. Buildings mode is named with no count, because the building
+   file is lazy and a count read before it lands would be a wrong number rather than a missing one.
+   Check `W5-drill-announced` asserts the region is off screen, not `aria-hidden`, and silent on zoom.
+
+**One earlier rule this phase changes (adapted, not weakened)**
+
+- `enableSort()` now honours `data-nosort` on a `<th>`. The sparkline column has no number to sort
+  by; before this it was dressed as a sort control that fell back to comparing empty strings.
+
+**Left for a later phase (found, not fixed)**
+
+- **`src/style.css` ends at 160,6 KB of 165** — 4,4 KB for W6. The W5 section is ~4,5 KB and none of
+  it is decoration; if W6 needs room, the print block and the present block share enough selectors to
+  merge.
+- **`dist/index.html` is 3 205 kB of the 3 300 kB ceiling** — W5 added ~28 KB of source (three files
+  and the CSS) and no data. W3's suggestion still stands as the honest next step if W6 runs out:
+  strip comments from the *inlined* copy while the repo keeps them.
+- **The pins are not offered anywhere but the chip row.** A reader who pins twelve indicators on the
+  map has them on Data › Areas and the area page too (it is one `pickCtx`), but an osa-alue page
+  silently shows only the pins that level publishes — the row can be shorter than the store and never
+  says so. A "3 of your 12 are not published here" line is a defensible next step, not this phase's.
+- **`Columns ▾` is on Data › Areas only.** The area page's *All indicators* table and the property's
+  *Area profile* have the same width problem and the same group structure; `tableCols()` is the only
+  place the choice is applied, so extending it is a render change rather than a model one.
+- **The sparkline column is on the sub-areas table only.** `tileSpark()` and `schoolTrendSvg()` are
+  still the two drawings that read neither `SCALE_CORE` (W2) nor `W5_CORE.sparkSegments`; all three
+  now draw the same kind of thing three ways. None of them is wrong — they are simply not one
+  function yet.
+- **A Climate *line* chart is still one return period.** The pair is a bar-chart rule, because the
+  flood rasters have no year series at all in this edition. If SYKE ever publishes a second vintage,
+  `chartSeries()` would need the same treatment and `chartInds()` is where it would go.

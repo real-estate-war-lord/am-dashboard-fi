@@ -3600,6 +3600,302 @@ def _w4_print(page, base):
 
 
 # ===========================================================================
+# v2.2 W5 — the Danish SHOULD list (package E)
+# One check per item: PICK10 pinned chips, DATA8 Columns ▾, AREA7 sparklines,
+# A11Y7 shortcuts, SHEET4 row grouping, the Climate return-period pair, A11Y8 aria-live.
+# ===========================================================================
+
+AREAS_TAB = "#data/areas/kunta"
+
+
+@check("W5-pinned-chips", phase="W5")
+def _w5_pins(page, base):
+    """§1 PICK10 — + pins the indicator that is showing, × unpins, and the pins survive a reload"""
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    row = page.query_selector("[data-testid=ind-chips]")
+    assert row, "no chip row on Data › Areas"
+    assert not page.query_selector("[data-unpin]"), "the row starts pinned before anything was pinned"
+    n_default = len(page.query_selector_all(".iq .iqb:not(.iqadd)"))
+    assert n_default >= 4, f"only {n_default} default chips"
+    add = page.query_selector("[data-testid=pin-add]")
+    assert add, "no + on the chip row"
+
+    add.click()
+    page.wait_for_timeout(300)
+    first = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert len(first) == 1, ("+ did not write one pin", first)
+    chips = page.eval_on_selector_all(".iq .iqb:not(.iqadd)", "e => e.map(x => x.dataset.ind)")
+    assert chips == first, ("the row is not the reader's pins", chips, first)
+    assert page.query_selector("[data-unpin]"), "a pinned chip carries no ×"
+
+    # a second indicator, pinned from the picker, joins the row
+    page.evaluate("document.querySelector('[data-testid=ind-picker-btn]').click()")
+    page.wait_for_timeout(250)
+    key2 = page.evaluate("""() => { const rows = [...document.querySelectorAll('.ipkpop:not([hidden]) .ipkr')];
+        const r = rows.find(x => x.dataset.ind && !x.classList.contains('on'));
+        if (r) r.click(); return r ? r.dataset.ind : ''; }""")
+    page.wait_for_timeout(600)
+    page.click("[data-testid=pin-add]")
+    page.wait_for_timeout(300)
+    stored = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert stored == first + [key2], (stored, first, key2)
+
+    # they are this browser's, not the link's — and they come back on a reload
+    assert "pin" not in hash_of(page), ("the pins leaked into the URL", hash_of(page))
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    chips = page.eval_on_selector_all(".iq .iqb:not(.iqadd)", "e => e.map(x => x.dataset.ind)")
+    assert chips == stored, ("the pins did not survive the reload", chips, stored)
+
+    # × takes one off again
+    page.evaluate("document.querySelector('[data-unpin]').click()")
+    page.wait_for_timeout(300)
+    left = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert len(left) == 1, ("× did not unpin exactly one", left)
+
+    # the cap holds however many a hand-edited store claims
+    page.evaluate("""() => localStorage.setItem('amfi.pins.v1',
+        JSON.stringify(window.DATA.indicators.map(i => i.key)))""")
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    n = len(page.query_selector_all(".iq .iqb:not(.iqadd)"))
+    assert n <= 12, f"{n} chips on the row — the cap is 12"
+    assert no_overflow(page)
+    page.evaluate("localStorage.removeItem('amfi.pins.v1')")
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-columns-menu", phase="W5")
+def _w5_columns(page, base):
+    """§2 DATA8 — Columns ▾ chooses the indicator groups Data › Areas lists, and the link says so"""
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(700)
+    btn = page.query_selector("[data-testid=cols-btn]")
+    assert btn, "no Columns ▾ on Data › Areas"
+    cols0 = len(page.query_selector_all("[data-testid=areas-table] thead th"))
+    btn.click()
+    page.wait_for_timeout(250)
+    groups = page.eval_on_selector_all(".colspop [data-cols]", "e => e.map(x => x.dataset.cols)")
+    assert len(groups) >= 4, ("the chooser lists too few groups", groups)
+    assert all(page.eval_on_selector_all(".colspop [data-cols]",
+               "e => e.map(x => x.getAttribute('aria-checked') === 'true')")), \
+        "the chooser does not start with every group ticked"
+
+    drop = "Taxes" if "Taxes" in groups else groups[-1]
+    page.click(f"[data-cols='{drop}']")
+    page.wait_for_timeout(700)
+    cols1 = len(page.query_selector_all("[data-testid=areas-table] thead th"))
+    assert cols1 < cols0, (f"un-ticking {drop} removed no column", cols0, cols1)
+    h = hash_of(page)
+    assert "cols=" in h, ("the choice is not in the link", h)
+    assert drop not in h, (f"{drop} is still listed as shown", h)
+    # the head and the body agree — this is the one way the table could print a figure under the
+    # wrong name, so it is asserted rather than assumed
+    body_cells = page.evaluate("""() => { const r = document.querySelector('#tbody tr');
+        return r ? r.cells.length : 0; }""")
+    assert body_cells == cols1, ("the header and the rows disagree on the column count", cols1, body_cells)
+
+    # the link round-trips
+    goto(page, base, h.lstrip("#") and h)
+    page.wait_for_timeout(700)
+    assert len(page.query_selector_all("[data-testid=areas-table] thead th")) == cols1, "cols= did not survive"
+    # and "show all" is the default again, with no cols= left behind
+    page.click("[data-testid=cols-btn]")
+    page.wait_for_timeout(200)
+    page.click("[data-colsall]")
+    page.wait_for_timeout(700)
+    assert len(page.query_selector_all("[data-testid=areas-table] thead th")) == cols0
+    assert "cols=" not in hash_of(page), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-subarea-sparkline", phase="W5")
+def _w5_spark(page, base):
+    """§3 AREA7 — every sub-area row carries ten years of the sorted indicator as an inline SVG"""
+    goto(page, base, AREA + "?show=sub")
+    page.wait_for_timeout(2600)
+    sparks = page.query_selector_all("[data-testid=sub-spark]")
+    assert len(sparks) >= 10, f"only {len(sparks)} sparklines in the sub-areas table"
+    g = page.evaluate("""() => {
+      const s = document.querySelector('[data-testid=sub-spark]');
+      const head = [...document.querySelectorAll('th.spkh')].map(h => h.textContent.trim());
+      const pts = [...s.querySelectorAll('polyline')].map(p => p.getAttribute('points').split(' ').length);
+      const r = s.getBoundingClientRect();
+      const row = s.closest('tr').getBoundingClientRect();
+      return {head, pts, label: s.getAttribute('aria-label') || '',
+              inside: r.left >= row.left - 1 && r.right <= row.right + 1 && r.height <= row.height + 1,
+              libs: !!(window.d3 || window.Chart || window.Highcharts)};
+    }""")
+    assert g["head"], "the sparkline column has no header"
+    assert re.match(r"^\d{4}[–-]\d{4}", g["head"][0]), ("the header does not name the span", g["head"])
+    assert "own scale" in g["head"][0], ("the header does not say each row is on its own scale", g["head"])
+    assert g["pts"] and max(g["pts"]) >= 3, ("the sparkline has almost no points", g["pts"])
+    assert sum(g["pts"]) <= 10, ("more than ten years are drawn", g["pts"])
+    assert "published" in g["label"], ("no accessible label on the sparkline", g["label"])
+    assert g["inside"], "the sparkline leaves its row"
+    assert not g["libs"], "a charting library was loaded — this has to be inline SVG"
+    assert no_overflow(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-shortcuts", phase="W5")
+def _w5_keys(page, base):
+    """§4 A11Y7 — / g m g d g c g p [ ] and ?, all of them ignored while you are typing"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(1200)
+
+    # ? opens the list, Esc closes it
+    page.keyboard.type("?")
+    page.wait_for_timeout(300)
+    help_ = page.query_selector("[data-testid=kb-help]")
+    assert help_, "? opened no overlay"
+    rows = texts(page, "[data-testid=kb-help] .kblist dt")
+    assert len(rows) >= 8, ("the overlay lists too few shortcuts", rows)
+    assert any("/" == r.strip() for r in rows), rows
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    assert not page.query_selector("[data-testid=kb-help]"), "Esc left the overlay open"
+
+    # / focuses the search that is on the screen
+    page.keyboard.type("/")
+    page.wait_for_timeout(300)
+    focused = page.evaluate("document.activeElement && document.activeElement.id")
+    assert focused == "mq", ("/ did not focus the map search", focused)
+    # …and while it is focused, the shortcuts are letters
+    page.keyboard.type("gd")
+    page.wait_for_timeout(400)
+    assert hash_of(page).startswith("#map"), ("typing g d in a box navigated", hash_of(page))
+    assert page.evaluate("document.getElementById('mq').value") == "gd", "the letters were eaten"
+    page.keyboard.press("Escape")
+    page.evaluate("document.getElementById('mq').blur()")
+    page.wait_for_timeout(200)
+
+    # g m / g d / g c / g p. The blur is the point of the rule above, not a workaround for it: the
+    # Test property opens with its paste box focused, and a focused box owns every letter.
+    for seq, want in [("gd", "#data/areas"), ("gc", "#charts"), ("gp", "#property"), ("gm", "#map")]:
+        page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+        page.keyboard.type(seq)
+        page.wait_for_timeout(900)
+        assert hash_of(page).startswith(want), (seq, want, hash_of(page))
+        assert not page.evaluate("document.body.classList.contains('present')"), \
+            (seq, "a g sequence was taken by present mode")
+
+    # a half-typed g is dropped rather than guessed at
+    page.keyboard.type("gz")
+    page.wait_for_timeout(400)
+    assert hash_of(page).startswith("#map"), ("g + a stray key navigated", hash_of(page))
+
+    # ] and [ walk the chip row and really change the indicator
+    ind0 = page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')")
+    page.keyboard.type("]")
+    page.wait_for_timeout(900)
+    ind1 = page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')")
+    assert ind1 and ind1 != ind0, ("] did not step the chip row", ind0, ind1)
+    page.keyboard.type("[")
+    page.wait_for_timeout(900)
+    assert page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')") == ind0, \
+        "[ did not step back"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-public-list-grouped", phase="W5")
+def _w5_sheet4(page, base):
+    """§5 SHEET4 — building parts of one thing collapse into one row with the register's own count"""
+    goto(page, base, "#publist/kunta:091")
+    page.wait_for_timeout(3000)
+    g = page.evaluate("""() => {
+      const f = (window.PUB_FILES_DEBUG || null);
+      const rows = [...document.querySelectorAll('[data-pubsheet]')];
+      const badges = [...document.querySelectorAll('[data-testid=pub-count]')];
+      return {rows: rows.length, badges: badges.map(b => b.textContent.trim()),
+              hint: (document.querySelector('.card-head .hint') || {}).textContent || '',
+              cap: (document.querySelector('.card .cap') || {}).textContent || ''};
+    }""")
+    assert g["rows"] > 100, ("the list did not load", g)
+    assert g["badges"], "nothing in Helsinki's list is grouped — SHEET4 collapsed nothing"
+    assert all(re.match(r"^×\d+$", b) for b in g["badges"]), g["badges"]
+    counted = sum(int(b[1:]) for b in g["badges"])
+    # the register's rows are all still accounted for: shown rows + the extra parts the badges name
+    assert "register rows" in g["hint"], ("the head does not say how many rows the register has", g["hint"])
+    total = int(re.search(r"(\d[\d\s]*) register rows", g["hint"]).group(1).replace(" ", ""))
+    assert total == g["rows"] + counted - len(g["badges"]), (total, g["rows"], g["badges"])
+    assert "×n" in g["cap"], ("the caption never explains the badge", g["cap"])
+    # the row a badge sits on still opens a sheet
+    page.evaluate("document.querySelector('[data-testid=pub-count]').closest('tr').click()")
+    page.wait_for_timeout(2200)
+    assert hash_of(page).startswith("#public/"), hash_of(page)
+    assert page.query_selector(".arhead h2"), "the grouped row opens no building sheet"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-climate-both-return-periods", phase="W5")
+def _w5_rp(page, base):
+    """§6 — a Climate chart draws 1/100a and 1/1000a side by side for every area"""
+    # two coastal kunnat: an inland one publishes no sea-flood share at all, and a bar that is not
+    # there is the right answer for it — "not covered" is never drawn as a zero
+    goto(page, base, "#charts?ind=flood_sea_100&a=kunta:091,kunta:049")
+    page.wait_for_timeout(2200)
+    g = page.evaluate("""() => {
+      const bars = [...document.querySelectorAll('[data-testid=chart-rp-bar]')];
+      const labels = [...document.querySelectorAll('#chsvg text')].map(t => t.textContent.trim());
+      const title = (document.getElementById('chsvgtitle') || {}).textContent || '';
+      return {rp: bars.map(b => b.dataset.rp), fills: bars.map(b => b.getAttribute('fill')),
+              labels, title, svg: document.querySelectorAll('#chsvg').length};
+    }""")
+    assert g["svg"] == 1, "no chart"
+    assert len(g["rp"]) >= 4, ("two areas × two return periods is four bars", g["rp"])
+    assert set(g["rp"]) == {"100", "1000"}, g["rp"]
+    assert g["rp"].count("100") == g["rp"].count("1000"), ("the pairs are not complete", g["rp"])
+    # every bar is named with its own return period, and the pair of an area reads as one area
+    assert any(l.endswith("1/100a") for l in g["labels"]), g["labels"][:10]
+    assert any(l.endswith("1/1000a") for l in g["labels"]), g["labels"][:10]
+    assert g["fills"][0] != g["fills"][1], "both bars of a pair are the same colour"
+    assert "both return periods" in g["title"], ("the title still names one period", g["title"])
+    # a return period is a probability, not a date — no bar label is ever a year
+    assert not any(re.fullmatch(r"(19|20)\d\d", l) for l in g["labels"]), g["labels"][:10]
+    # and a non-Climate bar chart is unchanged: one bar per area, no rp marks
+    goto(page, base, "#charts?ind=projects_upcoming&a=kunta:091,kunta:049&mode=bar")
+    page.wait_for_timeout(1800)
+    assert page.query_selector_all("[data-testid=chart-rp-bar]") == [], \
+        "an ordinary indicator grew return periods"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-drill-announced", phase="W5")
+def _w5_live(page, base):
+    """§7 A11Y8 — drilling into a municipality is announced once, and a zoom announces nothing"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2600)
+    live = page.query_selector("[data-testid=live-region]")
+    assert live, "no aria-live region in the document"
+    g = page.evaluate("""() => { const e = document.querySelector('[data-testid=live-region]');
+      const cs = getComputedStyle(e);
+      return {text: e.textContent.trim(), role: e.getAttribute('role'),
+              live: e.getAttribute('aria-live'),
+              hidden: e.getAttribute('aria-hidden'),
+              w: e.getBoundingClientRect().width, vis: cs.visibility}; }""")
+    assert g["live"] == "polite" and g["role"] == "status", g
+    assert not g["hidden"], "a live region that is aria-hidden announces nothing"
+    assert g["w"] <= 2, ("the live region is on the screen", g["w"])
+    assert re.fullmatch(r"Showing Finland, \d+ municipalities", g["text"]), g["text"]
+
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(3200)
+    said = page.evaluate("document.querySelector('[data-testid=live-region]').textContent.trim()")
+    assert re.fullmatch(r"Showing Helsinki, \d+ (postal codes|osa-alueet)", said), said
+    n = int(re.search(r"(\d+)", said).group(1))
+    assert n > 10, ("the count is not the number of areas drawn", said)
+
+    # a zoom changes no selection, so it says nothing new
+    page.evaluate("(window.__maps || [])[0] && window.__maps[0].setZoom(window.__maps[0].getZoom() + 2)")
+    page.wait_for_timeout(1600)
+    assert page.evaluate("document.querySelector('[data-testid=live-region]').textContent.trim()") == said, \
+        "zooming announced something — zoom never changes the selection"
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 

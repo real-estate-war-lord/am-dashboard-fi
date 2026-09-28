@@ -28,6 +28,9 @@
      bottom of the window and print can put it at the end of the last page; app.js fills it on
      every render and CSS decides whether it is on screen. -->
 <div class="srcfoot" id="srcfoot" data-testid="source-footer"></div>
+<!-- W5 A11Y8: the one aria-live region. app.js writes a sentence into it when the map drills into a
+     municipality ("Showing Helsinki, 84 postal codes"); it is never on screen and never printed. -->
+<div class="srlive" id="srlive" role="status" aria-live="polite" aria-atomic="true" data-testid="live-region"></div>
 <script>{{LEAFLET_JS}}</script>
 <script>window.DATA = {{DATA}};</script>
 <script>{{ROUTE_JS}}</script>
@@ -35,6 +38,9 @@
 <script>{{RAMP_JS}}</script>
 <script>{{SCALE_JS}}</script>
 <script>{{GEOM_JS}}</script>
+<script>{{W5_JS}}</script>
+<script>{{W5UI_JS}}</script>
+<script>{{CHARTSVG_JS}}</script>
 <script>{{TESTPROP_JS}}</script>
 <script>{{PRESENT_JS}}</script>
 <script>{{APP_JS}}</script>

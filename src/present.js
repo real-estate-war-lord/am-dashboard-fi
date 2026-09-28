@@ -555,7 +555,10 @@ if (hasDom) {
     const popover = !!(typeof UI !== "undefined" && (UI.exOpen || UI.lyOpen || UI.navOpen || UI.mmFull))
       || !!(typeof IPK !== "undefined" && IPK.open);
     if (e.key === "Escape" && on() && !popover) { e.stopImmediatePropagation(); set(false); return; }
-    if (!typing && (e.key === "p" || e.key === "P")) { e.stopImmediatePropagation(); e.preventDefault(); toggle(); }
+    /* W5 §4 added `g p` for the Test property, and `g` is answered one listener further down —
+       so a `p` that is the second half of a sequence belongs to that, not to present mode. */
+    const goPending = !!(typeof W5 !== "undefined" && W5.KEYS && W5.KEYS.pending === "g");
+    if (!typing && !goPending && (e.key === "p" || e.key === "P")) { e.stopImmediatePropagation(); e.preventDefault(); toggle(); }
   });
   /* the browser's own print dialog: Leaflet has to be told the page just changed shape, or the
      map prints as the grey tiles it had before the print stylesheet resized it */

@@ -356,3 +356,72 @@ The decisions v2.0 took are in `docs/UI_PLAN.md` §2 (D1–D16) and v2.1's are i
   Neither is taken while the reader is typing, with a modifier held, or — for Esc — while a popover,
   the drawer or a full-screen mini map is open: those own Esc already, and leaving present mode with
   a menu still on the screen would close the wrong thing.
+- **W5** — **The chart drawing left app.js, and W5's own code never entered it.** W4 ended 109 bytes
+  under the 460 KB budget and scoped the move: `chartSvg` … `chartSvgLine` is now `src/chartsvg.js`
+  (`window.CHARTSVG`), exporting exactly the four names the rest of app.js ever asked it for
+  (`chartSvg`, `chTitleLive`, `DIST_DEFS`, `fmtP`). That freed 16,0 KB — and W5 then spent almost
+  none of it on plumbing: the phase's arithmetic is `src/w5_core.js` (pure, node-tested) and its
+  drawing is `src/w5.js` (`window.W5`), so app.js gained ~1,5 KB of aliases and hooks and ends the
+  phase at 460,7 KB of 471,0. Both new files are inlined **before** app.js and read app.js's own
+  `S` / `UI` / `MK` / `T` out of the shared script scope, the way `present.js` has since W4.
+- **W5** — **Pinned chips are this browser's, never the link's.** PICK10 says localStorage and the
+  plan says max 12; what it does not say is whether the pins ride in the URL. They do not. A link is
+  a thing a reader sends to someone else, and a link that silently re-pinned a stranger's chip row
+  would be a link that changes their tools rather than showing them a figure. So `amfi.pins.v1` is
+  read and written inside try/catch (Safari in private mode throws on write) and nothing about it
+  reaches `hashFor()`. The row is all-or-nothing rather than additive: six default quick chips until
+  the reader pins one, then **their** list only. Twelve defaults plus twelve pins is eighteen chips
+  and a third toolbar row at 1366 px, which is the width W2 §1 tuned the map card for. The cap drops
+  the pin made longest ago rather than refusing the click — a reader who pins is saying what matters
+  now.
+- **W5** — **`Columns ▾` chooses indicator *groups*, not single columns, and the export ignores it.**
+  Data › Areas is 40+ columns wide; a per-column chooser would be the same wall of names the table
+  already is, and it could not go in a URL anyone would read. A group can: `cols=Market,Taxes`. No
+  key at all means every group, so every link written before tonight still opens the table it always
+  did. Two things are never taken away: the column the table is **sorted by** (it is what the order
+  means) and every column in the CSV — what is hidden here is a reading aid, not a claim that the
+  figure does not exist. Ticking the last missing group back on drops `cols=` rather than listing
+  them all, so one state has one spelling.
+- **W5** — **A sub-area sparkline is drawn on its own scale, and a gap is a gap.** AREA7 asks for the
+  last ten years per row. A shared scale across forty postal codes would flatten every one of them
+  against Helsinki's range; a row-local scale says *shape*, and the figure is in the cell to its
+  left — which is why the column header reads "own scale" and the column is not sortable. A year the
+  publisher did not publish **breaks the line** rather than being bridged: a postal code that
+  published nothing in 2019 did not hold its 2018 value. Fewer than two published years draws a dash,
+  because one point is not a trend.
+- **W5** — **SHEET4 groups on name + category + type *and a distance*, not on the address.** The
+  Danish item is "identical rows", but Finland's register is not Denmark's BBR: Palvelukartta and
+  OpenStreetMap publish one row per building, and the duplicates that do exist — `Päiväkoti
+  Kesäheinä` in Helsinki is the clean case — differ in exactly the field an address-based key would
+  split on ("Isonniitynkatu 7" and "Isonniitynkatu 7 D", eleven metres apart). So the key drops the
+  address and the caller adds `≤ 150 m`, which is the same shape as the property sheet's TP9 rule
+  (name + use code + distance ±20 m) at list scale. Two `Kirkonkylän koulu` at opposite ends of a
+  kunta stay two rows. Nothing is dropped: the badge is the register's own count, the head says how
+  many rows the register has, and the sheet the row opens is the first part's.
+- **W5** — **A Climate bar chart draws both return periods, with no median tick.** The audit logged
+  "a Climate chart draws one return period" as a Charts change rather than a parity fix, because in
+  this edition the return period *is* the indicator (D13). A reader looking at a 1/100a bar is
+  asking "and how much worse in the rarer event?", so the bar chart now draws the whole family:
+  one row per area × return period, the pairs kept together and ordered by the commoner period, the
+  rarer one in the area's own colour mixed 45 % toward white so a pair reads as one area rather than
+  two. The median tick is **off** in that mode and the footer says so — a single dashed line on an
+  axis carrying two different measurements could only ever belong to one of them.
+- **W5** — **`g p` belongs to the Test property, so present mode stops taking `p` mid-sequence.**
+  W4 gave `P` to present mode in a listener registered before app.js's. W5's `g` prefix would have
+  been eaten by it on the second keystroke, so `present.js` now skips `p` while `W5.KEYS.pending`
+  is `"g"` — one condition, in the file that owns the key, rather than threading the sequence
+  through two handlers. Everything else about `P` is unchanged.
+- **W5** — **The `?` button is out of the tab sequence, and the `?` key is the keyboard's way in.**
+  The sidebar comes before the map in the document, so *any* focusable control added to it pushes
+  the indicator picker one Tab further from the top — and `V6-keyboard-popovers` guarantees the
+  picker is reachable in twelve, which is the stronger promise. The first build of this failed that
+  check at thirteen. So the button carries `tabindex="-1"` (it stays in the accessibility tree, and
+  a screen reader still lists it), the build line next to it now *says* "press ? for shortcuts" so
+  the feature is not folklore, and the keyboard route to the overlay is the key the overlay is
+  about. The check was not relaxed.
+- **W5** — **The drill is announced; the zoom is not.** A11Y8 asks for a live region on drill.
+  `announce()` writes only when the sentence *changes*, which is what makes "zooming never changes
+  the selection" (a v2.0 hard principle) true for a screen reader too: a zoom redraws the same
+  layer of the same area and produces the same string, so nothing is said. Buildings mode is
+  announced by name with no count — the building file is lazy, and a count read before it lands
+  would be a wrong number rather than a missing one.
