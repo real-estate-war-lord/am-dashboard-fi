@@ -62,6 +62,50 @@ UA = "am-dashboard-fi/1.1 (open-data dashboard; schools layer)"
 
 MIN_CANDIDATES = 10        # below this a school session is suppressed; see the docstring
 
+# ------------------------------------------------------- coordinate overrides
+#
+# The register publishes a coordinate per school and this build geocodes nothing — but a published
+# coordinate can still be wrong, and one of them is: `Oulun normaalikoulu` (00599) carries a point
+# in central Helsinki, 540 km from the school it names, which put an Oulu lukio on Helsinki's map
+# and in Helsinki's benchmark. `data/external/overrides/schools.csv` is the one place a coordinate
+# may be corrected, it corrects nothing else, and every row names the published dataset its
+# replacement comes from. The override is applied *before* the point-in-polygon placement, so the
+# kunta, the postal code and the osa-alue all follow from the corrected point.
+OVERRIDES = ROOT / "data" / "external" / "overrides" / "schools.csv"
+
+
+def load_overrides(path=OVERRIDES):
+    """-> {oppilaitosnumero: {"lat": float, "lon": float, "source": str}}"""
+    out = {}
+    if not path.exists():
+        return out
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+             if ln.strip() and not ln.lstrip().startswith("#")]
+    for row in csv.DictReader(lines, delimiter=";"):
+        nr = (row.get("nr") or "").strip()
+        try:
+            lat, lon = float(row["lat"]), float(row["lon"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if nr:
+            out[nr] = {"lat": lat, "lon": lon, "source": (row.get("source") or "").strip()}
+    return out
+
+
+def kunta_benchmarks(schools):
+    """{kunta code: {session: mean grade points}} — the same arithmetic wherever it is needed.
+
+    Defined once and exported: scripts/build_dashboard.py recomputes it after applying a
+    coordinate override, and two spellings of one mean is how the two stop agreeing."""
+    per = collections.defaultdict(lambda: collections.defaultdict(list))
+    for s in schools:
+        for session, cell in (s.get("years") or {}).items():
+            if cell.get("grade_avg") is not None and s.get("kom"):
+                per[s["kom"]][session].append(cell["grade_avg"])
+    return {k: {y: round(statistics.mean(v), 2) for y, v in sessions.items()}
+            for k, sessions in per.items()}
+
+
 # ---------------------------------------------------------------- the join
 #
 # There is no shared key. Tilastokeskus numbers a school with a five-digit `tunn` (08888) and
@@ -253,6 +297,11 @@ def main():
     used_names = set()
 
     areas, tree = load_areas()
+    overrides = load_overrides()
+    if overrides:
+        print(f"coordinate overrides: {len(overrides)} "
+              f"({OVERRIDES.relative_to(ROOT)}) · {', '.join(sorted(overrides))}")
+    used_overrides = set()
     schools, placed, unplaced = [], 0, 0
     by_type = collections.Counter()
     for f in feats:
@@ -262,6 +311,10 @@ def main():
             unplaced += 1
             continue
         lon, lat = g["coordinates"][0], g["coordinates"][1]
+        ov = overrides.get(str(p.get("tunn") or "").strip())
+        if ov:
+            lat, lon = ov["lat"], ov["lon"]
+            used_overrides.add(str(p.get("tunn") or "").strip())
         pt = Point(lon, lat)
         where = {}
         for i in tree.query(pt):
@@ -284,6 +337,8 @@ def main():
                "postinumero": where.get("postinumero", ""), "osa_alue": where.get("osa_alue", ""),
                "lat": round(lat, 6), "lon": round(lon, 6), "address": "",
                "register_year": p.get("til_vuosi")}
+        if ov:
+            row["coord_source"] = ov["source"]
         # The page reads a school through `years` / `latest` / `latest_year`, so the results are
         # shaped that way here rather than the page learning a second shape.
         row["years"], row["latest"], row["latest_year"] = {}, {}, {}
@@ -312,16 +367,15 @@ def main():
     print(f"  · {len(unjoined)} YTL schools have no exact name match in the register "
           f"(adult lines, schools abroad, renamed schools): {', '.join(unjoined[:4])}…")
 
+    missing = sorted(set(overrides) - used_overrides)
+    if missing:
+        print(f"  ⚠ {len(missing)} coordinate override(s) match no school in the register "
+              f"and were ignored: {', '.join(missing)}")
+
     # kunta and national benchmarks, so a popup can say "this school vs its kunta vs Finland"
     # benchmarks the page reads as benchmarks.kunta[kom][session] and benchmarks.finland[session]
-    per_kunta = collections.defaultdict(lambda: collections.defaultdict(list))
-    for s in schools:
-        for session, cell in (s.get("years") or {}).items():
-            if cell.get("grade_avg") is not None and s["kom"]:
-                per_kunta[s["kom"]][session].append(cell["grade_avg"])
     benchmarks = {
-        "kunta": {k: {y: round(statistics.mean(v), 2) for y, v in per.items()}
-                  for k, per in per_kunta.items()},
+        "kunta": kunta_benchmarks(schools),
         "finland": {y: (m.get("mean_total")) for y, m in national.items()},
         "finland_detail": national,
     }
@@ -338,7 +392,12 @@ def main():
         "benchmarks": benchmarks,
         "sources": [
             {"label": "Tilastokeskus — oppilaitokset", "licence": REG_LICENCE,
-             "url": REG_VERIFY, "used_for": "every school point, with the register's own coordinates"},
+             "url": REG_VERIFY,
+             "used_for": ("every school point, with the register's own coordinates — except the "
+                          f"{len(used_overrides)} listed in data/external/overrides/schools.csv, "
+                          "where the published coordinate names the wrong place and is replaced "
+                          "by one from another published dataset")
+             if used_overrides else "every school point, with the register's own coordinates"},
             {"label": "Ylioppilastutkintolautakunta — matriculation exam statistics",
              "licence": YTL_LICENCE, "url": YTL_VERIFY,
              "used_for": "upper-secondary results, aggregated from the published candidate file"},

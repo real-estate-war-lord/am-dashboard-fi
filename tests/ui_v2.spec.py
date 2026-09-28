@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import functools
 import http.server
+import json
+import math
 import os
 import pathlib
 import re
@@ -28,8 +30,9 @@ import traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 SHOTDIR = ROOT / "docs" / "ui_v2"
+HERO = ROOT / "docs" / "screenshot.png"      # the one screenshot README embeds
 
-PHASES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]
+PHASES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "W1", "W2", "W3", "W4", "W5", "W6"]
 
 # the routes every width is swept over (P9/P10); `name` is the screenshot stem
 ROUTES = [
@@ -894,6 +897,7 @@ def _tp_legends(page, base):
     """the infra and public-building legends stack inside the map and never overlap"""
     goto(page, base, PROP + "&lay=infra,public")
     page.wait_for_timeout(3500)
+    open_legends(page)     # W2 §2: they start behind the pill now — the stacking rule is unchanged
     mapbox = boxes(page, "[data-testid=minimap] .mapwrap")[0]
     legs = [b for b in boxes(page, "[data-testid=minimap] .maplegend") if b["w"] > 4 and b["h"] > 4]
     assert len(legs) >= 3, len(legs)
@@ -1360,6 +1364,17 @@ SHEET_ROUTES = [
     ("project", "#project/kruunusillat"),
     ("school", "#school/00004"),
     ("public", "#public/091/arabianrannan-kirjasto@60.20898,24.97678"),
+]
+
+# W4 — present mode on the four views the plan names. A screenshot list of its own rather than
+# another row in SHEET_ROUTES: eight earlier checks sweep that list, and quietly extending them to
+# a layout this phase invented is the kind of change that belongs in its own check, not in someone
+# else's. W6's QA pass asks for these shots by name.
+PRESENT_ROUTES = [
+    ("present_map", "#map?present=1"),
+    ("present_area", "#area/kunta/091?present=1"),
+    ("present_property", "#property?p=60.2448,24.8665&present=1"),
+    ("present_charts", "#charts?ind=growth&a=kunta:091&present=1"),
 ]
 
 
@@ -1877,7 +1892,18 @@ def mini_markers(page, kind):
     }""", kind)
 
 
+def open_legends(page, scope="[data-testid=minimap]"):
+    """v2.2 W2 §2 — a mini map keeps every legend behind one `Legend ▾` pill at every width, so a
+    check that asks whether a legend is live has to open the stack first. Idempotent, and a no-op
+    on a map whose legends are already shown (the macro map)."""
+    page.evaluate("""s => { const w = document.querySelector(s + ' .mapwrap');
+        if (w && !w.classList.contains('legs-open')) { const p = w.querySelector('.legpill');
+            if (p && p.offsetParent !== null) p.click(); } }""", scope)
+    page.wait_for_timeout(200)
+
+
 def legend_live(page, testid):
+    open_legends(page)
     return page.evaluate("""s => { const e = document.querySelector(s);
         return !!(e && e.offsetHeight > 0 && e.textContent.trim()); }""",
                          f"[data-testid=minimap] [data-testid={testid}]")
@@ -2031,6 +2057,10 @@ def _tp_export(page, base):
     assert "property" in items, items
     box = boxes(page, ".anhead [data-testid=export-menu]")[0]
     assert box["w"] > 10 and box["right"] <= page.evaluate("window.innerWidth") + 1, box
+    # …and the whole menu is on the screen: W3 §1 moved this button to the end of a one-line header,
+    # where the footer's "open upward" default put 340 px of it above the top of the page
+    assert box["x"] >= -1, box
+    assert box["y"] >= -1 and box["bottom"] <= page.evaluate("window.innerHeight") + 1, box
     txt = download_text(page, lambda: page.click(".anhead [data-testid=export-menu] [data-export=property]"))
     assert txt.splitlines()[0].startswith("property_label;lat;lon;"), txt.splitlines()[0]
     assert not ERRORS, ERRORS[:3]
@@ -2054,14 +2084,17 @@ def _tp_radius(page, base):
 
 @check("V4-property-head-one-line", phase="V4", viewport="1536x864")
 def _tp_head_one_line(page, base):
-    """at 1536 the identity block still owns its own line (audit TP18, DK Q2)"""
+    """at 1536 the name, its area tags and the actions share one line (W3 §1 replaces TP18/DK Q2:
+    the identity block used to claim a line of its own, which cost the first screen 46 px)"""
     goto(page, base, PROP)
     page.wait_for_timeout(3000)
     rid = boxes(page, ".anhead .arid")[0]
     tools = boxes(page, ".anhead .tools")[0]
-    assert tools["y"] >= rid["bottom"] - 2, ("the header split into two columns", rid, tools)
+    assert tools["y"] < rid["bottom"] - 2, ("the actions dropped to a line of their own", rid, tools)
+    assert tools["x"] >= rid["right"] - 2, ("the actions overlap the identity block", rid, tools)
     tiles = boxes(page, ".anhead [data-testid=tiles]")[0]
     assert abs(tiles["x"] - rid["x"]) <= 2, ("the tiles start at a different left edge", rid, tiles)
+    assert tiles["y"] >= rid["bottom"] - 2 and tiles["y"] >= tools["bottom"] - 2, (rid, tools, tiles)
     assert no_overflow(page)
 
 
@@ -2814,6 +2847,1190 @@ def _v6_study_row_top(page, base):
 
 
 # ===========================================================================
+# W1 — cleanup: the lost v2.1 V7 fixes and the small data items
+# ===========================================================================
+
+
+@check("W1-build-line-version", phase="W1")
+def _w1_build_line(page, base):
+    """the sidebar build line reads the release this page is, from one constant"""
+    goto(page, base, "#map")
+    line = (page.text_content(".buildline") or "").strip()
+    assert "v2.0" not in line, line
+    m = re.search(r"·\s*v(\d+\.\d+)", line)
+    assert m, line
+    src = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+    const = re.search(r'APP_VERSION\s*=\s*"([\d.]+)"', src)
+    assert const, "src/app.js has no APP_VERSION constant"
+    assert m.group(1) == const.group(1), (line, const.group(1))
+    # and it is spelled once: no other literal version string is written into the chrome
+    assert len(re.findall(r'·\s*v\$\{|>\s*v2\.\d\s*<', src)) <= 1, "a second hard-coded version"
+
+
+@check("W1-project-areas-served", phase="W1")
+def _w1_project_areas(page, base):
+    """a project sheet names the municipalities it serves, off the spatial index (never `kunnat`)"""
+    goto(page, base, "#project/vayla-helra---rakentaminen")
+    page.wait_for_timeout(2600)
+    card = page.text_content("[data-testid=areas-served]") or ""
+    assert "Municipalities" in card, card[:200]
+    chips = texts(page, "[data-testid=areas-served] .tfilters .lk")
+    assert chips, "no area chips on a project that runs through Helsinki"
+    assert any("Helsinki" in c for c in chips), chips[:8]
+    # and the table's Municipalities column is filled for the same project
+    goto(page, base, "#data/projects")
+    page.wait_for_timeout(2600)
+    filled = page.evaluate("""() => {
+      const rows = [...document.querySelectorAll('[data-testid=projects-table] tbody tr')];
+      return rows.filter(r => (r.cells[r.cells.length - 1].textContent || '').trim()).length; }""")
+    assert filled > 50, f"only {filled} project rows name a municipality"
+
+
+@check("W1-project-map-in-finland", phase="W1")
+def _w1_project_map(page, base):
+    """a project with no published alignment opens on Finland and says so — never on Denmark"""
+    goto(page, base, "#project/kruunusillat")
+    page.wait_for_timeout(2800)
+    c = map_state(page)
+    assert c, "the project mini map did not initialise"
+    assert 59.0 <= c["lat"] <= 70.5 and 18.0 <= c["lon"] <= 32.5, c
+    note = (page.text_content("#prmapnote") or "").strip()
+    assert note and "Denmark" not in note, note
+    assert "Not covered yet" in note, note
+    # and the card says the same thing rather than drawing an empty list
+    assert "Not covered yet" in (page.text_content("[data-testid=areas-served]") or "")
+
+
+@check("W1-years-have-no-separator", phase="W1")
+def _w1_years(page, base):
+    """a year is never written `1 987`: the buildings legend, its bins and a building popup"""
+    goto(page, base, "#map/091?micro=1&mind=year")
+    page.wait_for_timeout(3000)
+    leg = page.text_content("#maplegend") or ""
+    assert "Built" in leg, leg[:120]
+    bad = re.findall(r"\b[12]\s\d{3}\b", leg)
+    assert not bad, (bad, leg[:200])
+    assert re.search(r"\b(19|20)\d{2}\b", leg), leg[:200]
+
+
+@check("W1-chart-subtitle-fits", phase="W1")
+def _w1_chart_subtitle(page, base):
+    """the chart title and sub-title stay inside the 1200-unit canvas, with the full text kept"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(2000)
+    for sel in ("#chsvgtitle", "#chsvgsub"):
+        got = page.evaluate("""sel => { const t = document.querySelector(sel); if (!t) return null;
+          const full = t.querySelector('title');
+          return {x: t.x.baseVal.getItem(0).value, w: t.getComputedTextLength(),
+                  shown: (t.firstChild && t.firstChild.nodeValue) || '',
+                  full: full ? full.textContent : ''}; }""", sel)
+        assert got, f"{sel} is missing"
+        assert got["x"] + got["w"] <= 1200, (sel, got["x"], got["w"])
+        assert got["full"], f"{sel} keeps no full text"
+        if got["shown"].endswith("…"):
+            assert got["full"].startswith(got["shown"][:8]), got
+
+
+@check("W1-school-coord-override", phase="W1")
+def _w1_school_override(page, base):
+    """Oulun normaalikoulu is in Oulu, and the override says where its coordinate came from"""
+    schools = json.loads((DIST / "schools.json").read_text(encoding="utf-8"))
+    row = next((s for s in schools["schools"] if s["name"] == "Oulun normaalikoulu"), None)
+    assert row, "Oulun normaalikoulu is not in the layer"
+    assert row["kunta"] == "Oulu", row
+    assert 64.5 <= row["lat"] <= 65.5 and 24.5 <= row["lon"] <= 26.5, row
+    assert row.get("coord_source"), "a moved school must say where its coordinate came from"
+    goto(page, base, "#school/00599")
+    page.wait_for_timeout(2500)
+    txt = body_text(page)
+    assert "Oulu" in txt and "Helsinki" not in txt.split("Sources")[0], txt[:300]
+
+
+# ===========================================================================
+# W2 — maps and charts readable at a glance
+# ===========================================================================
+
+# a number as the page writes it (fi-FI: comma decimal, no-break-space groups, U+2212 minus)
+_NUM_CHARS = "0123456789,.+-−"
+
+
+def fi_num(s):
+    t = "".join(c for c in (s or "") if c in _NUM_CHARS)
+    t = t.replace("−", "-").replace(",", ".").replace("+", "")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def is_nice_step(step, tol=0.02):
+    """1, 2, 2.5 or 5 times a power of ten — the only gridline spacings W2 §3a allows"""
+    if not step or step <= 0:
+        return False
+    m = step / (10 ** math.floor(math.log10(step)))
+    return any(abs(m - x) <= x * tol for x in (1, 2, 2.5, 5, 10))
+
+
+@check("W2-map-card-tall-1366", phase="W2", viewport="1366x768")
+def _w2_map_tall_1366(page, base):
+    """the map card fills the window below its toolbar and is at least 560 px at 1366x768"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    vh = page.evaluate("window.innerHeight")
+    assert b["h"] >= 560, ("the map is shorter than the 560 px floor", b["h"], vh)
+    # it fills the window rather than reaching far past it — the toolbar above is ~230 px here,
+    # so the 560 floor may push the very bottom edge a little below the fold, never a screenful
+    assert b["bottom"] <= vh + 96, (b, vh)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W2-map-card-tall-1440", phase="W2", viewport="1440x900")
+def _w2_map_tall_1440(page, base):
+    """at 1440 the same map ends inside the window: measured, not a fixed calc()"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    vh = page.evaluate("window.innerHeight")
+    assert b["h"] >= 560, (b["h"], vh)
+    assert b["bottom"] <= vh + 4, (b, vh)
+
+
+@check("W2-map-card-tall-1536", phase="W2", viewport="1536x864")
+def _w2_map_tall_1536(page, base):
+    """and at 1536 — the height follows the window, it is not one number for every laptop"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    assert b["h"] >= 560, b
+    assert b["bottom"] <= page.evaluate("window.innerHeight") + 4, b
+
+
+@check("W2-map-height-mobile-untouched", phase="W2", viewport="390x844")
+def _w2_map_mobile(page, base):
+    """a phone keeps the 55vh map: the desktop floor must not be forced on it"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2400)
+    b = boxes(page, "#lfmap")[0]
+    assert 300 <= b["h"] <= 560, b
+    assert no_overflow(page), "the page scrolls sideways"
+
+
+@check("W2-map-fits-finland", phase="W2")
+def _w2_fit_finland(page, base):
+    """the national view frames Finland tightly — the drawn polygons, not a hand-typed box"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2800)
+    st = page.evaluate("""() => { const m = window.__maps[0]; if (!m) return null;
+        const b = m.getBounds();
+        return {n: b.getNorth(), s: b.getSouth(), z: m.getZoom(), h: m.getSize().y}; }""")
+    assert st, "the macro map did not initialise"
+    # Finland reaches 59.8 N (Hanko) to 70.09 N (Utsjoki): the view contains it …
+    assert st["s"] <= 60.2 and st["n"] >= 69.7, st
+    # … and wastes little doing so. zoomSnap .25 lets the fit land between whole zooms, so the
+    # visible span may exceed Finland's own 10.3 degrees by at most one quarter-zoom step.
+    assert (st["n"] - st["s"]) <= 10.3 * 1.40, ("the map is not fitted to Finland", st)
+    # a drilled kunta is fitted to the kunta, not left at the national frame
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(3000)
+    k = page.evaluate("""() => { const m = window.__maps[0]; const b = m.getBounds();
+        return {n: b.getNorth(), s: b.getSouth(), z: m.getZoom()}; }""")
+    assert k["n"] - k["s"] <= 1.0, ("a drilled kunta still shows the whole country", k)
+    assert 59.8 <= (k["n"] + k["s"]) / 2 <= 60.6, k
+
+
+@check("W2-minimap-legend-pill", phase="W2")
+def _w2_minimap_pill(page, base):
+    """§2 — a mini map's legends start behind one `Legend ▾` pill and, opened, take at most half
+    the map, scrolling inside it rather than growing over it"""
+    for h in [AREA + "?ind=growth", PROP + "&lay=infra,public", "#project/kruunusillat"]:
+        goto(page, base, h)
+        page.wait_for_timeout(3200)
+        wrap = boxes(page, ".mapwrap.mini")
+        assert wrap, (h, "the mini map's wrap is not marked .mini")
+        w = wrap[0]
+        for lg in boxes(page, ".mapwrap.mini .maplegend"):
+            assert lg["h"] <= 4, (h, "a mini-map legend is open before it is asked for", lg)
+        pill = boxes(page, ".mapwrap.mini .legpill")
+        assert pill, (h, "no Legend pill on a mini map")
+        p = pill[0]
+        assert p["x"] >= w["x"] - 1 and p["bottom"] <= w["bottom"] + 1, (h, "the pill hangs outside the map", p, w)
+        for other in boxes(page, ".mapwrap.mini .leaflet-control-zoom") + boxes(page, "[data-mmfull]"):
+            assert not overlap(p, other), (h, "the pill covers a control", p, other)
+        page.click(".mapwrap.mini .legpill")
+        page.wait_for_timeout(400)
+        # the click scrolls the pill into view, so the map's own box has to be read again
+        w = boxes(page, ".mapwrap.mini")[0]
+        st = [b for b in boxes(page, ".mapwrap.mini .maplegs") if b["h"] > 4]
+        assert st, (h, "the pill did not open the stack")
+        assert st[0]["h"] <= w["h"] * .5 + 2, (h, "the open stack is more than half the map", st[0]["h"], w["h"])
+        assert st[0]["x"] >= w["x"] - 2 and st[0]["right"] <= w["right"] + 2, (h, st[0], w)
+        assert st[0]["y"] >= w["y"] - 2 and st[0]["bottom"] <= w["bottom"] + 2, (h, st[0], w)
+        legs = [b for b in boxes(page, ".mapwrap.mini .maplegend") if b["w"] > 4 and b["h"] > 4]
+        assert legs, (h, "the open stack is empty")
+        for i, a in enumerate(legs):
+            assert a["x"] >= w["x"] - 2 and a["right"] <= w["right"] + 2, (h, "a legend hangs outside its map", a)
+            for c in legs[i + 1:]:
+                assert not overlap(a, c), (h, a, c)
+        assert page.get_attribute(".mapwrap.mini .legpill", "aria-expanded") == "true", h
+
+
+@check("W2-main-legends-under-60", phase="W2")
+def _w2_main_legends(page, base):
+    """§2 — the macro map keeps its legends open, and the stack never takes more than 60 % of it"""
+    goto(page, base, "#map/091?ind=flood_sea_100&infra=1&public=1&services=1")
+    page.wait_for_timeout(3800)
+    m = boxes(page, "#lfmap")[0]
+    st = [b for b in boxes(page, ".mklegs") if b["h"] > 4]
+    assert st, "no legend stack on the macro map"
+    assert st[0]["h"] <= m["h"] * .6 + 2, ("the macro legend stack is over 60 % of the map", st[0]["h"], m["h"])
+    assert st[0]["y"] >= m["y"] - 2 and st[0]["bottom"] <= m["bottom"] + 2, (st[0], m)
+    assert page.eval_on_selector("[data-testid=legend]", "e => e.offsetHeight > 10"), \
+        "the macro map's indicator legend is not open"
+    # and 60 % is enough for every legend at once: the cap must not be hiding one behind a scrollbar
+    fit = page.evaluate("""() => { const e = document.querySelector('.mklegs');
+        return {scroll: e.scrollHeight, client: e.clientHeight}; }""")
+    assert fit["scroll"] <= fit["client"] + 2, ("the macro legend stack has to be scrolled", fit, m["h"])
+
+
+@check("W2-chart-nice-ticks", phase="W2")
+def _w2_nice_ticks(page, base):
+    """§3a — y ticks are 1 / 2 / 2,5 / 5 × 10^n apart, include 0 where the range crosses it, and a
+    signed indicator gets a zero line of its own"""
+    for h, sel in [("#charts?ind=growth&a=kunta:091", "#chsvg text[text-anchor=end]"),
+                   (AREA + "?ind=growth", "[data-testid=chart-panel] svg.chart:not(.dist) text.ax[text-anchor=end]")]:
+        goto(page, base, h)
+        page.wait_for_timeout(3000)
+        raw = texts(page, sel)
+        vals = [v for v in (fi_num(t) for t in raw) if v is not None]
+        assert len(vals) >= 3, (h, "fewer than three y ticks", raw)
+        steps = [abs(vals[i] - vals[i + 1]) for i in range(len(vals) - 1)]
+        assert min(steps) > 0, (h, "two ticks carry the same value", vals)
+        assert max(steps) - min(steps) <= max(steps) * .03, (h, "the ticks are not evenly spaced", vals)
+        assert is_nice_step(steps[0]), (h, "not a nice step", steps[0], vals)
+        if min(vals) < 0 < max(vals):
+            assert any(abs(v) < 1e-9 for v in vals), (h, "0 is not on the axis", vals)
+            assert page.query_selector("[data-testid=chart-zero]"), (h, "no zero line on a signed indicator")
+        assert not ERRORS, (h, ERRORS[:3])
+
+
+@check("W2-chart-x-starts-with-data", phase="W2")
+def _w2_x_start(page, base):
+    """§3c — the x axis starts at the first period any plotted series has a figure for"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091,osa_alue:091010")
+    page.wait_for_timeout(3600)
+    row = page.evaluate("""() => {
+      const t = [...document.querySelectorAll('table.tbl')].find(
+          x => /^(Year|Osa-alue)$/.test(((x.querySelector('thead th') || {}).textContent || '').trim()));
+      if (!t) return null; const tr = t.querySelector('tbody tr'); if (!tr) return null;
+      return {p: tr.cells[0].textContent.trim(),
+              vals: [...tr.cells].slice(1).map(c => c.textContent.trim())}; }""")
+    assert row, "no Data table under the chart"
+    assert any(v and v != "–" for v in row["vals"]), ("the first period on the axis is empty", row)
+    xs = [t.strip() for t in texts(page, "#chsvg text[text-anchor=middle]") if re.fullmatch(r"\d{4}", t.strip())]
+    assert xs, "no year labels on the x axis"
+    assert xs[0] == row["p"][:4], ("the chart and its Data table start on different years", xs[:3], row["p"])
+
+
+@check("W2-chart-outlier-scale", phase="W2")
+def _w2_outlier_scale(page, base):
+    """§3b — the range comes from the years every series shares; a point outside it is clipped,
+    marked and named, never dropped"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(2400)
+    # the rule itself, on the page's own module: an osa-alue published from 2014 against a median
+    # whose 2011–2012 jumps ±17 % where the areas were redrawn
+    ax = page.evaluate("""() => { const S = window.SCALE_CORE; if (!S) return null;
+        const ys = ['2011','2012','2013','2014','2015','2016'];
+        const mk = v => ({pts: v.map((x, i) => ({y: ys[i], v: x}))});
+        const a = S.axis([mk([null, null, null, 1.2, 0.9, 1.5]),
+                          mk([17.6, -7.8, 0.4, 0.5, 0.6, 0.7])], ys, {});
+        return {lo: a.lo, hi: a.hi, clipped: a.clipped, note: a.note, ticks: a.ticks}; }""")
+    assert ax, "window.SCALE_CORE is not in the page"
+    assert ax["hi"] < 17.6 and ax["lo"] > -7.8, ("the outlier still sets the scale", ax)
+    assert ax["clipped"] == ["2011", "2012"], ax
+    assert ax["note"] == "scale excludes 2011–2012", ax
+    # the surviving range is the shared years', and its ticks are still nice ones
+    assert ax["lo"] <= 0.5 and ax["hi"] >= 1.5, ax
+    assert is_nice_step(ax["ticks"][1] - ax["ticks"][0]), ax
+    # and the drawn contract: a note and a ▲/▼ marker always come together
+    seen = page.evaluate("""() => ({note: !!document.querySelector('[data-testid=chart-scale-note]'),
+                                   mark: !!document.querySelector('[data-testid=chart-clip]')})""")
+    assert seen["note"] == seen["mark"], ("a clipped-scale note without markers, or the reverse", seen)
+
+
+@check("W2-chart-one-title", phase="W2")
+def _w2_one_title(page, base):
+    """§4 — the chart card head is the area and the period, not the picker's label again"""
+    goto(page, base, AREA + "?ind=growth")
+    page.wait_for_timeout(2800)
+    t = (page.text_content("[data-testid=panel-title]") or "").strip()
+    assert "Helsinki" in t, t
+    assert re.search(r"\d{4}–\d{4}", t), ("no period in the chart card head", t)
+    picker = (page.text_content("[data-testid=ind-picker]") or "").strip()
+    assert picker, "the indicator picker is gone"
+    for word in ("Population growth", "Growth"):
+        assert word not in t, ("the card head repeats the picker", t, picker)
+    # the unit is still said, once, in the same head
+    hints = [x for x in texts(page, "[data-testid=chart-panel] .card-head .hint") if x]
+    assert len(hints) == 1, hints
+    # and the mini map beside it still names the indicator
+    assert "Growth" in (page.text_content("[data-testid=minimap] .card-head h3") or ""), \
+        "the indicator is named nowhere next to the chart"
+
+
+@check("W2-info-strip-level", phase="W2")
+def _w2_info_level(page, base):
+    """§5 — the info strip names the layer the map is drawing, and changes when a kunta is opened"""
+    def level_tag():
+        return (page.text_content("#mkexplain [data-testid=ind-level]") or "").strip()
+
+    def polys():
+        return len(page.query_selector_all("#lfmap path.leaflet-interactive"))
+
+    # growth is published per postal code; nationally the map draws one polygon per kunta
+    goto(page, base, "#map?ind=growth")
+    page.wait_for_timeout(3000)
+    tag, n = level_tag(), polys()
+    assert "municipalities" in tag, tag
+    assert "postal-code level" not in tag, ("the strip still claims the publication level", tag)
+    assert "zoom in for postal codes" in tag, ("it does not say there is a finer level", tag)
+    assert n > 200, ("the national map is not drawing kunta polygons", n)
+
+    # a kunta-level indicator (crime_1000) has nothing finer to promise
+    goto(page, base, "#map?ind=crime_1000")
+    page.wait_for_timeout(2600)
+    tag = level_tag()
+    assert "municipalities" in tag and "zoom in" not in tag, tag
+
+    # opened, the same strip names the sub-areas that are now on screen: Tampere's postal codes …
+    goto(page, base, "#map/837?ind=growth")
+    page.wait_for_timeout(3800)
+    tag, n = level_tag(), polys()
+    assert "postal codes" in tag, tag
+    assert "municipalities" not in tag, tag
+    assert 5 <= n <= 200, ("the drilled map is not drawing postal codes", n)
+    # … and Helsinki's osa-alueet, which is what `muniAreas()` actually hands the map there
+    goto(page, base, "#map/091?ind=growth")
+    page.wait_for_timeout(3800)
+    tag = level_tag()
+    assert "osa-alueet" in tag, tag
+    assert "municipalities" not in tag and "postal codes" not in tag, tag
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
+# W3 — Test property: the first screen
+# ===========================================================================
+
+
+# Helsinki (osa-alue) · Espoo (osa-alue) · Tampere · Oulu · a rural kunta — the five pins the
+# fallback audit is logged for in docs/v2_2/DECISIONS.md
+W3_PINS = ["60.2448,24.8665", "60.1757,24.8050", "61.4978,23.7610", "65.0121,25.4651",
+           "64.8680,27.6700"]
+
+W3_HEAD = """() => {
+  const g = s => { const e = document.querySelector(s); if (!e) return null;
+    const r = e.getBoundingClientRect();
+    return {x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom}; };
+  return {row: g('[data-testid=study-row]'), panel: g('[data-testid=chart-panel]'),
+          arid: g('.anhead .arid'), tools: g('.anhead .tools'), tiles: g('[data-testid=tiles]'),
+          bar: g('#tpbar'), picker: g('#tpbar [data-testid=ind-picker]'),
+          layers: g('#tpbar [data-testid=layers-btn]'),
+          badge: g('#tpbar [data-testid=layers-btn] .tbn'),
+          basis: g('[data-testid=tp-basis]'),
+          headCards: document.querySelectorAll('#tptop > .card').length,
+          caps: document.querySelectorAll('.anhead p.cap').length};
+}"""
+
+
+def _w3_first_screen(page, base, limit, tiles_max):
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    g = page.evaluate(W3_HEAD)
+    assert g["row"] and g["panel"], g
+    assert g["row"]["y"] <= limit, f"the study row starts {g['row']['y']:.0f} px down (limit {limit})"
+    assert g["panel"]["y"] <= limit, f"the chart starts {g['panel']['y']:.0f} px down (limit {limit})"
+    # the header is one card now, the toolbar card is gone, and the sentence under the tiles is an ⓘ
+    assert g["headCards"] == 1, ("the header is more than one card", g["headCards"])
+    assert g["caps"] == 0, "the 'Figures are read on…' sentence is still a paragraph"
+    assert g["basis"], "no ⓘ explains which area the figures are read on"
+    # title + area chips + action buttons share one line; the tiles are directly below
+    assert g["tools"]["y"] < g["arid"]["bottom"] - 2, ("the actions dropped to their own line", g)
+    assert abs(g["tiles"]["x"] - g["arid"]["x"]) <= 2, ("the tiles start at a different left edge", g)
+    assert g["tiles"]["h"] <= tiles_max, f"the tile row is {g['tiles']['h']:.2f} px tall"
+    assert g["tiles"]["y"] >= g["arid"]["bottom"] - 2, g
+    # the picker, the period and Layers ▾ (with its count badge) are the study row's own header
+    assert g["bar"] and g["picker"] and g["layers"], ("the toolbar did not move into the study row", g)
+    assert g["bar"]["y"] >= g["row"]["y"] - 1 and g["bar"]["bottom"] <= g["row"]["bottom"] + 1, g
+    assert g["panel"]["y"] >= g["bar"]["bottom"] - 1, g
+    assert g["badge"], "the Layers ▾ count badge is gone"
+    assert no_overflow(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W3-first-screen-1440", phase="W3", viewport="1440x900")
+def _w3_first_screen_1440(page, base):
+    """at 1440x900 the study row starts within 420 px of the top (it was 496)"""
+    _w3_first_screen(page, base, 420, 84)
+
+
+@check("W3-first-screen-1366", phase="W3", viewport="1366x768")
+def _w3_first_screen_1366(page, base):
+    """at 1366x768 the whole study row starts inside the first screen"""
+    # 112, not 84: at 200 px of tile "21,3 EUR/m²/month" takes two lines, exactly as it does on the
+    # area page and did before W3. The unit is NUM3's unbreakable token — forcing it onto one line
+    # is what used to paint it over the next tile (audit TILE5).
+    _w3_first_screen(page, base, 767, 113)
+
+
+@check("W3-mobile-stays-stacked", phase="W3", viewport="390x844")
+def _w3_mobile(page, base):
+    """the phone keeps the stacked header: name, then actions, then tiles"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    g = page.evaluate(W3_HEAD)
+    assert g["tools"]["y"] >= g["arid"]["bottom"] - 2, ("the header went one-line on a phone", g)
+    assert g["tiles"]["y"] >= g["tools"]["bottom"] - 2, g
+    assert no_overflow(page)
+
+
+# what each tile is reading, straight off the page's own state: which level answered, and whether
+# the level *below* the one that answered had a figure it should have been asked for first
+W3_LEVELS = """() => {
+  const r = anRes(), e = tpEntity(r); if (!e) return null;
+  const lab = {postinumero: 'postal-code figure', kunta: 'municipality figure'};
+  const rows = [...document.querySelectorAll('[data-testid=tiles] > *')].map(el => {
+    const k = el.dataset.arind, c = eVal(e, k);
+    const em = el.querySelector('em');
+    return {k, from: c.from, own: c.own, chip: (em ? em.textContent : '').trim().split('\\n')[0],
+            pno: r.postinumero ? V(r.postinumero, k) : null,
+            kunta: r.kunta ? V(r.kunta, k) : null,
+            osaOwn: typeof osaOwn === 'function' ? osaOwn(k) : false};
+  });
+  return {type: e.type, lab, rows};
+}"""
+
+
+@check("W3-fallback-order", phase="W3")
+def _w3_fallback(page, base):
+    """osa-alue → postal code → kunta, for five sample pins, with the level named on the tile"""
+    seen = set()
+    for pin in W3_PINS:
+        goto(page, base, "#property?p=" + pin)
+        page.wait_for_timeout(3600)
+        g = page.evaluate(W3_LEVELS)
+        assert g, (pin, "the pin resolved to no area")
+        assert len(g["rows"]) == 5, (pin, g["rows"])
+        for t in g["rows"]:
+            seen.add(t["from"])
+            if t["own"]:
+                assert t["from"] == g["type"], (pin, t)
+                continue
+            # a figure the pin's own area does not publish must come from the FINEST level that does
+            if t["pno"] is not None:
+                assert t["from"] == "postinumero", (pin, "a postal-code figure exists and was skipped", t)
+            else:
+                assert t["from"] == "kunta", (pin, t)
+                assert t["kunta"] is not None, (pin, t)
+            assert t["chip"] == g["lab"][t["from"]], (pin, "the tile names the wrong level", t)
+        # an indicator the osa-alue layer publishes itself is never taken from a coarser area.
+        # Only on an osa-alue: `osaOwn` is about the quarter layer's own definitions, and a postal
+        # code that happens to share a key name (`vacant`) inherits by the ordinary rule.
+        if g["type"] == "osa_alue":
+            assert not [t for t in g["rows"] if t["osaOwn"] and not t["own"]], g["rows"]
+    # the pin the plan names read four of its five tiles off the municipality; two are finer now
+    assert "postinumero" in seen, "no tile on any sample pin resolved to a postal code"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W3-profile-table-levels", phase="W3")
+def _w3_profile_levels(page, base):
+    """the Area profile table never calls a postal-code figure the municipality's"""
+    goto(page, base, PROP + "&show=profile")
+    page.wait_for_timeout(3600)
+    bad = page.evaluate("""() => {
+      const r = anRes(), e = tpEntity(r); if (!e) return [];
+      return e.inds.filter(i => {
+        const c = eVal(e, i.key);
+        return c.v != null && !c.own && c.from === 'kunta'
+               && r.postinumero && V(r.postinumero, i.key) != null;
+      }).map(i => i.key);
+    }""")
+    assert not bad, ("read from the kunta while the postal code publishes it", bad)
+    # and the mark in the cell says which level, not "muni" for everything inherited
+    tags = texts(page, "[data-testid=tp-sec-profile] td.inh .tag-muni")
+    assert tags, "no inherited cell is marked at all"
+    assert set(tags) <= {"muni", "pno"}, tags
+    assert "pno" in tags, "no cell is marked as a postal-code figure"
+
+
+@check("W3-minimap-legends-at-load", phase="W3")
+def _w3_minimap_legends(page, base):
+    """no legend covers more than half the property mini map before it is asked for"""
+    goto(page, base, PROP + "&lay=infra,public,services")
+    page.wait_for_timeout(3600)
+    cov = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      if (!w) return null;
+      const b = w.getBoundingClientRect(), area = b.width * b.height;
+      let worst = 0, sum = 0;
+      w.querySelectorAll('.maplegend, .maplegs').forEach(el => {
+        const r = el.getBoundingClientRect();
+        const ov = Math.max(0, Math.min(b.right, r.right) - Math.max(b.left, r.left))
+                 * Math.max(0, Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top));
+        if (el.classList.contains('maplegs')) sum = ov; else worst = Math.max(worst, ov);
+      });
+      return {pill: !!w.querySelector('.legpill'), area, worst: worst / area, stack: sum / area};
+    }""")
+    assert cov, "no property mini map"
+    assert cov["pill"], "the mini map has no Legend ▾ pill"
+    assert cov["worst"] <= 0.5, f"a legend covers {cov['worst'] * 100:.0f} % of the mini map at load"
+    assert cov["stack"] <= 0.5, f"the legend stack covers {cov['stack'] * 100:.0f} % of the mini map"
+    # …and opening them keeps the half-map cap the pill promises
+    open_legends(page)
+    page.wait_for_timeout(400)
+    after = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      const b = w.getBoundingClientRect(), s = w.querySelector('.maplegs').getBoundingClientRect();
+      return (s.height * s.width) / (b.height * b.width);
+    }""")
+    assert after <= 0.5, f"the opened stack covers {after * 100:.0f} % of the mini map"
+
+
+# ===========================================================================
+# W4 — present mode, the study row's PNG, and print
+# ===========================================================================
+
+# the four views the plan names. Charts needs an area on it or there is no chart to present.
+W4_VIEWS = [
+    ("map", "#map"),
+    ("area", "#area/kunta/091"),
+    ("property", PROP),
+    ("charts", "#charts?ind=growth&a=kunta:091"),
+]
+
+# what present mode is, measured rather than described: is the sidebar on the screen, is the one
+# source line at the bottom of it, and did the toolbars go
+W4_STATE = """() => {
+  const vis = el => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+  };
+  const foot = document.getElementById('srcfoot');
+  const tools = [...document.querySelectorAll('.card-head.tools-only, .card.toolcard, #tpbar')];
+  return {
+    present: document.body.classList.contains('present'),
+    sidebar: vis(document.getElementById('sidebar')),
+    foot: vis(foot), footText: foot ? foot.textContent.trim() : '',
+    footBottom: foot ? foot.getBoundingClientRect().bottom : null,
+    line: vis(document.querySelector('[data-testid=present-line]')),
+    lineText: (document.querySelector('[data-testid=present-line]') || {}).textContent || '',
+    crumbs: vis(document.querySelector('.crumbs')),
+    tools: tools.filter(vis).length,
+    btn: !!document.querySelector('[data-testid=present-btn]'),
+    hash: location.hash,
+  };
+}"""
+
+
+@check("W4-present-hides-sidebar", phase="W4")
+def _w4_present(page, base):
+    """present=1 hides the sidebar and shows the one source footer on all four views"""
+    for name, h in W4_VIEWS:
+        goto(page, base, h + ("&" if "?" in h else "?") + "present=1")
+        page.wait_for_timeout(1800)
+        g = page.evaluate(W4_STATE)
+        assert g["present"], (name, "the body never entered present mode")
+        assert not g["sidebar"], (name, "the sidebar is still on the screen")
+        assert g["foot"], (name, "no source footer")
+        assert g["footText"].startswith("Source: "), (name, g["footText"])
+        assert "real-estate-war-lord.github.io/am-dashboard-fi" in g["footText"], (name, g["footText"])
+        # it is pinned to the bottom of the window, not left somewhere up the page
+        assert abs(g["footBottom"] - page.viewport_size["height"]) <= 2, (name, g["footBottom"])
+        # the toolbars collapsed into the one thin line, which names what is on screen
+        assert g["line"], (name, "no present line")
+        assert not g["crumbs"], (name, "the breadcrumb is still there as well as the present line")
+        assert g["tools"] == 0, (name, f"{g['tools']} toolbars survived present mode")
+        assert len(g["lineText"].strip()) > 3, (name, g["lineText"])
+        # the link says so, so a presented view can be sent to someone
+        assert "present=1" in g["hash"], (name, g["hash"])
+        assert no_overflow(page)
+        assert not ERRORS, (name, ERRORS[:3])
+
+
+@check("W4-present-key-toggles", phase="W4")
+def _w4_key(page, base):
+    """P enters and leaves present mode, Esc leaves it, and the URL follows"""
+    goto(page, base, "#map")
+    assert page.evaluate("document.body.classList.contains('present')") is False
+    page.keyboard.press("p")
+    page.wait_for_timeout(500)
+    g = page.evaluate(W4_STATE)
+    assert g["present"] and not g["sidebar"], g
+    assert "present=1" in g["hash"], g["hash"]
+    page.keyboard.press("p")
+    page.wait_for_timeout(500)
+    g = page.evaluate(W4_STATE)
+    assert not g["present"] and g["sidebar"], g
+    assert "present=1" not in g["hash"], g["hash"]
+    # Esc leaves it too, and the button is the third way in
+    page.keyboard.press("p")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is True
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is False
+    assert "present=1" not in hash_of(page), hash_of(page)
+    # the top bar's button is the third way in
+    page.click("[data-testid=present-btn]")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is True
+    # …and a p typed into a box is a letter, not a shortcut
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    page.click("#mq")
+    page.keyboard.type("Tamp")
+    page.wait_for_timeout(300)
+    assert page.evaluate("document.body.classList.contains('present')") is False, \
+        "typing into the search box entered present mode"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W4-present-numbers-bigger", phase="W4")
+def _w4_numbers(page, base):
+    """the headline figures are a quarter larger in present mode, and nothing is removed"""
+    sizes = """() => {
+      const px = sel => { const e = document.querySelector(sel); return e ? parseFloat(getComputedStyle(e).fontSize) : 0; };
+      return {tile: px('[data-testid=tiles] .hlc b'), panel: px('.pnv'),
+              tiles: document.querySelectorAll('[data-testid=tiles] .hlc').length,
+              secs: document.querySelectorAll('.seclist .sec').length,
+              caps: document.querySelectorAll('.cap').length};
+    }"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2200)
+    plain = page.evaluate(sizes)
+    goto(page, base, AREA + "?present=1")
+    page.wait_for_timeout(2200)
+    big = page.evaluate(sizes)
+    assert plain["tile"] > 0 and plain["panel"] > 0, plain
+    assert big["tile"] >= plain["tile"] * 1.2, (plain["tile"], big["tile"])
+    assert big["panel"] >= plain["panel"] * 1.2, (plain["panel"], big["panel"])
+    # "nothing is removed from the data": the same tiles, the same sections, the same caveats
+    assert big["tiles"] == plain["tiles"], (plain, big)
+    assert big["secs"] == plain["secs"], (plain, big)
+    assert big["caps"] == plain["caps"], (plain, big)
+
+
+@check("W4-present-legends-open", phase="W4")
+def _w4_legends(page, base):
+    """present mode opens the mini map's legends instead of leaving them behind the pill"""
+    goto(page, base, AREA + "?present=1")
+    page.wait_for_timeout(2600)
+    g = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      if (!w) return null;
+      const s = w.querySelector('.maplegs'), p = w.querySelector('.legpill');
+      const b = w.getBoundingClientRect(), r = s.getBoundingClientRect();
+      return {open: getComputedStyle(s).display !== 'none',
+              pill: p ? getComputedStyle(p).display !== 'none' : false,
+              inside: r.left >= b.left - 2 && r.right <= b.right + 2 && r.bottom <= b.bottom + 2,
+              share: (r.width * r.height) / (b.width * b.height)};
+    }""")
+    assert g, "no mini map"
+    assert g["open"], "the legends are still folded away in present mode"
+    assert not g["pill"], "the Legend pill is still offered in present mode"
+    assert g["inside"], ("the opened legend stack leaves the map", g)
+    assert g["share"] <= 0.62, f"the legends cover {g['share'] * 100:.0f} % of the mini map"
+
+
+@check("W4-study-png", phase="W4")
+def _w4_png(page, base):
+    """⤓ PNG on the study row downloads one non-empty image, on the area page and the property"""
+    for name, h in [("area", AREA), ("property", PROP)]:
+        goto(page, base, h)
+        page.wait_for_timeout(3000)
+        btn = page.query_selector("[data-testid=study-png]")
+        assert btn, (name, "no ⤓ PNG button on the study row")
+        with page.expect_download(timeout=20000) as dl:
+            btn.click()
+        path = dl.value.path()
+        data = pathlib.Path(path).read_bytes()
+        assert data[:8] == b"\x89PNG\r\n\x1a\n", (name, "that download is not a PNG", data[:8])
+        # a blank 1 600 x 700 PNG still compresses to a few kB; a real one is much larger
+        assert len(data) > 8000, (name, f"the image is only {len(data)} B — nothing was drawn")
+        assert dl.value.suggested_filename.endswith(".png"), dl.value.suggested_filename
+        # kept where the screenshots go, so the phase's own artefact can be looked at rather than
+        # only counted (docs/ui_v2/ is build output and is not committed)
+        SHOTDIR.mkdir(parents=True, exist_ok=True)
+        (SHOTDIR / f"study_png_{name}.png").write_bytes(data)
+        assert not ERRORS, (name, ERRORS[:3])
+
+
+@check("W4-print-no-sidebar", phase="W4")
+def _w4_print(page, base):
+    """print media hides the sidebar and the controls and shows the source footer"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2200)
+    page.emulate_media(media="print")
+    page.wait_for_timeout(400)
+    try:
+        g = page.evaluate("""() => {
+          const d = sel => { const e = document.querySelector(sel); return e ? getComputedStyle(e).display : null; };
+          const foot = document.getElementById('srcfoot');
+          return {side: d('#sidebar'), toolcard: d('.card.toolcard'), pill: d('.legpill'),
+                  hdact: d('#hdact'),
+                  foot: foot ? getComputedStyle(foot).display : null,
+                  footText: foot ? foot.textContent.trim() : '',
+                  legs: d('[data-testid=minimap] .maplegs'),
+                  map: (document.getElementById('armap') || {}).clientHeight || 0,
+                  brk: getComputedStyle(document.querySelector('.studyrow')).breakAfter};
+        }""")
+    finally:
+        page.emulate_media(media="screen")
+    assert g["side"] == "none", ("the sidebar prints", g["side"])
+    assert g["toolcard"] == "none" and g["hdact"] == "none", g
+    assert g["pill"] == "none", "the Legend pill prints"
+    assert g["legs"] == "flex", "the legends are folded away on paper"
+    assert g["foot"] == "block", "no source footer on the printed page"
+    assert g["footText"].startswith("Source: "), g["footText"]
+    assert g["map"] > 100, f"the printed mini map is {g['map']} px tall — it would be clipped"
+    assert g["brk"] in ("page", "always"), ("the study row is not a page of its own", g["brk"])
+
+
+# ===========================================================================
+# v2.2 W5 — the Danish SHOULD list (package E)
+# One check per item: PICK10 pinned chips, DATA8 Columns ▾, AREA7 sparklines,
+# A11Y7 shortcuts, SHEET4 row grouping, the Climate return-period pair, A11Y8 aria-live.
+# ===========================================================================
+
+AREAS_TAB = "#data/areas/kunta"
+
+
+@check("W5-pinned-chips", phase="W5")
+def _w5_pins(page, base):
+    """§1 PICK10 — + pins the indicator that is showing, × unpins, and the pins survive a reload"""
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    row = page.query_selector("[data-testid=ind-chips]")
+    assert row, "no chip row on Data › Areas"
+    assert not page.query_selector("[data-unpin]"), "the row starts pinned before anything was pinned"
+    n_default = len(page.query_selector_all(".iq .iqb:not(.iqadd)"))
+    assert n_default >= 4, f"only {n_default} default chips"
+    add = page.query_selector("[data-testid=pin-add]")
+    assert add, "no + on the chip row"
+
+    add.click()
+    page.wait_for_timeout(300)
+    first = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert len(first) == 1, ("+ did not write one pin", first)
+    chips = page.eval_on_selector_all(".iq .iqb:not(.iqadd)", "e => e.map(x => x.dataset.ind)")
+    assert chips == first, ("the row is not the reader's pins", chips, first)
+    assert page.query_selector("[data-unpin]"), "a pinned chip carries no ×"
+
+    # a second indicator, pinned from the picker, joins the row
+    page.evaluate("document.querySelector('[data-testid=ind-picker-btn]').click()")
+    page.wait_for_timeout(250)
+    key2 = page.evaluate("""() => { const rows = [...document.querySelectorAll('.ipkpop:not([hidden]) .ipkr')];
+        const r = rows.find(x => x.dataset.ind && !x.classList.contains('on'));
+        if (r) r.click(); return r ? r.dataset.ind : ''; }""")
+    page.wait_for_timeout(600)
+    page.click("[data-testid=pin-add]")
+    page.wait_for_timeout(300)
+    stored = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert stored == first + [key2], (stored, first, key2)
+
+    # they are this browser's, not the link's — and they come back on a reload
+    assert "pin" not in hash_of(page), ("the pins leaked into the URL", hash_of(page))
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    chips = page.eval_on_selector_all(".iq .iqb:not(.iqadd)", "e => e.map(x => x.dataset.ind)")
+    assert chips == stored, ("the pins did not survive the reload", chips, stored)
+
+    # × takes one off again
+    page.evaluate("document.querySelector('[data-unpin]').click()")
+    page.wait_for_timeout(300)
+    left = page.evaluate("JSON.parse(localStorage.getItem('amfi.pins.v1') || '[]')")
+    assert len(left) == 1, ("× did not unpin exactly one", left)
+
+    # the cap holds however many a hand-edited store claims
+    page.evaluate("""() => localStorage.setItem('amfi.pins.v1',
+        JSON.stringify(window.DATA.indicators.map(i => i.key)))""")
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(600)
+    n = len(page.query_selector_all(".iq .iqb:not(.iqadd)"))
+    assert n <= 12, f"{n} chips on the row — the cap is 12"
+    assert no_overflow(page)
+    page.evaluate("localStorage.removeItem('amfi.pins.v1')")
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-columns-menu", phase="W5")
+def _w5_columns(page, base):
+    """§2 DATA8 — Columns ▾ chooses the indicator groups Data › Areas lists, and the link says so"""
+    goto(page, base, AREAS_TAB)
+    page.wait_for_timeout(700)
+    btn = page.query_selector("[data-testid=cols-btn]")
+    assert btn, "no Columns ▾ on Data › Areas"
+    cols0 = len(page.query_selector_all("[data-testid=areas-table] thead th"))
+    btn.click()
+    page.wait_for_timeout(250)
+    groups = page.eval_on_selector_all(".colspop [data-cols]", "e => e.map(x => x.dataset.cols)")
+    assert len(groups) >= 4, ("the chooser lists too few groups", groups)
+    assert all(page.eval_on_selector_all(".colspop [data-cols]",
+               "e => e.map(x => x.getAttribute('aria-checked') === 'true')")), \
+        "the chooser does not start with every group ticked"
+
+    drop = "Taxes" if "Taxes" in groups else groups[-1]
+    page.click(f"[data-cols='{drop}']")
+    page.wait_for_timeout(700)
+    cols1 = len(page.query_selector_all("[data-testid=areas-table] thead th"))
+    assert cols1 < cols0, (f"un-ticking {drop} removed no column", cols0, cols1)
+    h = hash_of(page)
+    assert "cols=" in h, ("the choice is not in the link", h)
+    assert drop not in h, (f"{drop} is still listed as shown", h)
+    # the head and the body agree — this is the one way the table could print a figure under the
+    # wrong name, so it is asserted rather than assumed
+    body_cells = page.evaluate("""() => { const r = document.querySelector('#tbody tr');
+        return r ? r.cells.length : 0; }""")
+    assert body_cells == cols1, ("the header and the rows disagree on the column count", cols1, body_cells)
+
+    # the link round-trips
+    goto(page, base, h.lstrip("#") and h)
+    page.wait_for_timeout(700)
+    assert len(page.query_selector_all("[data-testid=areas-table] thead th")) == cols1, "cols= did not survive"
+    # and "show all" is the default again, with no cols= left behind
+    page.click("[data-testid=cols-btn]")
+    page.wait_for_timeout(200)
+    page.click("[data-colsall]")
+    page.wait_for_timeout(700)
+    assert len(page.query_selector_all("[data-testid=areas-table] thead th")) == cols0
+    assert "cols=" not in hash_of(page), hash_of(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-subarea-sparkline", phase="W5")
+def _w5_spark(page, base):
+    """§3 AREA7 — every sub-area row carries ten years of the sorted indicator as an inline SVG"""
+    goto(page, base, AREA + "?show=sub")
+    page.wait_for_timeout(2600)
+    sparks = page.query_selector_all("[data-testid=sub-spark]")
+    assert len(sparks) >= 10, f"only {len(sparks)} sparklines in the sub-areas table"
+    g = page.evaluate("""() => {
+      const s = document.querySelector('[data-testid=sub-spark]');
+      const head = [...document.querySelectorAll('th.spkh')].map(h => h.textContent.trim());
+      const pts = [...s.querySelectorAll('polyline')].map(p => p.getAttribute('points').split(' ').length);
+      const r = s.getBoundingClientRect();
+      const row = s.closest('tr').getBoundingClientRect();
+      return {head, pts, label: s.getAttribute('aria-label') || '',
+              inside: r.left >= row.left - 1 && r.right <= row.right + 1 && r.height <= row.height + 1,
+              libs: !!(window.d3 || window.Chart || window.Highcharts)};
+    }""")
+    assert g["head"], "the sparkline column has no header"
+    assert re.match(r"^\d{4}[–-]\d{4}", g["head"][0]), ("the header does not name the span", g["head"])
+    assert "own scale" in g["head"][0], ("the header does not say each row is on its own scale", g["head"])
+    assert g["pts"] and max(g["pts"]) >= 3, ("the sparkline has almost no points", g["pts"])
+    assert sum(g["pts"]) <= 10, ("more than ten years are drawn", g["pts"])
+    assert "published" in g["label"], ("no accessible label on the sparkline", g["label"])
+    assert g["inside"], "the sparkline leaves its row"
+    assert not g["libs"], "a charting library was loaded — this has to be inline SVG"
+    assert no_overflow(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-shortcuts", phase="W5")
+def _w5_keys(page, base):
+    """§4 A11Y7 — / g m g d g c g p [ ] and ?, all of them ignored while you are typing"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(1200)
+
+    # ? opens the list, Esc closes it
+    page.keyboard.type("?")
+    page.wait_for_timeout(300)
+    help_ = page.query_selector("[data-testid=kb-help]")
+    assert help_, "? opened no overlay"
+    rows = texts(page, "[data-testid=kb-help] .kblist dt")
+    assert len(rows) >= 8, ("the overlay lists too few shortcuts", rows)
+    assert any("/" == r.strip() for r in rows), rows
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    assert not page.query_selector("[data-testid=kb-help]"), "Esc left the overlay open"
+
+    # / focuses the search that is on the screen
+    page.keyboard.type("/")
+    page.wait_for_timeout(300)
+    focused = page.evaluate("document.activeElement && document.activeElement.id")
+    assert focused == "mq", ("/ did not focus the map search", focused)
+    # …and while it is focused, the shortcuts are letters
+    page.keyboard.type("gd")
+    page.wait_for_timeout(400)
+    assert hash_of(page).startswith("#map"), ("typing g d in a box navigated", hash_of(page))
+    assert page.evaluate("document.getElementById('mq').value") == "gd", "the letters were eaten"
+    page.keyboard.press("Escape")
+    page.evaluate("document.getElementById('mq').blur()")
+    page.wait_for_timeout(200)
+
+    # g m / g d / g c / g p. The blur is the point of the rule above, not a workaround for it: the
+    # Test property opens with its paste box focused, and a focused box owns every letter.
+    for seq, want in [("gd", "#data/areas"), ("gc", "#charts"), ("gp", "#property"), ("gm", "#map")]:
+        page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+        page.keyboard.type(seq)
+        page.wait_for_timeout(900)
+        assert hash_of(page).startswith(want), (seq, want, hash_of(page))
+        assert not page.evaluate("document.body.classList.contains('present')"), \
+            (seq, "a g sequence was taken by present mode")
+
+    # a half-typed g is dropped rather than guessed at
+    page.keyboard.type("gz")
+    page.wait_for_timeout(400)
+    assert hash_of(page).startswith("#map"), ("g + a stray key navigated", hash_of(page))
+
+    # ] and [ walk the chip row and really change the indicator
+    ind0 = page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')")
+    page.keyboard.type("]")
+    page.wait_for_timeout(900)
+    ind1 = page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')")
+    assert ind1 and ind1 != ind0, ("] did not step the chip row", ind0, ind1)
+    page.keyboard.type("[")
+    page.wait_for_timeout(900)
+    assert page.evaluate("new URLSearchParams(location.hash.split('?')[1] || '').get('ind')") == ind0, \
+        "[ did not step back"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-public-list-grouped", phase="W5")
+def _w5_sheet4(page, base):
+    """§5 SHEET4 — building parts of one thing collapse into one row with the register's own count"""
+    goto(page, base, "#publist/kunta:091")
+    page.wait_for_timeout(3000)
+    g = page.evaluate("""() => {
+      const f = (window.PUB_FILES_DEBUG || null);
+      const rows = [...document.querySelectorAll('[data-pubsheet]')];
+      const badges = [...document.querySelectorAll('[data-testid=pub-count]')];
+      return {rows: rows.length, badges: badges.map(b => b.textContent.trim()),
+              hint: (document.querySelector('.card-head .hint') || {}).textContent || '',
+              cap: (document.querySelector('.card .cap') || {}).textContent || ''};
+    }""")
+    assert g["rows"] > 100, ("the list did not load", g)
+    assert g["badges"], "nothing in Helsinki's list is grouped — SHEET4 collapsed nothing"
+    assert all(re.match(r"^×\d+$", b) for b in g["badges"]), g["badges"]
+    counted = sum(int(b[1:]) for b in g["badges"])
+    # the register's rows are all still accounted for: shown rows + the extra parts the badges name
+    assert "register rows" in g["hint"], ("the head does not say how many rows the register has", g["hint"])
+    total = int(re.search(r"(\d[\d\s]*) register rows", g["hint"]).group(1).replace(" ", ""))
+    assert total == g["rows"] + counted - len(g["badges"]), (total, g["rows"], g["badges"])
+    assert "×n" in g["cap"], ("the caption never explains the badge", g["cap"])
+    # the row a badge sits on still opens a sheet
+    page.evaluate("document.querySelector('[data-testid=pub-count]').closest('tr').click()")
+    page.wait_for_timeout(2200)
+    assert hash_of(page).startswith("#public/"), hash_of(page)
+    assert page.query_selector(".arhead h2"), "the grouped row opens no building sheet"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-climate-both-return-periods", phase="W5")
+def _w5_rp(page, base):
+    """§6 — a Climate chart draws 1/100a and 1/1000a side by side for every area"""
+    # two coastal kunnat: an inland one publishes no sea-flood share at all, and a bar that is not
+    # there is the right answer for it — "not covered" is never drawn as a zero
+    goto(page, base, "#charts?ind=flood_sea_100&a=kunta:091,kunta:049")
+    page.wait_for_timeout(2200)
+    g = page.evaluate("""() => {
+      const bars = [...document.querySelectorAll('[data-testid=chart-rp-bar]')];
+      const labels = [...document.querySelectorAll('#chsvg text')].map(t => t.textContent.trim());
+      const title = (document.getElementById('chsvgtitle') || {}).textContent || '';
+      return {rp: bars.map(b => b.dataset.rp), fills: bars.map(b => b.getAttribute('fill')),
+              labels, title, svg: document.querySelectorAll('#chsvg').length};
+    }""")
+    assert g["svg"] == 1, "no chart"
+    assert len(g["rp"]) >= 4, ("two areas × two return periods is four bars", g["rp"])
+    assert set(g["rp"]) == {"100", "1000"}, g["rp"]
+    assert g["rp"].count("100") == g["rp"].count("1000"), ("the pairs are not complete", g["rp"])
+    # every bar is named with its own return period, and the pair of an area reads as one area
+    assert any(l.endswith("1/100a") for l in g["labels"]), g["labels"][:10]
+    assert any(l.endswith("1/1000a") for l in g["labels"]), g["labels"][:10]
+    assert g["fills"][0] != g["fills"][1], "both bars of a pair are the same colour"
+    assert "both return periods" in g["title"], ("the title still names one period", g["title"])
+    # a return period is a probability, not a date — no bar label is ever a year
+    assert not any(re.fullmatch(r"(19|20)\d\d", l) for l in g["labels"]), g["labels"][:10]
+    # and a non-Climate bar chart is unchanged: one bar per area, no rp marks
+    goto(page, base, "#charts?ind=projects_upcoming&a=kunta:091,kunta:049&mode=bar")
+    page.wait_for_timeout(1800)
+    assert page.query_selector_all("[data-testid=chart-rp-bar]") == [], \
+        "an ordinary indicator grew return periods"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W5-drill-announced", phase="W5")
+def _w5_live(page, base):
+    """§7 A11Y8 — drilling into a municipality is announced once, and a zoom announces nothing"""
+    goto(page, base, "#map")
+    page.wait_for_timeout(2600)
+    live = page.query_selector("[data-testid=live-region]")
+    assert live, "no aria-live region in the document"
+    g = page.evaluate("""() => { const e = document.querySelector('[data-testid=live-region]');
+      const cs = getComputedStyle(e);
+      return {text: e.textContent.trim(), role: e.getAttribute('role'),
+              live: e.getAttribute('aria-live'),
+              hidden: e.getAttribute('aria-hidden'),
+              w: e.getBoundingClientRect().width, vis: cs.visibility}; }""")
+    assert g["live"] == "polite" and g["role"] == "status", g
+    assert not g["hidden"], "a live region that is aria-hidden announces nothing"
+    assert g["w"] <= 2, ("the live region is on the screen", g["w"])
+    assert re.fullmatch(r"Showing Finland, \d+ municipalities", g["text"]), g["text"]
+
+    goto(page, base, "#map/091")
+    page.wait_for_timeout(3200)
+    said = page.evaluate("document.querySelector('[data-testid=live-region]').textContent.trim()")
+    assert re.fullmatch(r"Showing Helsinki, \d+ (postal codes|osa-alueet)", said), said
+    n = int(re.search(r"(\d+)", said).group(1))
+    assert n > 10, ("the count is not the number of areas drawn", said)
+
+    # a zoom changes no selection, so it says nothing new
+    page.evaluate("(window.__maps || [])[0] && window.__maps[0].setZoom(window.__maps[0].getZoom() + 2)")
+    page.wait_for_timeout(1600)
+    assert page.evaluate("document.querySelector('[data-testid=live-region]').textContent.trim()") == said, \
+        "zooming announced something — zoom never changes the selection"
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
+# v2.2 W6 — the final QA pass. Four things the screenshots showed and no earlier check could see:
+# a chart footer running off its own canvas, a bar chart drawing 300 px of white under two bars,
+# a project label clipped to a mid-word fragment at the edge of the map, and the one column of
+# anchors in the build that still had the browser's blue on it.
+# ===========================================================================
+
+
+def _chart_svg(page):
+    """the chart's canvas, its foot lines and every text box on it, in SVG user units"""
+    return page.evaluate("""() => {
+      const svg = document.getElementById('chsvg'); if (!svg) return null;
+      const vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/\\s+/).map(Number);
+      const one = t => ({ text: (t.firstChild && t.firstChild.nodeValue || '').trim(),
+                          full: (t.querySelector('title') || {}).textContent || '',
+                          x: t.getBBox().x, y: t.getBBox().y,
+                          w: t.getBBox().width, h: t.getBBox().height });
+      return { w: vb[2], h: vb[3],
+               feet: [...svg.querySelectorAll('[data-testid=chart-foot]')].map(one),
+               texts: [...svg.querySelectorAll('text')].map(one),
+               bars: [...svg.querySelectorAll('rect')].slice(1).map(
+                   r => ({ y: r.getBBox().y, h: r.getBBox().height })) };
+    }""")
+
+
+@check("W6-chart-footer-fits", phase="W6")
+def _w6_chart_footer(page, base):
+    """the source line and its note stay on the canvas, on lines of their own, in every chart mode"""
+    def assert_fits(g, where):
+        assert g, ("no chart on " + where)
+        for f in g["feet"]:
+            assert f["x"] + f["w"] <= g["w"] - 8, (where, "the footer runs off the canvas",
+                                                   f["text"][:60], f["x"] + f["w"], g["w"])
+            # and it never lands on top of something else that is written on the chart
+            for t in g["texts"]:
+                if t is f or (t["x"], t["y"], t["text"]) == (f["x"], f["y"], f["text"]):
+                    continue
+                over = (f["x"] < t["x"] + t["w"] and t["x"] < f["x"] + f["w"]
+                        and f["y"] < t["y"] + t["h"] and t["y"] < f["y"] + f["h"])
+                assert not over, (where, "the footer overlaps", t["text"][:40], f["text"][:40])
+
+    # the longest note in the build: W5's climate pair, 160 characters on its own
+    goto(page, base, "#charts?ind=flood_sea_100&a=kunta:091,kunta:049")
+    page.wait_for_timeout(2200)
+    g = _chart_svg(page)
+    assert_fits(g, "climate bars")
+    assert len(g["feet"]) == 2, ("the note is not a line of its own", [f["text"][:40] for f in g["feet"]])
+    src, note = sorted(g["feet"], key=lambda f: -f["y"])
+    assert src["text"].startswith("Source:"), src["text"][:60]
+    assert "return period" in note["full"], note["full"][:80]
+    assert "return period" not in src["full"], "the note is still spliced onto the source line"
+
+    # a line chart whose series are the kunta's figure carries the other note there is
+    goto(page, base, "#charts?ind=crime_1000&a=postinumero:00100,postinumero:00120")
+    page.wait_for_timeout(2200)
+    g = _chart_svg(page)
+    assert_fits(g, "line chart (inherited)")
+    assert any("(kunta)" in f["full"] for f in g["feet"]), \
+        ("a chart drawing the kunta's figure never says so", [f["text"][:50] for f in g["feet"]])
+
+    # and the plain line chart is untouched: one line, still on the canvas
+    goto(page, base, "#charts?ind=growth&a=kunta:091")
+    page.wait_for_timeout(1800)
+    g = _chart_svg(page)
+    assert_fits(g, "line chart")
+    assert len(g["feet"]) == 1, [f["text"][:40] for f in g["feet"]]
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-bar-chart-fits-rows", phase="W6")
+def _w6_bar_height(page, base):
+    """a bar chart's canvas is as tall as its bars need, not a fixed 640 units under two areas"""
+    goto(page, base, "#charts?ind=growth&a=kunta:091,kunta:837&mode=bar")
+    page.wait_for_timeout(2200)
+    two = _chart_svg(page)
+    assert two and len(two["bars"]) >= 2, ("no bars", two and len(two["bars"]))
+    assert two["h"] <= 420, ("two bars still draw a 640-unit canvas", two["h"])
+    # nothing is stranded: the last bar and the bottom of the canvas are within one row of the foot
+    low = max(b["y"] + b["h"] for b in two["bars"])
+    assert two["h"] - low <= 150, ("white space under the last bar", two["h"] - low, two["h"])
+
+    goto(page, base, "#charts?ind=growth&a=kunta:091,kunta:837,kunta:049,kunta:853,kunta:564,kunta:179&mode=bar")
+    page.wait_for_timeout(2400)
+    six = _chart_svg(page)
+    assert six and len(six["bars"]) >= 6, ("no bars", six and len(six["bars"]))
+    assert six["h"] > two["h"], ("six areas fit the same canvas as two", six["h"], two["h"])
+    assert six["h"] <= 640, ("the canvas grew past the old ceiling", six["h"])
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-infra-labels-inside-map", phase="W6")
+def _w6_infra_labels(page, base):
+    """a project label is drawn only where the map can show all of it — no clipped fragments"""
+    goto(page, base, "#map/091?infra=1")
+    page.wait_for_timeout(3600)
+    g = page.evaluate("""() => {
+      const m = document.querySelector('#lfmap'); if (!m) return null;
+      const b = m.getBoundingClientRect();
+      return {n: document.querySelectorAll('.infralab').length,
+              texts: [...document.querySelectorAll('.infralab')].map(e => e.textContent.trim()),
+              out: [...document.querySelectorAll('.infralab')].map(e => {
+                const r = e.getBoundingClientRect();
+                if (r.width > b.width) return null;     /* wider than the map: nothing helps */
+                const over = Math.max(b.left - r.left, r.right - b.right, b.top - r.top, r.bottom - b.bottom);
+                return over > 1 ? {t: e.textContent.trim().slice(0, 40), over: Math.round(over)} : null;
+              }).filter(Boolean)};
+    }""")
+    assert g and g["n"] > 0, ("no project labels are drawn at all", g)
+    assert not g["out"], ("labels hang over the edge of the map", g["out"][:4])
+    # the publisher's short label is a 28-character cut taken mid-word: it is marked as one
+    assert any(t.endswith("…") for t in g["texts"]), \
+        ("a cut label is still printed as if it were the whole name", g["texts"][:6])
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W6-source-links-styled", phase="W6")
+def _w6_source_links(page, base):
+    """Data › Sources names its tables in the page's own ink, not the browser's blue"""
+    goto(page, base, "#data/sources")
+    page.wait_for_timeout(1400)
+    g = page.evaluate("""() => {
+      const a = document.querySelector('.tbl th a[href]'); if (!a) return null;
+      const th = a.closest('th'), cs = getComputedStyle(a);
+      return {href: a.getAttribute('href'), color: cs.color, deco: cs.textDecorationLine,
+              ink: getComputedStyle(th.parentElement).color,
+              n: document.querySelectorAll('.tbl th a[href]').length};
+    }""")
+    assert g, "the sources table names no table with a link"
+    assert g["n"] > 5, ("too few source links to be the sources table", g["n"])
+    assert g["color"] == g["ink"], ("a source link is not the page's ink", g["color"], g["ink"])
+    assert g["deco"] == "none", ("the browser's underline is still on it", g["deco"])
+    assert g["href"].startswith("http"), g["href"]
+    assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
@@ -2872,10 +4089,15 @@ def run(phase_upto="P10", shots=False, only=None):
                     ctx = browser.new_context(viewport={"width": w, "height": h})
                     ctx.route("**://*/**", block_external)
                     pg = ctx.new_page()
-                    for name, route in ROUTES + SHEET_ROUTES:
+                    for name, route in ROUTES + SHEET_ROUTES + PRESENT_ROUTES:
                         goto(pg, base, route)
                         pg.wait_for_timeout(900)
                         pg.screenshot(path=str(SHOTDIR / f"{name}_{w}.png"), full_page=(w == 390))
+                        # README's one screenshot is the same shot, written where README points at
+                        # it. It went stale for a whole release because it was made by hand; it is
+                        # now build output like every other shot in this loop (W1).
+                        if (name, w) == ("map", 1440):
+                            pg.screenshot(path=str(HERO))
                     ctx.close()
                     print(f"  · screenshots at {w} px → docs/ui_v2/")
             browser.close()

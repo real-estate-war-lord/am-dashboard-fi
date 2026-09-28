@@ -300,9 +300,9 @@
       "direction": "neutral",
       "level": "postinumero",
       "hue": [
-        40,
-        84,
-        128
+        138,
+        58,
+        122
       ],
       "desc": "Household-dwelling units living in a rented dwelling, as a share of all households (Paavo te_vuok_as ÷ te_taly).",
       "calc": "share_pct",
@@ -472,9 +472,9 @@
       "direction": "neutral",
       "level": "postinumero",
       "hue": [
-        40,
-        84,
-        128
+        138,
+        58,
+        122
       ],
       "desc": "Dwellings in blocks of flats (kerrostalo) as a share of all dwellings (Paavo ra_kt_as ÷ ra_asunn).",
       "calc": "share_pct",
@@ -4484,8 +4484,8 @@
     },
     {
       "key": "stations_planned_1200m",
-      "label": "Transport projects within 1.2 km",
-      "short": "Projects ≤1.2 km",
+      "label": "Transport projects within 1,2 km",
+      "short": "Projects ≤1,2 km",
       "unit": "projects",
       "fmt": "int",
       "group": "Growth signals",
@@ -4536,9 +4536,9 @@
       "direction": "neutral",
       "level": "postinumero",
       "hue": [
-        28,
-        70,
-        96
+        120,
+        44,
+        106
       ],
       "desc": "Dwellings in buildings the register records as completed before 1980, as a share of the dwellings in buildings whose completion year it publishes. 1980 is a cut, not a threshold of quality: it is simply a round year before the 1980s and 1990s stock.",
       "calc": "passthrough",

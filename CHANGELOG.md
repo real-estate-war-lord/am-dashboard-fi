@@ -1,5 +1,115 @@
 # Changelog
 
+## v2.2 — readable at a glance, and presentable
+
+Branch `v2.2-ui`, six phases (W1…W6). **No data source, figure or fetch changed**: as in v2.0 and
+v2.1 this round is the interface. Where a number moved on screen it is because the page was reading
+the wrong level for it (§ *Test property*) or printing it wrong (§ *Numbers and labels*).
+
+Six new front-end files, each an IIFE exposing one global, inlined before `app.js`:
+`src/scale_core.js` (one chart axis), `src/geom_core.js` (the point-in-polygon geometry),
+`src/present.js` (present mode and the rasteriser), `src/w5_core.js` + `src/w5.js` (the Danish
+SHOULD list) and `src/chartsvg.js` (the chart SVG builders, moved out of `app.js` to make room).
+
+### Present mode
+
+- **`present=1`, `▶ Present` in the top bar, or `P`** — on the Map, an area page, Test property and
+  Charts. `Esc` leaves. The sidebar, the four toolbars and the chip rows go; the indicator, the
+  period and the area path collapse into **one line in the top bar**; the headline figures grow a
+  quarter; a mini map's legends come out from behind their pill and stay open; and a one-line
+  **source footer** is pinned to the bottom of the window. Nothing that carries a figure is hidden —
+  a check counts the tiles, the sections and the caveats with and without it and requires the three
+  counts to match. Below 1025 px the pill stays and the footer is the last thing on the page.
+- **A print sheet, A4 landscape** — `@page{size:A4 landscape}`, every control and popover gone, the
+  legends unfolded, maps sized in millimetres, one view per page.
+- **`⤓ PNG` on the study row** (area page and Test property): one 3 200 × 1 016 image with the
+  chart, its key, its clipped-scale note, the mini map with its legend, a title, a sub-title and the
+  source footer. Made out of the page, no library, nothing fetched; where the basemap tiles are
+  cross-origin the polygons are drawn on the paper colour and the image says **· basemap omitted**.
+
+### Maps and charts
+
+- **The map card fills the window** — measured from the map's own top edge, floor 560 px,
+  re-measured on resize, on every toolbar refresh and around full screen. The national view is
+  fitted to the kunta polygons rather than to a hand-typed box.
+- **A mini map's legends fold behind one `Legend ▾` pill at every width** (they were desktop-open,
+  covering 40–60 % of a small map). The macro map keeps its legends open and its stack now fits
+  60 % of the map instead of scrolling inside 72 %.
+- **One chart axis for the whole build** (`src/scale_core.js`): ticks at 1 / 2 / 2,5 / 5 × 10ⁿ, zero
+  always on a gridline where the range crosses it, the range read off the years every plotted series
+  covers, a value outside it drawn on the edge with a ▲ / ▼ and named in a note under the chart, and
+  the x axis starting at the first period anything is published for. The climate bars and the
+  population outlook were folded into the same rule.
+- **One title, not two** — the chart card's head is the area and the period (`Helsinki · 2011–2025`),
+  not the indicator's name a second time under the picker that just said it.
+- **The info strip names the layer that is drawn** — *municipalities drawn · zoom in for postal
+  codes*, not the indicator's publication level.
+- **A bar chart's canvas is as tall as its bars need** (W6) — a fixed 640 units left ~300 px of white
+  under a two-area chart, on screen and in the PNG.
+- **A chart's source line and its note stay on the canvas** (W6), each on a line of its own, clipped
+  on a word with the full string in the element's `<title>`.
+
+### Test property
+
+- **The first screen** — the study row starts 265 px down at 1440 × 900, where it started at 496.
+  The name, its area tags and the five actions share one line, the tiles sit directly under them,
+  the explanatory sentence is an **ⓘ** beside the tags, and the toolbar card is the study row's own
+  header. Every tablet and phone keeps the stacked header.
+- **osa-alue → postal code → kunta, for every indicator.** A pin fell from its area straight to the
+  kunta. On the reference pin (60,2448 / 24,8665) **Price** was Helsinki's 5 090 €/m² labelled
+  "municipality figure" and is 00410 Malminkartano's own **2 280 €/m²** labelled "postal-code
+  figure"; **Unemployment** was Helsinki's 12,1 % and is 00410's **15,2 %**. Rent and crime are
+  still municipality figures, and `docs/v2_2/DECISIONS.md` says why that is the right answer.
+- **Export ▾ in the property header opens on the screen** — it opened 340 px above the top of the
+  page and 27 px past the right edge at 1536.
+
+### The Danish SHOULD list
+
+- **Pinned chips** — `+` pins the indicator that is showing, `×` unpins; the row is the reader's
+  from the first pin, `localStorage` under `amfi.pins.v1`, max 12, never in the URL.
+- **`Columns ▾` on Data › Areas** — indicator groups, not single columns, in the URL as
+  `cols=Market,Taxes`. The sorted column is never hidden and **the CSV keeps every column**.
+- **A sparkline column in the sub-areas table** — the last ten published years of the sorted
+  indicator, each row on its own scale, a year the publisher did not publish breaking the line.
+- **Keyboard shortcuts** — `/` focuses the search that is on screen, `g m` / `g d` / `g c` / `g p`
+  go to Map, Data, Charts and Test property, `[` / `]` step the chip row, `?` lists them all and
+  `Esc` closes the list. Every one is ignored while you are typing.
+- **The public-building list groups building parts** of one thing into one row with the register's
+  own `×n` count (name + category + type within 150 m; never on the address).
+- **A Climate bar chart draws both return periods** per area, the rarer one in a lighter tint of the
+  same colour, with no median tick — and the footer says why.
+- **The drill is announced** — one `aria-live="polite"` region says *"Showing Helsinki, 84 postal
+  codes"*, and says nothing on a zoom, because a zoom never changes the selection.
+
+### Numbers, labels and the small fixes
+
+- The build line reads one `APP_VERSION` — it had said `v2.0` a whole release after v2.1 shipped.
+- A project sheet knows the areas it serves: 157 of the 169 projects now name at least one kunta,
+  and the Municipalities column of Data › Projects is no longer empty on every row. A project with
+  no published alignment says **"Not covered yet"** and frames **Finland**, not Jutland.
+- A year never gets a thousands separator (`1 987 — 2 000` in the buildings legend).
+- `Transport projects within 1.2 km` → `1,2 km`; registry text and colour are refreshed from
+  `config/indicators.json` at page build time (nine presentation fields, never a value).
+- `Oulun normaalikoulu` is in Oulu: `data/external/overrides/schools.csv`, applied before the
+  point-in-polygon placement, with the replacement coordinate's own source printed on the sheet.
+- The Housing-stock blue becomes a plum (it was within 6° of the Climate ramp).
+- Data › Sources names its tables in the page's ink rather than the browser's blue (W6).
+- A project label is drawn only where the map can show all of it, and the publisher's 28-character
+  short label is marked as the cut it is (W6).
+
+### Tests
+
+- `tests/ui_v2.spec.py` **162 checks** (the 70 of v2.0, the v2.1 additions and 41 new in W1–W6),
+  every route shot at 1440 and 390 into `docs/ui_v2/`, present mode among them.
+- `node --test`: **132**, including `tests/scale.test.js`, `tests/geom.test.js`,
+  `tests/present.test.js` and `tests/w5_core.test.js`.
+- Budgets enforced by the gate: `src/app.js` ≤ 460 KB, `src/style.css` ≤ 165 KB,
+  `dist/index.html` ≤ 3 300 000 B.
+
+Phase-by-phase detail is in `docs/v2_2/PROGRESS.md`, every choice taken in the dark in
+`docs/v2_2/DECISIONS.md`, the remaining issues in `docs/v2_2/QA.md`. v2.1's record is
+`docs/v2_1/PROGRESS.md`.
+
 ## v2.0 — the UI overhaul (draft, not released)
 
 Branch `v2.0-ui`, cut from `main` (= v1.1). Nothing merged, tagged or pushed. **No data source,

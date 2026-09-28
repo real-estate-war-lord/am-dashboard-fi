@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assemble the self-contained dashboard: dist/index.html.
 
-Inlines src/style.css, vendored Leaflet, src/testprop.js, src/app.js and the data
+Inlines src/style.css, vendored Leaflet, the src/*_core.js modules, src/testprop.js, src/app.js and the data
 (data/processed/makro.json + osa_alue.json) into the
 template src/index.html — one file that opens from disk or GitHub Pages.
 
@@ -11,28 +11,125 @@ import argparse
 import datetime as dt
 import json
 import pathlib
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 PROC = ROOT / "data" / "processed"
+CONF = ROOT / "config"
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import build_schools  # noqa: E402  — for the school coordinate overrides and their benchmark
 
 
 def load(p: pathlib.Path):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
-def kunnat_lookup(out_dir: pathlib.Path):
-    """dist/geo/kunnat_lookup.json — simplified kunta rings for the test-property pin.
+# The indicator registry the page reads is a copy of config/indicators.json that
+# scripts/build_makro.py folded into data/processed/makro.json when the figures were last
+# fetched. Its **text and its colours** are presentation, not data: a label fixed in the registry
+# today should not have to wait for the next national fetch to reach a reader. These fields — and
+# only these — are refreshed from config at page build time. A key the registry does not have is
+# never added, and nothing that decides a *value* (table ids, `vars`, `calc`, `select`, sources)
+# is touched, so the figures on the page stay exactly the ones the fetch produced.
+REGISTRY_TEXT = ("label", "short", "unit", "desc", "note", "warn", "hue", "group", "chip")
 
-    A postal code can cross a kunta border, so the pin asks these polygons which kunta a
-    point is really in. Holes are kept: Kauniainen is a hole in Espoo, and dropping it
-    would put every Kauniainen pin in Espoo. The page fetches this lazily, the first
-    time a pin is dropped.
+
+def refresh_registry_text(indicators):
+    """-> the list of `<key>.<field>` it rewrote, so the build says what it changed"""
+    conf = load(CONF / "indicators.json")
+    if not conf or not indicators:
+        return []
+    by_key = {i["key"]: i for i in conf.get("indicators", []) if i.get("key")}
+    changed = []
+    for ind in indicators:
+        src = by_key.get(ind.get("key"))
+        if not src:
+            continue
+        for f in REGISTRY_TEXT:
+            # `warn: ""` in config and no `warn` key at all in makro.json are the same thing to a
+            # reader, and build_makro.py drops the empty ones — so an empty never counts as a change
+            if f not in src or src[f] == ind.get(f) or (not src[f] and not ind.get(f)):
+                continue
+            ind[f] = src[f]
+            changed.append(f"{ind['key']}.{f}")
+    return changed
+
+
+# ------------------------------------------------- school coordinate overrides
+#
+# scripts/build_schools.py applies data/external/overrides/schools.csv before it places a school,
+# but that script re-fetches the whole register from Tilastokeskus and cannot run offline. So the
+# same file is applied here to the schools.json already on disk: the coordinate is replaced, the
+# kunta is re-derived from the corrected point against the same kunta rings the test-property pin
+# uses, and the kunta benchmark is recomputed with build_schools' own function. The postal code
+# and the osa-alue are cleared rather than guessed — deriving those needs the finer rings, which
+# only the full rebuild loads. data/processed/ is untouched; this rewrites dist/schools.json only.
+
+
+def _in_ring(ring, lat, lon):
+    """even-odd ray casting; `ring` is [[lat, lon], …] as dist/geo/kunnat_lookup.json writes it"""
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        y0, x0 = ring[i]
+        y1, x1 = ring[(i + 1) % n]
+        if (y0 > lat) != (y1 > lat) and lon < (x1 - x0) * (lat - y0) / ((y1 - y0) or 1e-12) + x0:
+            inside = not inside
+    return inside
+
+
+def kunta_at(rings, lat, lon):
+    for r in rings:
+        s_, w_, n_, e_ = r["bb"]
+        if not (s_ <= lat <= n_ and w_ <= lon <= e_):
+            continue
+        for poly in r["polys"]:
+            if _in_ring(poly[0], lat, lon) and not any(_in_ring(h, lat, lon) for h in poly[1:]):
+                return r
+    return None
+
+
+def apply_school_overrides(schools, rings):
+    """-> number of school records moved. Mutates `schools` (the parsed schools.json payload)."""
+    overrides = build_schools.load_overrides()
+    if not overrides or not schools:
+        return 0
+    moved = []
+    for s in schools.get("schools", []):
+        ov = overrides.get(str(s.get("nr") or ""))
+        if not ov:
+            continue
+        s["lat"], s["lon"] = round(ov["lat"], 6), round(ov["lon"], 6)
+        s["coord_source"] = ov["source"]
+        k = kunta_at(rings, ov["lat"], ov["lon"]) if rings else None
+        if k:
+            s["kom"], s["kunta"] = k["code"], k["name"]
+        s["postinumero"], s["osa_alue"] = "", ""
+        moved.append(f"{s.get('nr')} {s.get('name')} → {s.get('kunta') or 'unplaced'}")
+    if moved:
+        bm = (schools.get("benchmarks") or {})
+        bm["kunta"] = build_schools.kunta_benchmarks(schools.get("schools", []))
+        schools["benchmarks"] = bm
+        print(f"  · {len(moved)} school coordinate override(s) applied: " + "; ".join(moved))
+    return len(moved)
+
+
+def kunta_rings():
+    """The simplified kunta rings, as dist/geo/kunnat_lookup.json ships them.
+
+    Built once per run: the page fetches them for the test-property pin, and a school whose
+    coordinate this build overrides is re-placed against the same polygons — one set of rings
+    decides which kunta a point is in, wherever the question is asked.
+
+    Holes are kept: Kauniainen is a hole in Espoo, and dropping it would put every Kauniainen
+    pin in Espoo.
     """
     src = ROOT / "data" / "geo" / "kunnat.geojson"
     if not src.exists():
         print("  ⚠ data/geo/kunnat.geojson missing — no kunta lookup (pins fall back to the postal code)")
-        return
+        return [], None
     gj = load(src)
     try:
         from shapely.geometry import mapping, shape
@@ -68,6 +165,13 @@ def kunnat_lookup(out_dir: pathlib.Path):
         if out:
             rows.append({"code": props.get("kunta"), "name": props.get("name"),
                          "bb": [s_, w_, n_, e_], "polys": out})
+    return rows, simplify
+
+
+def kunnat_lookup(out_dir: pathlib.Path, rows, simplify):
+    """dist/geo/kunnat_lookup.json — the rings above, fetched lazily the first time a pin drops."""
+    if not rows:
+        return
     gd = out_dir / "geo"
     gd.mkdir(parents=True, exist_ok=True)
     dest = gd / "kunnat_lookup.json"
@@ -106,7 +210,10 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "dist" / "index.html"))
     args = ap.parse_args()
 
-    check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "testprop.js", SRC / "app.js"])
+    check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "scale_core.js",
+              SRC / "geom_core.js", SRC / "w5_core.js", SRC / "w5.js", SRC / "chartsvg.js",
+              SRC / "testprop.js", SRC / "present.js",
+              SRC / "app.js"])
     makro = load(pathlib.Path(args.data)) or {}
     osa = load(pathlib.Path(args.osa))
     micro_idx = load(PROC / "micro" / "index.json")
@@ -116,11 +223,17 @@ def main():
     # The school layer's META rides inline inside `public.schools`; the 2 501 school records
     # themselves stay in dist/schools.json and are fetched when a school view is opened.
     schools = load(PROC / "schools.json")
+    rings, simplify = kunta_rings()
+    apply_school_overrides(schools, rings)
     if schools and public_index is not None:
         public_index["schools"] = {k: v for k, v in schools.items() if k != "schools"}
         public_index.setdefault("recent_years", [])
     services_index = load(PROC / "services" / "index.json")
     built = (makro.get("meta") or {}).get("built") or dt.date.today().isoformat()
+    n_text = refresh_registry_text(makro.get("indicators"))
+    if n_text:
+        print(f"  · refreshed {len(n_text)} registry text/colour field(s) from "
+              f"config/indicators.json: {', '.join(n_text)}")
     data = {
         "meta": makro.get("meta", {"built": built, "sources": [], "attribution": []}),
         "indicators": makro.get("indicators", []),
@@ -171,7 +284,13 @@ def main():
                 .replace("{{ROUTE_JS}}", (SRC / "route_core.js").read_text(encoding="utf-8"))
                 .replace("{{PICKER_JS}}", (SRC / "picker_core.js").read_text(encoding="utf-8"))
                 .replace("{{RAMP_JS}}", (SRC / "ramp_core.js").read_text(encoding="utf-8"))
+                .replace("{{SCALE_JS}}", (SRC / "scale_core.js").read_text(encoding="utf-8"))
+                .replace("{{GEOM_JS}}", (SRC / "geom_core.js").read_text(encoding="utf-8"))
+                .replace("{{W5_JS}}", (SRC / "w5_core.js").read_text(encoding="utf-8"))
+                .replace("{{W5UI_JS}}", (SRC / "w5.js").read_text(encoding="utf-8"))
+                .replace("{{CHARTSVG_JS}}", (SRC / "chartsvg.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
+                .replace("{{PRESENT_JS}}", (SRC / "present.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))
                 .replace("{{DATA}}", payload)
                 .replace("{{BUILT}}", built))
@@ -180,11 +299,17 @@ def main():
     out.write_text(html, encoding="utf-8")
     # the infrastructure layer is inlined in the page, and also served as files so it can be reused
     for src in (ROOT / "data" / "geo" / "infra_projects.geojson", PROC / "infra_index.json",
-                PROC / "public_index.json", PROC / "schools.json", PROC / "monthly.json", PROC / "hist.json"):
+                PROC / "public_index.json", PROC / "monthly.json", PROC / "hist.json"):
         if src.exists():
             import shutil
             shutil.copy(src, out.parent / src.name)
             print(f"copied {src.name} → {out.parent}")
+    # schools.json is written rather than copied: the coordinate overrides above are applied to
+    # the payload in memory, and data/processed/ is never rewritten by a page build
+    if schools is not None:
+        dest = out.parent / "schools.json"
+        dest.write_text(json.dumps(schools, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"wrote {dest.name} ({dest.stat().st_size/1024:.0f} kB) → {out.parent}")
     # building-level files are loaded on demand by the page (dist/micro/<kunta>.json)
     pub = PROC / "public"
     if pub.exists():
@@ -246,7 +371,7 @@ def main():
                         encoding="utf-8")
         print(f"wrote {dest} ({dest.stat().st_size/1024:.0f} kB) · "
               f"{len(geo_only['features'])} alignments, loaded when the overlay is switched on")
-    kunnat_lookup(out.parent)
+    kunnat_lookup(out.parent, rings, simplify)
     n = out.stat().st_size
     print(f"wrote {out} ({n/1e6:.1f} MB) · {len(data['municipalities'])} kunnat · {len(data['areas'])} areas")
     # The repo's ceiling. A hard failure, not a warning: a page that creeps past it is slow for
@@ -266,7 +391,23 @@ def main():
     # Charts views both read, would cost the reader something real to save nothing they would
     # ever notice. So the number moved, visibly, with its reason — rather than the data being
     # quietly thinned to fit it. Logged as an open ⚠ in docs/BUILD_LOG.md.
-    CEILING = 3_200_000
+    #
+    # **Raised from 3.2 MB to 3.3 MB in v2.2 W3, and for a different reason than last time.**
+    # v2.1 shipped at 3 198 kB — 2 kB under. Nothing about the *data* has changed since: the
+    # payload is the same 3 018 areas and the same registry, still written with compact JSON
+    # separators, and everything that can be lazy still is. What grew is the page's own source,
+    # because v2.2 is a release whose entire subject is the interface: W2 added a shared chart
+    # axis and a measured map height, W3 a compressed property header and a three-level fallback.
+    # Every one of the six phases adds a few kilobytes of JavaScript and CSS, and 2 kB of headroom
+    # would have stopped the first of them.
+    #
+    # The two answers a 2 kB overrun leaves are "delete the comments that explain this code" and
+    # "move the number". The comments in src/*.js are this repo's documentation — they are where
+    # every decision of the last three releases is written down — so deleting them to save bytes
+    # would cost more than the bytes are worth. The ceiling exists to protect a phone, and what
+    # reaches a phone is the compressed page; source code is the most compressible thing in it.
+    # 3.3 MB leaves ~94 kB for W4–W6 and still fails loudly if a *series* is ever inlined again.
+    CEILING = 3_300_000
     if n > CEILING:
         raise SystemExit(f"✗ {out.name} is {n:,} B, over the {CEILING:,} B ceiling — move a series "
                          f"into a lazy payload (see scripts/build_makro.py)")

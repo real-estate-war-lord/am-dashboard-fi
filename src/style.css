@@ -1478,6 +1478,13 @@ th .thn{display:inline}
   border-bottom:1px dotted var(--line);white-space:nowrap}
 .srclink:hover{color:var(--ink);border-bottom-color:var(--ink2)}
 .lfpop .srclink,.tbl .srclink{font-size:9px}
+/* W6 — Data › Sources names every table as a link to the publisher's own page, and those were the
+   only anchors in the build with no class on them: the browser's blue and its underline, in a
+   column of otherwise ink-coloured titles. They read as the page's own text now, and still as a
+   link. Scoped to the title cell, and never to a `.lk` button or a `.srclink`. */
+.tbl th a:not(.lk):not(.srclink){color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.tbl th a:not(.lk):not(.srclink):hover{border-bottom-color:var(--ink2)}
+.tbl th a:not(.lk):not(.srclink):focus-visible{outline:2px solid var(--ink2);outline-offset:2px}
 .olchg{font-family:var(--mono);font-size:11px;color:var(--ink);margin-top:3px}
 .olchg.big{font-size:12.5px;margin:6px 0 2px}
 .olsrc{margin-top:2px}
@@ -2238,4 +2245,257 @@ abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em
   .legpill{top:8px;right:8px;bottom:auto;left:auto}
   .mapwrap.legs-open .maplegs{top:42px;right:8px;bottom:auto;left:auto;
     max-height:calc(100% - 54px);align-items:flex-end}
+}
+
+/* =====================================================================================
+   v2.2 W2 — maps and charts readable at a glance
+   ===================================================================================== */
+
+/* §1. The macro map's height is measured in `mkFitHeight()` and written as an inline style, because
+   the toolbar above it changes height with the indicator, the quick chips, a dropped pin's card and
+   a drilled kunta's figure strip — a fixed `calc(100vh - 250px)` cannot know any of that, and at
+   1366 × 768 it gave a 518-px map where the plan asks for at least 560. The rule here is the floor
+   for the moment before the first measurement; the measured inline value outranks it. */
+@media (min-width:1025px){#lfmap{height:clamp(560px,calc(100vh - 200px),1040px)}}
+
+/* §2. A mini map's legends are guests on a map that is already small: five open cards took 40–60 %
+   of it for something the reader had not asked for. One `Legend ▾` pill, bottom-left — clear of
+   Leaflet's zoom control (top-left), of its attribution (bottom-right) and of the card head's ⤢ —
+   and the stack opens over the map only when it is clicked. Below 1025 px the phone rules already
+   do exactly this and put the pill top-right, where it cannot cover the attribution (LEG5), so this
+   is scoped above them rather than layered over them. */
+@media (min-width:1025px){
+  .mapwrap.mini>.maplegs,.mapwrap.mini>.maplegend{display:none}
+  .mapwrap.mini.legs-open>.maplegs{display:flex}
+  .mapwrap.mini.legs-open>.maplegend{display:block}
+  .mapwrap.mini>.legpill{display:inline-flex;left:8px;bottom:8px;top:auto;right:auto}
+}
+/* the open stack grows upward from the pill rather than jumping to the opposite corner, takes at
+   most half a mini map and scrolls inside itself */
+@media (min-width:1025px){
+  .mapwrap.mini.legs-open>.maplegs{left:8px;right:auto;top:auto;bottom:40px;
+    align-items:flex-start;max-height:50%}
+}
+.mmlegs{max-height:50%}
+
+/* The macro map keeps every legend open and now takes at most 60 % of the map (it was 72 %). At
+   1366 × 768 that is 336 px, and five cards at v2.1's spacing came to 382 — so the stack is denser
+   by exactly the things that were slack in it: the gap between cards, each card's padding, the row
+   leading, and a wider note column that turns three wrapped lines into one. */
+.mklegs{max-height:60%;gap:6px}
+.mklegs .maplegend{padding:6px 9px 5px}
+.mklegs .maplegend .lgrow{padding:0}
+.mklegs .maplegend .lgnote{max-width:250px;margin-top:4px}
+.mklegs .maplegend .lgtitle{margin-bottom:4px}
+
+/* §3. A chart's zero line is darker than a gridline: on a signed indicator it is what the values
+   are read against, not one tick among six. A point the axis cannot reach is drawn on the edge as
+   ▲ / ▼ in its series colour and keeps the real figure in its tooltip. */
+.czero{stroke:var(--ink2);stroke-width:1.4}
+.clipmk{font-family:var(--mono);font-size:11px}
+.chclip{color:var(--ink2);font-style:italic}
+
+/* ===================================================================================
+   v2.2 W3 — the Test property's first screen
+   =================================================================================== */
+/* §1. The sheet opened with 496 px of header above the chart at 1440 × 900: a 30-px name on its
+   own line, the five actions on a second, the tiles on a third, a sentence under them, and then a
+   whole card holding nothing but the picker, Layers ▾ and the period control. The name, its area
+   tags and the actions share one line now, the sentence is the ⓘ beside the tags, and the toolbar
+   card is gone — its row is the study row's own header (`.strhead`).
+
+   1280 px, not the usual 1025: with the sidebar taking 250 px, a window narrower than this leaves
+   less than the 340 px the name and its tags need beside the five actions, and the block would
+   shrink into a five-line column rather than wrap into two. Below it — every tablet and every
+   phone — the header stays the stacked one it has always been. */
+@media (min-width:1280px){
+  .anhead{align-items:flex-start;gap:8px 16px}
+  /* 340 px of basis, not `auto`: with `auto` the name and its four tags measure ~720 px, which is
+     more than the 545 px left beside the actions, so the whole block wrapped to a line of its own
+     again. It shrinks and lets its own tags wrap instead — the actions keep the line. */
+  .anhead .arid{flex:1 1 340px;display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;min-width:0}
+  .anhead .anlab{font-size:22px;display:inline-block;width:auto;flex:0 1 auto;min-width:0;margin:0 0 0 -7px}
+  .anhead .tools{flex:0 0 auto;margin:0;padding-top:3px}
+  .anhead .hl{margin-top:12px}
+  /* Export ▾ now sits at the right-hand end of a one-line header, so its menu has to open *down
+     and right*: at `left:0` it ran 27 px past the window at 1536, and `bottom:100%` opened it
+     340 px above the top of the page — the default is written for the footer button, which has a
+     screen below it and nothing above. (The upward open was already off-screen before W3; the
+     shorter header only made it further off.) Only where the header is one line: below that the
+     button is back in a left-aligned row, where the default is right. */
+  .anhead .exmenu{top:calc(100% + 6px);bottom:auto;left:auto;right:0}
+}
+/* the ⓘ that replaced the sentence: the same affordance the section hints use, given a shape of
+   its own here because it sits in a row of tags rather than inside a heading */
+.artags .hq{font-size:13px;line-height:1;color:var(--muted);cursor:help;background:none;border:0;padding:0 2px}
+.artags .hq:hover,.artags .hq:focus{color:var(--ink)}
+/* the study row's header strip spans both columns; on a phone the row is one column anyway */
+.studyrow>.strhead{grid-column:1/-1;margin:0}
+.studyrow>.strhead .card-head.tools-only{margin-bottom:0}
+/* §2. A figure inherited from the pin's postal code is not the municipality's, and the two are
+   told apart by their word — the chip is styled the same, so neither reads as the more reliable. */
+.tag-muni.pno{color:var(--ink2)}
+
+/* ===================================================================================
+   v2.2 W4 — present mode, the study row's PNG and the print sheet
+   =================================================================================== */
+/* §1. PRESENT MODE (`present=1`, the top bar's button, or `P`).
+   The dashboard on a projector is read from four metres away by people who cannot click anything:
+   the sidebar, the toolbars and the chips are all affordances for a reader with a mouse, and they
+   are the first 300 px of every screen. So they go, the numbers grow a quarter, the mini maps'
+   legends open, and one line at the bottom says where the figures came from — because a screen
+   that is being photographed in a meeting has to carry its own provenance.
+
+   **Nothing that holds a figure is hidden.** Only controls: every card, section, caveat and source
+   note the page had is still on it, and Esc puts the controls back. */
+.presentline{display:flex;align-items:baseline;gap:12px;min-width:0}
+.presentline b{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presentline .pdim{font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+.presentline .pdim:before{content:"· "}
+
+body.present aside,body.present .navtoggle,body.present .navscrim{display:none}
+body.present .app{grid-template-columns:1fr}
+body.present main{padding-top:0}
+/* the toolbars — one thin line in the top bar has just said what they were setting */
+body.present .card-head.tools-only,body.present #tpbar,body.present .card.toolcard,
+body.present .tfilters,body.present .chips,body.present .mm-chips,body.present .datatabs{display:none}
+/* the legends are the key to what is on the projector, so present mode opens the pill W2 §2 put
+   them behind rather than leaving the reader to click it in front of an audience */
+/* Specificity, not !important: W2's own rule is `.mapwrap.mini>.legpill` inside a media query, so
+   a bare `.legpill` here would lose to it at every desktop width. Scoped to ≥ 1025 px, because on
+   a phone the map is 55vh and an open five-card stack would cover most of it — there the pill is
+   not a nuisance, it is the only way both the map and its key fit on the screen. */
+@media (min-width:1025px){
+  body.present .legpill,body.present .mapwrap.mini>.legpill{display:none}
+  body.present .mapwrap.mini>.maplegs{display:flex;max-height:60%}
+  body.present .mapwrap.mini>.maplegend{display:block}
+}
+/* +25 %: the two places a headline figure is set in a fixed size (26 px tiles, 30 px panel head),
+   and the 33-px hero, which is already `em`-free */
+body.present .hlc b{font-size:32.5px}
+body.present .pnv{font-size:37.5px}
+body.present .hero b{font-size:41px}
+body.present .hero .u{font-size:17px}
+body.present .pnd,body.present .pnr,body.present .pnm{font-size:1.15em}
+
+/* the one-line source footer: pinned to the bottom in present mode, at the end of the paper in
+   print, and never on screen otherwise */
+.srcfoot{display:none}
+body.present .srcfoot{display:block;position:fixed;left:0;right:0;bottom:0;z-index:60;
+  background:var(--bg);border-top:1px solid var(--line);padding:7px var(--gutter);
+  font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.present #body{padding-bottom:58px}
+/* ≤ 1024 px the page scrolls as a document rather than inside a column, and a bar bolted across
+   the bottom of an 844-px screen costs a tenth of it for a line nobody is presenting from a phone.
+   So there it is the last thing on the page instead of the first thing over it. */
+@media (max-width:1024px){
+  body.present .srcfoot{position:static;padding:10px var(--gutter) 18px;white-space:normal}
+  body.present #body{padding-bottom:12px}
+}
+
+/* §2. ⤓ PNG on the study row — the same shape as the mini map's ⤢, at the other end of the row */
+.pngbtn{margin-left:auto;height:26px;padding:0 9px;font-size:11.5px;font-family:var(--mono);letter-spacing:.04em}
+
+/* §3. PRINT — A4 landscape, one view per page.
+   The print box is 297 × 210 mm less the margin, so the map gets a fixed height in millimetres
+   rather than the measured pixel height W2 gives it on screen: `100vh` means nothing on paper and
+   a Leaflet container with no height prints as a clipped grey strip. `beforeprint` in
+   src/present.js tells every live map its container just changed shape. */
+/* ===================================================================================
+   v2.2 W5 — the Danish SHOULD list: pinned chips, Columns ▾, the sub-area sparkline,
+   the ? shortcut overlay and the screen-reader live region.
+   =================================================================================== */
+
+/* §1 PICK10 — the pinned chip row. A pinned chip is the same pill it always was, with room at the
+   end for a × that only appears on hover or focus: the row must not change width when a pointer
+   crosses it, so the × is always laid out and only its ink comes and goes. */
+.iqb{position:relative}
+.iq.iqpin .iqb{padding-right:20px}
+.iqx{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-style:normal;
+  font-family:var(--mono);font-size:11px;line-height:1;color:transparent;cursor:pointer;padding:0 1px}
+.iq.iqpin .iqb:hover .iqx,.iq.iqpin .iqb:focus-within .iqx{color:var(--muted)}
+.iq.iqpin .iqb:hover .iqx:hover{color:var(--bad)}
+.iq.iqpin .iqb.on:hover .iqx{color:rgba(255,255,255,.7)}
+.iqb.iqadd{font-size:12px;line-height:1;padding:3px 8px;color:var(--muted)}
+.iqb.iqadd.on{background:var(--panel2);color:var(--ink);border-color:var(--ink)}
+
+/* §2 DATA8 — `Columns ▾`, the same popover shape as Layers ▾ one row above it */
+.colswrap{position:relative;display:inline-flex}
+.colspop{position:absolute;top:calc(100% + 6px);left:0;z-index:80;width:250px;max-width:92vw;
+  max-height:60vh;overflow:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:0 12px 30px rgba(16,23,19,.16);padding:6px}
+.colspop[hidden]{display:none}
+.colsh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 6px 6px;
+  border-bottom:1px solid var(--line2);margin-bottom:4px}
+.colsh b{font-size:12.5px}
+.colsr{display:flex;width:100%;align-items:center;gap:8px;background:none;border:0;cursor:pointer;
+  padding:5px 6px;border-radius:6px;font:inherit;font-size:12.5px;color:var(--ink);text-align:left}
+.colsr:hover{background:var(--panel2)}
+.colsr i{font-style:normal;font-family:var(--mono);font-size:11px;width:14px;flex:0 0 14px;
+  color:var(--good);text-align:center}
+.colsr span{margin-left:auto;font-family:var(--mono);font-size:10.5px}
+.colspop .cap{margin:6px 6px 2px}
+
+/* §3 AREA7 — the sub-area sparkline. Its own column, never wider than the shape needs. */
+th.spkh{font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);
+  white-space:nowrap;width:74px;cursor:default}
+td.spk{width:74px;padding-top:4px;padding-bottom:4px;color:var(--ink2)}
+.minispk{display:block;width:58px;height:18px;overflow:visible}
+
+/* §4 A11Y7 — the ? overlay and the button that opens it */
+/* the hint IS the button: "press ? for shortcuts" says the key and opens the same overlay, so the
+   sidebar carries one control rather than a sentence with a second ? bolted onto the end of it */
+.kbbtn{padding:0;border:0;background:none;color:var(--side-muted);font:inherit;
+  font-size:10px;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
+.kbbtn:hover{color:var(--side-ink)}
+.kbbtn kbd{font-family:var(--mono);padding:0 3px;border:1px solid var(--side2);border-radius:3px;color:var(--side-ink)}
+.kbbtn:hover kbd{border-color:var(--side-ink)}
+.kbhelp{position:fixed;inset:0;z-index:300;background:rgba(16,23,19,.42);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.kbcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:0 20px 50px rgba(16,23,19,.28);padding:16px 18px 14px;width:440px;max-width:94vw;
+  max-height:86vh;overflow:auto}
+.kbhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.kbhead b{font-size:14.5px}
+.kblist{margin:0;display:grid;gap:5px}
+.kblist>div{display:grid;grid-template-columns:118px 1fr;gap:10px;align-items:baseline}
+.kblist dt{margin:0;display:flex;gap:3px;flex-wrap:wrap}
+.kblist dd{margin:0;font-size:12.5px;color:var(--ink2)}
+.kbcard kbd{font-family:var(--mono);font-size:10.5px;line-height:1.5;padding:1px 6px;
+  border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--panel2);color:var(--ink)}
+.kbcard .cap{margin:12px 0 0}
+
+/* §5 A11Y8 — the live region. Read by a screen reader, on screen for nobody, and never printed. */
+.srlive{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+@page{size:A4 landscape;margin:11mm}
+@media print{
+  /* W5: the shortcut overlay, the ? button, the column chooser and the live region are controls */
+  .kbhelp,.kbbtn,.colswrap,.srlive{display:none}
+  html,body{background:#fff;overflow:visible}
+  .app{display:block;height:auto}
+  main{display:block;overflow:visible;height:auto;padding-top:0}
+  .topbar{position:static;border-bottom:1px solid #CFD5CD;padding:0 0 4mm}
+  #body{padding:0;gap:0}
+  aside,.navtoggle,.navscrim,#hdact,.legpill,.mapwrap.mini>.legpill,.mm-chips,.datatabs,
+  .tfilters,.chips,.card-head.tools-only,#tpbar,.card.toolcard,.exwrap,.exmenu,.lypop,.ipkpop,
+  .mqpop,.leaflet-control-container,.tpchoices,.tperr{display:none}
+  /* the legends are the key to the colours; on paper they can never be behind a pill */
+  .mapwrap.mini>.maplegs,.maplegs{display:flex;max-height:none}
+  .mapwrap.mini>.maplegend{display:block}
+  /* nothing is cut in half across a page break, and the study row is a page of its own */
+  .card,.sec,.studyrow,.hero,.hl,table{break-inside:avoid;page-break-inside:avoid}
+  .studyrow{break-after:page;page-break-after:always;grid-template-columns:1fr 1fr}
+  .seclist{display:block}
+  /* maps in millimetres, so none of them prints clipped */
+  #lfmap{height:108mm !important}
+  .mapwrap.mini>div[id]{height:88mm !important}
+  .card{box-shadow:none;border:1px solid #CFD5CD;break-inside:avoid}
+  .dinfo{display:block}
+  .srcfoot{display:block;position:static;margin:4mm 0 0;border-top:1px solid #CFD5CD;
+    padding-top:2mm;font-family:var(--mono);font-size:8.5pt;color:#4A4C43;white-space:normal}
+  a[href]:after{content:""}
 }

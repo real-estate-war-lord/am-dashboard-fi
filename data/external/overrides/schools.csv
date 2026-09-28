@@ -1,0 +1,14 @@
+# Coordinate overrides for the school register (Tilastokeskus `oppilaitokset`).
+#
+# One row = one school whose published coordinate puts it somewhere it is not. Nothing else about
+# a school may be overridden here: no name, no type, no result, no figure. A row is only accepted
+# with a source that can be checked, and the coordinate it names has to come from a published
+# dataset — never from a guess and never from a street address typed in by hand.
+#
+# Columns: nr (Tilastokeskus oppilaitosnumero) ; lat ; lon ; source
+# Applied by scripts/build_schools.py *before* the point-in-polygon placement, so the kunta, the
+# postal code and the osa-alue follow from the corrected point. scripts/build_dashboard.py applies
+# the same file to the already-built data/processed/schools.json, so a fix lands on the page
+# without a full register rebuild (see docs/v2_2/DECISIONS.md, W1).
+nr;lat;lon;source
+00599;65.057742;25.464132;OpenStreetMap amenity=school "Oulun normaalikoulun lukio", Linnanmaa, Oulu — the point this dashboard's own public-buildings layer already carries (dist/public/564.json, ODbL). The register publishes 60.158409, 24.958738 for this school, which is in central Helsinki, 540 km from the school it names.

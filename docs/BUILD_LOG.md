@@ -389,7 +389,7 @@ between the three places it appears. `docs/SOURCES.md` §6b lists them together.
 | 6 | **Unoccupied dwellings has one year** (unchanged) | `vacant` caveat |
 | 7 | The income-tax rate is **scraped from a decision page** (unchanged) | `scripts/import_verohallinto.py` |
 | 8 | **HSY sub-area division frozen at 2021** (unchanged) | `docs/GEO.md` §3 |
-| 9 | **The page ceiling was raised from 3.0 MB to 3.2 MB.** The page is 3 013 kB, 732 kB gzipped. Everything that can be lazy is; what remains is 3 018 postal areas × 62 values, 308 kunta outlines and the indicator registry. The reason is written beside the number | `scripts/build_dashboard.py` |
+| 9 | **The page ceiling was raised from 3.0 MB to 3.2 MB, and again to 3.3 MB in v2.2 W3.** The v1.1 raise was for data: 3 013 kB, 732 kB gzipped, everything that can be lazy already lazy. The v2.2 raise is for *source*: the data is unchanged and v2.1 shipped 2 kB under, but v2.2 is a UI release and W2 + W3 put the page 6 kB over in JavaScript and CSS. Both reasons are written beside the number | `scripts/build_dashboard.py` |
 | 10 | **42 of 380 lukios carry no matriculation result** — adult lines, schools abroad and renamed schools whose YTL name does not exactly match the register. Listed in `schools.json` under `join.unjoined_ytl_schools` | `docs/SCHOOLS_FI.md` §2 |
 | 11 | **99 of 308 kunnat have no flood figure at all** — SYKE has not mapped them. This is "not mapped", and the UI says so, but a reader skimming the map could still take a blank for a zero | `docs/CLIMATE_FI.md` §1 |
 | 12 | **Zoning ships as an overlay with no indicator.** No publisher publishes floor area for a plan in preparation anywhere in Finland | `docs/BUILDINGS_FI.md` §3 |
