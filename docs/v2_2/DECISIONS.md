@@ -187,3 +187,88 @@ The decisions v2.0 took are in `docs/UI_PLAN.md` §2 (D1–D16) and v2.1's are i
   W2 did not do it because it is not a W2 item, and an unattended refactor of the point-in-polygon
   code that places every pin, school and public building is the wrong risk to take for a budget that
   is not yet breached.
+- **W3** — **The resolution order is osa-alue → postal code → kunta, and the middle step is new.**
+  Until tonight `eVal()` fell from an area straight to its kunta, because the only entity that ever
+  inherited was an area *page*'s — and an osa-alue page has no single postal code to fall to. A
+  **pin** does. So the middle step is carried on the entity (`pno`, filled by `tpEntity()` from the
+  same `locate()` answer the header's tags are drawn from) rather than being guessed from geometry,
+  and `fbChain()` is the one list every reader of a figure now walks: the tiles, the panel head, the
+  Area profile table, the percentile bar's peer pool, the Verify link and the property CSV. The
+  practical effect on the plan's own pin (60,2448 / 24,8665, 00410 Malminkartano): **Price** was
+  Helsinki's 5 090 €/m² labelled "municipality figure" and is now 00410's own **2 280 €/m²**
+  labelled "postal-code figure", and **Unemployment** was Helsinki's and is now 00410's **15,2 %**.
+  An indicator the osa-alue layer publishes itself (`osaOwn`) is still never inherited at all.
+- **W3** — **Rent and reported crime stay municipality figures on that pin, and that is the right
+  answer, not a missed step.** 00410 *does* carry a `rent_pno` of 18,4 €/m²/month — but `rent_pno`
+  is a **different indicator**, not a postal-code vintage of `rent`: Tilastokeskus discontinued the
+  postal-code rent table (asvu 13eb) at 2025Q4, and the registry entry for it says in its own `warn`
+  that it "is never extended and never blended with the live kunta-level rent". Blending them to
+  make a tile look finer would be exactly the kind of quiet splice this dashboard exists not to do.
+  `crime_1000` is published per kunta only, for the whole country, so there is nothing finer to
+  reach for. Both keep saying "municipality figure", and the ⓘ in the header now names the chain so
+  a reader can tell a missing level from a coarse one.
+- **W3** — **The five-pin audit, as the page answers it tonight** (`own` = the pin's own area,
+  `P` = taken from the postal code, `K` = from the kunta; the five tiles in their fixed order):
+
+  | pin | resolves to | growth | price | rent | unemp | crime |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 60,2448 / 24,8665 | Helsinki · 00410 Malminkartano · osa-alue Malminkartano | own | **P** | K | **P** | K |
+  | 60,1757 / 24,8050 | Espoo · 02100 Tapiola · osa-alue Tapiolan Keskus | own | **P** | K | **P** | K |
+  | 61,4978 / 23,7610 | Tampere · 33200 Tampere Keskus Läntinen | own | own | K | own | K |
+  | 65,0121 / 25,4651 | Oulu · 90100 Oulu Keskus | own | own | K | own | K |
+  | 64,8680 / 27,6700 | Puolanka · 89200 Puolanka Keskus (rural) | own | — | K | own | K |
+
+  Only the two Helsinki-region pins are read on an osa-alue, so only they can use the middle step;
+  Tampere, Oulu and Puolanka resolve to a postal code, which is already the finest level there is.
+  **Puolanka publishes no `price_m2` at any level** — 89200 has no figure and neither has the kunta —
+  so the tile is not filled with something coarser: it drops out and `Renters` takes the fifth slot,
+  which is what "always five tiles, never a filler slab" has meant since v2.0.
+- **W3** — **The first screen is bought from the header, not from the content.** At 1440 × 900 the
+  study row started 496 px down: a 30-px name on its own line, five action buttons on a second, the
+  tiles on a third, a sentence under them, and then a whole card containing nothing but the picker,
+  Layers ▾ and the period control. The name, its area tags and the actions now share one line (the
+  tags wrap inside their own block rather than pushing the actions down — `flex:1 1 340px`, because
+  at `auto` the block measures ~720 px against the 545 px left beside the buttons and wrapped
+  whole), the sentence is an **ⓘ** next to the tags, and the toolbar card is gone: its row is the
+  study row's own full-width header (`.strhead`, `#tpbar`). The row starts at **265 px** and the
+  chart itself at 372. Nothing was removed — the sentence gained the fallback chain it never named,
+  and Layers ▾ keeps its count badge. The one-line rule is scoped to **≥ 1280 px** rather than the
+  usual 1025: the sidebar takes 250 px, so below that there is less than 340 px left beside the five
+  actions and the identity block would collapse into a column instead of wrapping into two lines.
+  Every tablet and every phone keeps the stacked header, and `W3-mobile-stays-stacked` asserts it.
+- **W3** — **Export ▾ in the property header opened off the top of the page, and does not now.**
+  `.exmenu`'s default is `bottom:100%; left:0` — written for the footer button, which has a whole
+  screen below it and nothing above. Moving Export ▾ to the right-hand end of a one-line header put
+  the menu 27 px past the window at 1536 *and* 340 px above the top of the page. It opens down and
+  right-aligned inside `.anhead` now, in the same `min-width:1280px` block, so the stacked header
+  below that keeps the default it was passing with. The upward open was already off-screen before
+  W3 — the shorter header only made it further off — so `V4-property-export` gained two assertions
+  that the menu is on the screen at all, which is what the check thought it was already saying.
+- **W3** — **`V4-property-head-one-line` is adapted, not weakened.** It asserted the opposite of what
+  §1 asks for — that the identity block claims a line of its own — so the same check now asserts the
+  name, the tags and the actions share one line, that the actions do not overlap the identity block,
+  and that the tiles still start at the title's left edge and below both. That last pair is what the
+  original was really protecting (audit TP18); only the line count changed.
+- **W3** — **The tile row is 84 px at 1440 and 112 at 1366, and the 1366 case is left alone.** At
+  200 px of tile the Rent value "21,3 EUR/m²/month" takes two lines. That is true on the area page
+  too and was true before W3; forcing the unit onto one line is precisely what used to paint it over
+  the tile to its right (audit TILE5), and the denominator is one unbreakable token by NUM3. So the
+  plan's ≤ 84 is asserted where the plan states it, at 1440, and 1366 is held at its own measured
+  height so it cannot grow either.
+- **W3** — **`src/geom_core.js`, with `node --test tests/geom.test.js` — the move W2 handed over.**
+  `pip` / `inPoly` / `bboxOf` / `inBox` / `areaOf` and `R_EARTH` / `havM` / `featDistM` are pure, and
+  they place every pin, school and public building on the page; they had no test of their own. They
+  are now one IIFE exposing `window.GEOM_CORE`, aliased at the top of `app.js` so every call site
+  reads exactly as it did, wired into `src/index.html` and `scripts/build_dashboard.py` (including
+  its `check_js()` list) in this commit, and covered by eleven tests — among them the two bugs the
+  comments in that code record: the inside-out bbox that must never be cached while rings are still
+  loading, and a polygon being its outer ring *minus its holes*. `src/app.js` ends the phase at
+  **459,2 KB of 460**.
+- **W3** — **The page ceiling in `build_dashboard.py` goes 3,2 MB → 3,3 MB.** v2.1 shipped 2 KB under
+  it and v2.2 is a release whose whole subject is the interface, so W2 and W3 together put the page
+  6 KB over. No data changed: the payload is the same 3 018 areas and the same registry, still
+  written with compact separators, and everything that can be lazy still is. The two ways out of a
+  6 KB overrun were "delete the comments that explain this code" and "move the number" — and the
+  comments in `src/*.js` are where every decision of the last three releases is written down, so
+  they are worth more than the bytes. The reason is written at the constant, beside v1.1's own
+  raise, and 3,3 MB still fails loudly if a *series* is ever inlined again (~94 KB for W4–W6).

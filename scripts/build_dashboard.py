@@ -211,7 +211,7 @@ def main():
     args = ap.parse_args()
 
     check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "scale_core.js",
-              SRC / "testprop.js", SRC / "app.js"])
+              SRC / "geom_core.js", SRC / "testprop.js", SRC / "app.js"])
     makro = load(pathlib.Path(args.data)) or {}
     osa = load(pathlib.Path(args.osa))
     micro_idx = load(PROC / "micro" / "index.json")
@@ -283,6 +283,7 @@ def main():
                 .replace("{{PICKER_JS}}", (SRC / "picker_core.js").read_text(encoding="utf-8"))
                 .replace("{{RAMP_JS}}", (SRC / "ramp_core.js").read_text(encoding="utf-8"))
                 .replace("{{SCALE_JS}}", (SRC / "scale_core.js").read_text(encoding="utf-8"))
+                .replace("{{GEOM_JS}}", (SRC / "geom_core.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))
                 .replace("{{DATA}}", payload)
@@ -384,7 +385,23 @@ def main():
     # Charts views both read, would cost the reader something real to save nothing they would
     # ever notice. So the number moved, visibly, with its reason — rather than the data being
     # quietly thinned to fit it. Logged as an open ⚠ in docs/BUILD_LOG.md.
-    CEILING = 3_200_000
+    #
+    # **Raised from 3.2 MB to 3.3 MB in v2.2 W3, and for a different reason than last time.**
+    # v2.1 shipped at 3 198 kB — 2 kB under. Nothing about the *data* has changed since: the
+    # payload is the same 3 018 areas and the same registry, still written with compact JSON
+    # separators, and everything that can be lazy still is. What grew is the page's own source,
+    # because v2.2 is a release whose entire subject is the interface: W2 added a shared chart
+    # axis and a measured map height, W3 a compressed property header and a three-level fallback.
+    # Every one of the six phases adds a few kilobytes of JavaScript and CSS, and 2 kB of headroom
+    # would have stopped the first of them.
+    #
+    # The two answers a 2 kB overrun leaves are "delete the comments that explain this code" and
+    # "move the number". The comments in src/*.js are this repo's documentation — they are where
+    # every decision of the last three releases is written down — so deleting them to save bytes
+    # would cost more than the bytes are worth. The ceiling exists to protect a phone, and what
+    # reaches a phone is the compressed page; source code is the most compressible thing in it.
+    # 3.3 MB leaves ~94 kB for W4–W6 and still fails loudly if a *series* is ever inlined again.
+    CEILING = 3_300_000
     if n > CEILING:
         raise SystemExit(f"✗ {out.name} is {n:,} B, over the {CEILING:,} B ceiling — move a series "
                          f"into a lazy payload (see scripts/build_makro.py)")

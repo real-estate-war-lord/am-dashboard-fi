@@ -2287,3 +2287,44 @@ abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em
 .czero{stroke:var(--ink2);stroke-width:1.4}
 .clipmk{font-family:var(--mono);font-size:11px}
 .chclip{color:var(--ink2);font-style:italic}
+
+/* ===================================================================================
+   v2.2 W3 — the Test property's first screen
+   =================================================================================== */
+/* §1. The sheet opened with 496 px of header above the chart at 1440 × 900: a 30-px name on its
+   own line, the five actions on a second, the tiles on a third, a sentence under them, and then a
+   whole card holding nothing but the picker, Layers ▾ and the period control. The name, its area
+   tags and the actions share one line now, the sentence is the ⓘ beside the tags, and the toolbar
+   card is gone — its row is the study row's own header (`.strhead`).
+
+   1280 px, not the usual 1025: with the sidebar taking 250 px, a window narrower than this leaves
+   less than the 340 px the name and its tags need beside the five actions, and the block would
+   shrink into a five-line column rather than wrap into two. Below it — every tablet and every
+   phone — the header stays the stacked one it has always been. */
+@media (min-width:1280px){
+  .anhead{align-items:flex-start;gap:8px 16px}
+  /* 340 px of basis, not `auto`: with `auto` the name and its four tags measure ~720 px, which is
+     more than the 545 px left beside the actions, so the whole block wrapped to a line of its own
+     again. It shrinks and lets its own tags wrap instead — the actions keep the line. */
+  .anhead .arid{flex:1 1 340px;display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;min-width:0}
+  .anhead .anlab{font-size:22px;display:inline-block;width:auto;flex:0 1 auto;min-width:0;margin:0 0 0 -7px}
+  .anhead .tools{flex:0 0 auto;margin:0;padding-top:3px}
+  .anhead .hl{margin-top:12px}
+  /* Export ▾ now sits at the right-hand end of a one-line header, so its menu has to open *down
+     and right*: at `left:0` it ran 27 px past the window at 1536, and `bottom:100%` opened it
+     340 px above the top of the page — the default is written for the footer button, which has a
+     screen below it and nothing above. (The upward open was already off-screen before W3; the
+     shorter header only made it further off.) Only where the header is one line: below that the
+     button is back in a left-aligned row, where the default is right. */
+  .anhead .exmenu{top:calc(100% + 6px);bottom:auto;left:auto;right:0}
+}
+/* the ⓘ that replaced the sentence: the same affordance the section hints use, given a shape of
+   its own here because it sits in a row of tags rather than inside a heading */
+.artags .hq{font-size:13px;line-height:1;color:var(--muted);cursor:help;background:none;border:0;padding:0 2px}
+.artags .hq:hover,.artags .hq:focus{color:var(--ink)}
+/* the study row's header strip spans both columns; on a phone the row is one column anyway */
+.studyrow>.strhead{grid-column:1/-1;margin:0}
+.studyrow>.strhead .card-head.tools-only{margin-bottom:0}
+/* §2. A figure inherited from the pin's postal code is not the municipality's, and the two are
+   told apart by their word — the chip is styled the same, so neither reads as the more reliable. */
+.tag-muni.pno{color:var(--ink2)}

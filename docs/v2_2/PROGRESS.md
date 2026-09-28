@@ -164,3 +164,89 @@ all in this commit.
 - **Ten series on one Charts line chart** put the legend's fourth row within ~2 px of the source
   footer. That was already true in v2.1; the clipped-scale note is inserted *above* the legend and
   pushes it, so the case is no worse, but the legend still wants a proper row budget.
+
+---
+
+## W3 — Test property: the first screen ☑
+
+Gate: `./overnight.sh gate W3` green — build ✓, node tests ✓ (93: the 82 v2.1 + W2 ones and 11 new
+in `tests/geom.test.js`), the full ui suite up to W3 ✓ (6 new checks), budgets `src/app.js`
+459,2 KB / 460, `src/style.css` 149,8 KB / 165. The python unit suite is green (39).
+
+New file: **`src/geom_core.js`** → `window.GEOM_CORE`, inlined as `{{GEOM_JS}}` by
+`scripts/build_dashboard.py` (and added to its `check_js()` list) and wired into `src/index.html`,
+all in this commit.
+
+**Built**
+
+1. **The study row starts 265 px down, not 496** (`tpHead()`, `tpTop()`, `tpBar()`, `studyRow()`,
+   `tpRefresh()`, `src/style.css`). The plan asks for ≤ 420 at 1440 × 900. Four things were in the
+   way and all four are gone: the property name had a line to itself, the five action buttons had a
+   second, a sentence sat under the tiles, and a whole card held nothing but the picker, Layers ▾
+   and the period control. The name, its area tags and the actions **share one line** now — the tags
+   wrap inside their own block instead of pushing the buttons down — the tiles are directly below at
+   84 px, the sentence is an **ⓘ** beside the tags (and names the whole fallback chain, which it
+   never did), and the toolbar is the study row's own full-width header, `#tpbar`. The chart itself
+   starts at 372. At 1366 × 768 the row starts at 265 too. The one-line header is scoped to
+   **≥ 1280 px**, not the usual 1025: with the sidebar taking 250 px, anything narrower leaves less
+   than the 340 px the name and its tags need beside the five actions, and the block would collapse
+   into a column instead of wrapping into two lines. Every tablet and every phone keeps the stacked
+   header exactly as it was. Checks `W3-first-screen-1440`, `W3-first-screen-1366`,
+   `W3-mobile-stays-stacked`.
+2. **osa-alue → postal code → kunta, for every indicator** (`eVal()`, `fbChain()`, `inhTag()`,
+   `tpEntity()`, `anRow()`, `fmtCell()`, `longRows()`, `exportProperty()`). `eVal()` fell from an
+   area straight to its kunta, because until tonight the only thing that ever inherited was an area
+   *page*, and an osa-alue page has no single postal code. A **pin** has one. On the plan's own pin
+   (60,2448 / 24,8665) **Price** was Helsinki's 5 090 €/m² labelled "municipality figure" and is now
+   00410 Malminkartano's own **2 280 €/m²** labelled "postal-code figure"; **Unemployment** was
+   Helsinki's and is now 00410's **15,2 %**. `fbChain()` is the one list the tiles, the panel head,
+   the Area profile table, the percentile bar's peer pool, the Verify link and the property CSV
+   (`inherited_from`) all walk, so none of them can name a different level than the tile does.
+   The five-pin audit is the table in DECISIONS W3. Checks `W3-fallback-order`,
+   `W3-profile-table-levels`.
+3. **Rent and crime are *correctly* still municipality figures on that pin** — and DECISIONS W3 says
+   why, because "the postal code has one" looks true at a glance. 00410 carries `rent_pno` 18,4, but
+   `rent_pno` is a different indicator whose own registry `warn` says it is never blended with the
+   live kunta-level rent (Tilastokeskus discontinued the postal-code table at 2025Q4); `crime_1000`
+   is published per kunta for the whole country. Nothing was spliced to make a tile look finer.
+4. **The property mini map's legends already fold behind W2's pill; W3 asserts what that is worth.**
+   `W3-minimap-legends-at-load` measures the covered fraction of the map rather than the CSS: no
+   legend covers more than 50 % at load with three feature layers on, the pill is there, and opening
+   the stack keeps it under half. The Layers ▾ count badge is asserted by `W3-first-screen-*`.
+5. **Export ▾ in the property header opens on the screen.** Moving it to the end of a one-line
+   header exposed a default written for the footer button: `left:0` ran it 27 px past the window at
+   1536, and `bottom:100%` opened it *upward*, 340 px above the top of the page. It opens down and
+   right-aligned in `.anhead` now. The upward open was already off-screen before W3 — the shorter
+   header only made it further off — so `V4-property-export` gained the two assertions that catch it.
+6. **`src/geom_core.js` + `tests/geom.test.js`** — the move W2 handed to this phase. `pip`,
+   `inPoly`, `bboxOf`, `inBox`, `areaOf`, `R_EARTH`, `havM` and `featDistM` place every pin, school
+   and public building on the page and had no test of their own. Eleven now, including the two bugs
+   their comments record: the inside-out bbox that must never be cached while rings are still
+   loading, and a polygon being its outer ring *minus its holes*.
+
+**Earlier checks this phase's plan voids (adapted, not weakened)**
+
+- `V4-property-head-one-line` asserted that the identity block claims a line of its own (audit TP18,
+  DK Q2) — the exact opposite of what §1 asks for. It now asserts the name, the tags and the actions
+  share one line, that the actions do not overlap the identity block, and that the tiles still start
+  at the title's left edge and below both. The second half is what the original was protecting.
+
+**Left for a later phase (found, not fixed)**
+
+- **The page ceiling in `scripts/build_dashboard.py` was raised 3,2 MB → 3,3 MB.** v2.1 shipped 2 KB
+  under it; W2 and W3 together put the page 6 KB over, entirely in source code — no data changed.
+  The reason is written at the constant and in DECISIONS W3. W4–W6 have ~94 KB. If that starts to
+  look thin, the honest next step is a build that strips comments from the *inlined* copy while the
+  repo keeps them, not deleting them at source.
+- **At 1366 the tile row is 112 px, not 84**, because "21,3 EUR/m²/month" takes two lines in a 200-px
+  tile. True on the area page too, and true before W3; forcing it onto one line is what used to
+  paint the unit over the next tile (audit TILE5). Held at its measured height so it cannot grow.
+- **`tileStats()` still mixes levels across a series.** The current value now resolves through the
+  chain, but each earlier year resolves independently, so a sparkline could in principle switch
+  level mid-line. No indicator in this edition does it (a postal code that publishes a price
+  publishes its whole series), but the honest fix is to pin the series to the level the current
+  value came from.
+- **An area page's osa-alue still falls straight to its kunta**, because it is a district and no one
+  postal code covers it. Only a pin can use the middle step. A future phase could offer the
+  postal-code figure there as a *range* across the codes the district overlaps — but a range is not
+  the figure, and inventing one would be a model.

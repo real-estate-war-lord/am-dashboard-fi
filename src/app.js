@@ -33,6 +33,12 @@ const LOCALE = "fi-FI";
    v2.0 spelled it into the footer's markup, so the line still said `v2.0` a whole release after
    v2.1 shipped. A version that is written twice is a version that goes stale in one of them. */
 const APP_VERSION = "2.2";
+/* The plane geometry that places every pin, school and public building lives in
+   `src/geom_core.js` (W3) — pure, and covered directly by `node --test tests/geom.test.js`.
+   Aliased here so every call site below reads exactly as it did. */
+const GC = (typeof window !== "undefined" && window.GEOM_CORE) || {};
+const pip = GC.pip, inPoly = GC.inPoly, bboxOf = GC.bboxOf, inBox = GC.inBox, areaOf = GC.areaOf,
+      R_EARTH = GC.R_EARTH, havM = GC.havM, featDistM = GC.featDistM;
 
 /* ---------- helpers ---------- */
 const nf = (n, d = 1) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleString(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -873,7 +879,8 @@ document.addEventListener("input", e => {
   if (e.target.dataset && e.target.dataset.ipksearch) { IPK.q = e.target.value; IPK.i = 0; ipkRefresh(e.target.dataset.ipksearch); return; }
   if (e.target.id === "mq") { msOpen(e.target.value); return; }
   if (e.target.id === "tq") { T.q = e.target.value.trim().toLowerCase(); renderTableBody(); }
-  if (e.target.id === "anlab") { AN.label = e.target.value.trim(); TP.label = AN.label || TP_LABEL; syncHash(); }
+  if (e.target.id === "anlab") { AN.label = e.target.value.trim(); TP.label = AN.label || TP_LABEL;
+    e.target.size = anLabSize(e.target.value); syncHash(); }
 });
 document.addEventListener("toggle", e => {
   if (e.target.classList && e.target.classList.contains("indx")) UI.indxOpen = e.target.open;
@@ -1852,9 +1859,12 @@ function vMakro() {
 /* An inherited figure carries a `muni` tag, not a lone `°` — a symbol nothing on the page explained
    and which a reader could as easily take for a degree or a footnote marker. */
 const MUNI_TAG = `<span class="tag-muni muni" title="No figure is published for this area; the kunta's is shown.">muni</span>`;
-function fmtCell(i, v, fallback, mark) {
+/* the same mark for a postal-code figure standing in for an osa-alue (W3 §2) — a different level,
+   so a different word: "muni" on a figure that is really 00410's would be a false claim */
+const PNO_TAG = `<span class="tag-muni pno" title="No figure is published for this area; its postal code's is shown.">pno</span>`;
+function fmtCell(i, v, fallback, mark, from) {
   if (v == null || isNaN(v)) return `<td class="num">–</td>`;
-  return `<td class="num${fallback ? " inh" : ""}" data-v="${v}">${fmtOf(i)(v)}${fallback ? " " + MUNI_TAG : mark || ""}</td>`;
+  return `<td class="num${fallback ? " inh" : ""}" data-v="${v}">${fmtOf(i)(v)}${fallback ? " " + (from === "postinumero" ? PNO_TAG : MUNI_TAG) : mark || ""}</td>`;
 }
 /* one place decides which mark a value carries: ° inherited from the parent area, ^ published
    for a coarser area than this one */
@@ -2046,8 +2056,11 @@ let EXPORT_WARN = [];
    `inherited_from` set — the same figure the tiles and the tables show, and the reason the file can
    be read without knowing which indicators exist at which level. Only the latest period, because a
    full inherited history would be 1.8 M rows of the kunta's own series repeated 3 018 times. */
-function longRows(out, level, o, code, name, parentCode, parentName, maakunta, inds, parent) {
-  const row = (i, period, y, v, kind) => {
+/* `chain` (W3 §2) is the ordered list of areas an unpublished figure may be taken from, finest
+   first — the pin's postal code before its kunta. Without one, the single `parent` is the chain,
+   which is what every caller but the Test property export passes. */
+function longRows(out, level, o, code, name, parentCode, parentName, maakunta, inds, parent, chain) {
+  const row = (i, period, y, v, kind, from) => {
     const st = indStamp(i, level, y);
     out.push(csvRow(LONG_COLS, {
       level, code, name, parent_code: parentCode, parent_name: parentName, maakunta,
@@ -2055,7 +2068,7 @@ function longRows(out, level, o, code, name, parentCode, parentName, maakunta, i
       period, period_type: periodTypeOf(i, y),
       value: assertUnit(unitLabel(i), v, i.key),
       value_type: kind,
-      inherited_from: kind === "inherited" ? parentCode : "",
+      inherited_from: kind === "inherited" ? (from || parentCode) : "",
       direction: i.direction || "higher_better",
       source: st.source, table_id: st.table_id, source_url: st.source_url,
       as_of: st.as_of, fetched: st.fetched, licence: st.licence }));
@@ -2073,10 +2086,13 @@ function longRows(out, level, o, code, name, parentCode, parentName, maakunta, i
       });
       return;
     }
-    if (!parent) return;
-    const pv = V(parent, i.key);
-    if (pv == null) return;
-    row(i, periodOf(i, LATEST), LATEST, pv, i.proj ? "projection" : "inherited");
+    const fb = (chain && chain.length ? chain : parent ? [{ o: parent, code: parentCode }] : []);
+    for (const s of fb) {
+      const pv = V(s.o, i.key);
+      if (pv == null) continue;
+      row(i, periodOf(i, LATEST), LATEST, pv, i.proj ? "projection" : "inherited", s.code);
+      return;
+    }
   });
 }
 
@@ -2169,7 +2185,7 @@ function exportProperty() {
   const rows = [];
   const m = e.muni || (e.type === "kunta" ? null : null);
   longRows(rows, e.type, e.o, e.code, e.name, (m || {}).code || "", (m || {}).name || "",
-           (m || e.o).region || "", e.inds, m);
+           (m || e.o).region || "", e.inds, m, fbChain(e));
   rows.forEach(row => out.push([csvCell(label), csvNum(pt.lat), csvNum(pt.lon)].join(";") + ";" + row));
   downloadCsv(out, `am-dashboard-fi_test_property_${(D.meta && D.meta.built) || "data"}.csv`);
 
@@ -2284,10 +2300,34 @@ function areaEntity() {
   }
   return null;
 }
-/* value for the entity: its own figure, or the municipality's (inherited, °) for postal codes — and for quarters
-   on indicators the quarter layer does not have (Safety) */
+/* value for the entity: its own figure, or the finest one *below* it that publishes it.
+   The order is osa-alue → postal code → kunta (W3 §2). Until W3 the middle step did not exist: an
+   osa-alue that publishes no price fell straight to its kunta, so a pin in Malminkartano read
+   Helsinki's 5 090 €/m² and called it a "municipality figure" while 00410's own 2 280 sat in the
+   same build. An area page's osa-alue still has only the kunta — it is a district, not a point, and
+   no single postal code covers it — so the middle step is carried by the entity (`pno`), which only
+   a pin can fill. An indicator the quarter layer publishes itself (`osaOwn`) is never inherited. */
 const inherits = (e, k) => !!e.muni && (e.type === "postinumero" || (e.type === "osa_alue" && !osaOwn(k)));
-function eVal(e, k, y) { const own = V(e.o, k, y); if (own != null) return { v: own, own: true }; if (inherits(e, k)) { const mv = V(e.muni, k, y); if (mv != null) return { v: mv, own: false }; } return { v: null, own: false }; }
+const FB_LABEL = { postinumero: "postal-code figure", kunta: "municipality figure" };
+/* the levels that may answer for this entity, finest first — built once per entity object */
+function fbChain(e) {
+  if (e._fb) return e._fb;
+  const out = [];
+  if (e.pno && e.pno !== e.o) out.push({ type: "postinumero", o: e.pno, code: e.pno.nr });
+  if (e.muni) out.push({ type: "kunta", o: e.muni, code: e.muni.code });
+  return (e._fb = out);
+}
+/* the area an inherited figure really belongs to, named the way that level is named elsewhere */
+const fbName = c => !c || !c.src ? "" : c.from === "postinumero" ? `${c.src.nr} ${c.src.name}` : c.src.name || "";
+function eVal(e, k, y) {
+  const own = V(e.o, k, y); if (own != null) return { v: own, own: true, from: e.type, src: e.o };
+  if (inherits(e, k)) for (const s of fbChain(e)) { const v = V(s.o, k, y); if (v != null) return { v, own: false, from: s.type, src: s.o }; }
+  return { v: null, own: false, from: "", src: null };
+}
+/* the chip an inherited figure carries: which level it came from, and — on hover — which area.
+   One function, so a tile, a panel head and the map card cannot name the level differently. */
+const inhTag = (e, cur, cls) => cur && !cur.own && cur.from
+  ? `<span class="${cls || ""} tag-muni" data-level="${esc(cur.from)}" title="${esc(`${e.name} publishes no figure for this indicator — this is ${fbName(cur)}'s.`)}">${FB_LABEL[cur.from] || "inherited figure"}</span>` : "";
 function eYears(e, k) { return histYears(k, inherits(e, k) && V(e.o, k) == null ? MUNI : e.peers); }
 function tileSpark(ys, own, med, i) {
   /* area (solid) against the median of its peers (dashed), last point marked, first/last year on the axis */
@@ -2351,7 +2391,7 @@ function headlineHtml(e) {
   return `<div class="hl" data-testid="tiles">${inds.map(i => { const s = tileStats(e, i); const inh = !s.cur.own;
     return `<button class="hlc ${MK.ind === i.key ? "on" : ""} ${inh ? "inh" : ""}" data-testid="tile-${esc(i.key)}" data-arind="${esc(i.key)}" title="${esc(i.desc || i.label)} — click to study this figure">
     <span>${esc(i.short || i.label)}${s.cur.own ? markFor(e.o, i, e.type) : ""}</span><b>${tileValueHtml(i, s.cur.v)}</b>
-    <em>${inh ? `<span class="tag-muni">municipality figure</span>`
+    <em>${inh ? inhTag(e, s.cur)
       : `${s.yoy != null ? `<i class="${cls(s.yoy, i.key)}">${sign(s.yoy, x => nf(x, 1))}${s.unit}</i> y/y` : ""}${s.rk ? `${s.yoy != null ? " · " : ""}${rankText(s.rk)}` : ""}`}</em></button>`; }).join("")}</div>`;
 }
 /* ---------- W2 §3: one y axis for every chart in the build ----------
@@ -2570,7 +2610,7 @@ function panelHead(e, ind) {
     ${st.yoy != null ? `<span class="pnd ${cls(st.yoy, ind.key)}">${sign(st.yoy, x => nf(x, 1))}${st.unit} y/y</span>` : ""}
     ${st.rk ? `<span class="pnr">${rankText(st.rk)}</span>` : ""}
     ${st.vsMed != null ? `<span class="pnm">${vsMedianText(st.vsMed, ind)} <em>vs median</em></span>` : ""}
-    ${inh ? `<span class="tag tag-muni">municipality figure</span>` : ""}
+    ${inhTag(e, st.cur, "tag")}
     ${ind.proj ? `<span class="tag proj">Projection</span>` : ""}</div>`;
 }
 /* peers as ticks on one axis, this area as a labelled dot, the median marked — plain arithmetic,
@@ -2666,9 +2706,13 @@ function chartPanel(e, ind) {
     <p class="cap dim">${esc(src)}${link ? ` · ${link}` : ""}</p>
   </div>`;
 }
-/* chart panel | mini map, equal height, the map draggable with its own legend and full screen */
-function studyRow(e, ind, mapId, mapHint, extraLegends) {
+/* chart panel | mini map, equal height, the map draggable with its own legend and full screen.
+   `head` (W3 §1) is an optional full-width strip above the two panels: the Test property puts its
+   picker, Layers ▾ and period row there instead of in a card of its own, which is what lets the
+   study row itself start inside the first screen. */
+function studyRow(e, ind, mapId, mapHint, extraLegends, head) {
   return `<div class="studyrow" data-testid="study-row">
+    ${head || ""}
     ${chartPanel(e, ind)}
     <div class="card panel minimap" data-testid="minimap">
       <div class="card-head"><h3>${esc(ind.short || ind.label)}</h3><span class="hint">${esc(mapHint || "")}</span>
@@ -3212,30 +3256,11 @@ function kkRows(kk) {
     r("Burglary · per 1,000 inh.", kk.burglary_1000inh != null ? nf(kk.burglary_1000inh, 0) : null);
 }
 /* which sub-area (quarter / postal code) of the drilled municipality a point lies in — ray casting on the rings */
-function pip(pt, ring) { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1]; if ((yi > pt[0]) !== (yj > pt[0]) && pt[1] < (xj - xi) * (pt[0] - yi) / (yj - yi) + xi) ins = !ins; } return ins; }
 function areaAt(lat, lon) { return muniAreas(MK.muni).find(a => (a.rings || []).some(r => pip([lat, lon], r))) || null; }
 
 /* ---------- Test property: parse → locate → pin ---------- */
 /* the map's own colour tokens live in :root so the marker, the rings and the CSS agree on one tone */
 const cssVar = (name, fallback) => { try { const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fallback; } catch (e) { return fallback; } };
-/* a polygon's [south, west, north, east] box, cached on the area — the prefilter before the ray casting.
-   **The empty box is never cached.** Rings arrive late (dist/area/<kunta>.json is lazy), and an
-   area asked for its box before they land would otherwise keep the inside-out box [90,180,-90,-180]
-   for the rest of the session — a prefilter that rejects every point, so a pin in the middle of
-   Helsinki reported no postal area at all while the rings sat right there in memory. */
-function bboxOf(a) {
-  if (a._bb) return a._bb;
-  let s = 90, w = 180, n = -90, e = -180;
-  (a.rings || []).forEach(r => r.forEach(q => { if (q[0] < s) s = q[0]; if (q[0] > n) n = q[0]; if (q[1] < w) w = q[1]; if (q[1] > e) e = q[1]; }));
-  if (s > n || w > e) return [s, w, n, e];      /* no rings yet — answer, but do not remember */
-  return (a._bb = [s, w, n, e]);
-}
-const inBox = (lat, lon, b) => lat >= b[0] && lat <= b[2] && lon >= b[1] && lon <= b[3];
-/* which area of a list a point falls in — bbox first, ray casting only on the handful that survive */
-function areaOf(list, lat, lon) { return (list || []).find(a => inBox(lat, lon, bboxOf(a)) && (a.rings || []).some(r => pip([lat, lon], r))) || null; }
-/* a kunta polygon is outer ring minus its holes: Frederiksberg is a hole in Helsinki, and without
-   the holes every Frederiksberg pin would land in Helsinki */
-const inPoly = (pt, poly) => pip(pt, poly[0]) && !poly.slice(1).some(h => pip(pt, h));
 /* Rings arrive late — dist/area/<kunta>.json is lazy — and Leaflet throws on an empty ring
    list rather than drawing nothing, which takes the whole render down. Every polygon draw
    goes through this, so an area whose rings have not landed is simply not drawn yet. */
@@ -3400,7 +3425,8 @@ function tpRes() {
 /* the pin's finest known area, dressed as an area-page entity so tileStats/headlineHtml work on it */
 function tpEntity(r) {
   if (!r || r.error) return null;
-  if (r.osa_alue && OSA) return { type: "osa_alue", typeLabel: "Helsinki-region osa-alue", o: r.osa_alue, name: r.osa_alue.name, code: r.osa_alue.code, muni: osaParent(r.osa_alue), peruspiiri: r.osa_alue.peruspiiri, inds: IND_Q_ALL, peers: OSA.areas, peerLabel: "osa-alueet" };
+  /* `pno` is the W3 §2 middle step: the pin's own postal code, which an osa-alue page cannot have */
+  if (r.osa_alue && OSA) return { type: "osa_alue", typeLabel: "Helsinki-region osa-alue", o: r.osa_alue, name: r.osa_alue.name, code: r.osa_alue.code, muni: osaParent(r.osa_alue), pno: r.postinumero || null, peruspiiri: r.osa_alue.peruspiiri, inds: IND_Q_ALL, peers: OSA.areas, peerLabel: "osa-alueet" };
   if (r.postinumero) return { type: "postinumero", typeLabel: "Postal-code area", o: r.postinumero, name: `${r.postinumero.nr} ${r.postinumero.name}`, code: r.postinumero.nr, muni: byCode[r.postinumero.muni], inds: IND, peers: AREAS, peerLabel: "postal codes" };
   if (r.kunta) return { type: "kunta", typeLabel: "Municipality", o: r.kunta, name: r.kunta.name, code: r.kunta.code, muni: null, inds: IND, peers: MUNI, peerLabel: "municipalities" };
   return null;
@@ -3582,36 +3608,6 @@ const AN_RING_M = 1000;            /* public buildings and schools are counted i
 const AN_INFRA_M = 3000;           /* infrastructure projects listed, nearest first */
 const AN_CHIP_M = 1200;            /* a station this close that has not opened becomes a headline chip */
 const AN_NEAREST = 5;              /* rows listed per public-building category */
-const R_EARTH = 6371008.8;
-/* great-circle distance in metres */
-function havM(lat1, lon1, lat2, lon2) {
-  const rad = Math.PI / 180, dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
-  return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(a)));
-}
-/* distance from the pin to a GeoJSON feature: a Point is the great-circle distance, a line or a ring the
-   nearest point on its segments, and a point inside a polygon is 0 m. Degrees are converted to metres at
-   the pin's own latitude — exact enough over the few kilometres this sheet looks at. */
-function featDistM(f, lat, lon) {
-  const g = f && f.geometry; if (!g || !g.coordinates) return null;
-  if (g.type === "Point") return havM(lat, lon, g.coordinates[1], g.coordinates[0]);
-  const rad = Math.PI / 180, kx = 111320 * Math.cos(lat * rad), ky = 110540;
-  /* nearest point on the segment a→b, both in metres relative to the pin */
-  const segD = (a, b) => {
-    const ax = (a[0] - lon) * kx, ay = (a[1] - lat) * ky, dx = (b[0] - a[0]) * kx, dy = (b[1] - a[1]) * ky;
-    const l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
-    return Math.hypot(ax + t * dx, ay + t * dy);
-  };
-  const ringD = r => { let m = Infinity; for (let i = 1; i < r.length; i++) { const d = segD(r[i - 1], r[i]); if (d < m) m = d; } return m; };
-  const polys = g.type === "MultiPolygon" ? g.coordinates : g.type === "Polygon" ? [g.coordinates] : null;
-  if (polys) {
-    /* inside the outer ring and outside every hole → the pin is in the area */
-    if (polys.some(poly => inPoly([lat, lon], poly.map(r => r.map(c => [c[1], c[0]]))))) return 0;
-    return Math.min(...polys.map(poly => Math.min(...poly.map(ringD))));
-  }
-  const lines = g.type === "MultiLineString" ? g.coordinates : g.type === "LineString" ? [g.coordinates] : null;
-  return lines ? Math.min(...lines.map(ringD)) : null;
-}
 const anDist = m => m == null ? "–" : m < 1000 ? `${nf(Math.round(m / 10) * 10, 0)} m` : `${nf(m / 1000, 1)} km`;
 function anLoc() { const m = (AN.a || "").match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/); return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null; }
 /* --- Outlook for the pin's own area (docs/OUTLOOK_FI.md §5.7) ---
@@ -3665,20 +3661,20 @@ function anPct(v, key, pool) {
 }
 function anRow(e, i, r) {
   const cur = eVal(e, i.key); if (cur.v == null) return "";
-  /* an inherited figure is the municipality's, so it is ranked against municipalities, not against
-     the postal codes or quarters that all copy the same number */
-  const pool = cur.own ? e.peers : MUNI;
+  /* an inherited figure belongs to the level it was read from, so it is ranked against that level's
+     own peers — never against the quarters that all copy the same number (W3 §2 adds postal codes) */
+  const pool = cur.own ? e.peers : cur.from === "postinumero" ? AREAS : MUNI;
   const pc = anPct(cur.v, i.key, pool), lb = lowerBetter(i.key), nu = neutralDir(i.key);
-  const peers = pool === MUNI ? "municipalities" : e.peerLabel;
+  const peers = cur.own ? e.peerLabel : cur.from === "postinumero" ? "postal codes" : "municipalities";
   const kom = r.kunta ? V(byCode[r.kunta.code], i.key) : null;
   /* A neutral indicator gets the same bar, read as a position rather than a score: "higher than
      n % of the peers", no better/worse wording and no favourable-end fill (docs/OUTLOOK_FI.md §3). */
   const barTitle = nu ? `higher than ${nf(pc ? pc.p : 0, 0)} % of the ${pc ? pc.n : 0} ${peers} — neither end is better`
     : `better than ${nf(pc ? pc.p : 0, 0)} % of the ${pc ? pc.n : 0} ${peers}${lb ? " — lower is better here" : ""}`;
   return `<tr${nu ? ' class="anneutral"' : ""}><th><span class="thn">${esc(i.label)} <span class="dim">${esc(unitLabel(i))}</span></span>${i.proj ? `<span class="tag proj mini">${esc(i.proj.publisher)} ${esc(i.proj.vintage)}</span>` : ""}<button class="tch" data-go="${chartLink(i.key, e.type, e.code)}" title="Open in Charts">↗</button></th>
-    ${fmtCell(i, cur.v, !cur.own, e.type === "osa_alue" ? peruspiiriMark(i) : "")}
+    ${fmtCell(i, cur.v, !cur.own, e.type === "osa_alue" ? peruspiiriMark(i) : "", cur.from)}
     <td class="ansrc">${cur.own ? indSrcLink(i, e.type === "postinumero" ? e.o.nr : srcCode(e.o, e.type), "Verify", e.type)
-                                : indSrcLink(i, (r.kunta || {}).code, "Verify", "kunta")}</td>
+                                : indSrcLink(i, cur.from === "postinumero" ? cur.src.nr : (r.kunta || {}).code, "Verify", cur.from || "kunta")}</td>
     <td class="anbc" data-v="${pc ? pc.p.toFixed(1) : ""}">${pc
       ? `<span class="anbw" title="${esc(barTitle)}"><span class="anbar"><i style="width:${pc.p.toFixed(1)}%"></i></span><em>${nf(pc.p, 0)}</em></span>`
       : `<span class="dim">–</span>`}</td>
@@ -4054,22 +4050,36 @@ function anEmpty() {
 function tpLevelTag(e) {
   return e ? `<span class="tag">${esc(e.typeLabel)}</span>` : "";
 }
+/* Which area the tiles are read on used to be a full sentence under them (W3 §1: it cost ~48 px of
+   the first screen and repeated what the tags above it already say). It is an ⓘ now — the same
+   affordance the Area profile section's hint uses — and it names the whole fallback chain, which is
+   the part a reader cannot see from the tags. */
+function tpBasis(e) {
+  if (!e) return "";
+  const chain = fbChain(e).map(s => s.type === "postinumero" ? `postal code ${s.o.nr}` : `kunta ${s.o.name}`);
+  return `Figures are read on the pin's finest published area — ${e.typeLabel.toLowerCase()} ${e.name}.`
+    + (chain.length ? ` A figure that area does not publish is taken from ${chain.join(", then ")}, and every tile says which.`
+                    : " Every figure here is that area's own.");
+}
 function tpHead(pt, r, e) {
   const back = withQ("map" + (r.kunta ? `/${r.kunta.code}${isOsaMuni(r.kunta.code) ? "/postinumero" : ""}` : ""))
     + `&pin=${pt.lat.toFixed(5)},${pt.lon.toFixed(5)}` + (AN.label && AN.label !== TP_LABEL ? `&pl=${encodeURIComponent(AN.label)}` : "");
+  const lab = AN.label || TP_LABEL;
   return `<div class="card accent arhead anhead">
     <div class="arid">
-      <input id="anlab" class="anlab" value="${esc(AN.label || TP_LABEL)}" maxlength="60" aria-label="Property label" title="Rename this property — the name travels in the link">
-      <div class="artags">${r.kunta ? `<span class="tag">${esc(r.kunta.name)}</span>` : ""}${r.postinumero ? `<span class="tag">${esc(r.postinumero.nr)} ${esc(r.postinumero.name)}</span>` : ""}${r.osa_alue ? `<span class="tag">${esc(r.osa_alue.name)}</span>` : ""}${r.approx ? `<span class="tag warn" title="Municipality taken from the postal code — a postal code can cross a municipality border.">approx.</span>` : ""}<span class="tag">${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}</span></div>
+      <input id="anlab" class="anlab" size="${anLabSize(lab)}" value="${esc(lab)}" maxlength="60" aria-label="Property label" title="Rename this property — the name travels in the link">
+      <div class="artags">${r.kunta ? `<span class="tag">${esc(r.kunta.name)}</span>` : ""}${r.postinumero ? `<span class="tag">${esc(r.postinumero.nr)} ${esc(r.postinumero.name)}</span>` : ""}${r.osa_alue ? `<span class="tag">${esc(r.osa_alue.name)}</span>` : ""}${r.approx ? `<span class="tag warn" title="Municipality taken from the postal code — a postal code can cross a municipality border.">approx.</span>` : ""}<span class="tag">${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}</span>${e ? `<span class="hq" data-testid="tp-basis" tabindex="0" role="note" aria-label="${esc(tpBasis(e))}" title="${esc(tpBasis(e))}">ⓘ</span>` : ""}</div>
     </div>
     <div class="tools"><button class="lk primary" data-go="${esc(back)}">Open on map ›</button>
       ${e ? `<button class="lk" data-go="${withQ(pageOf(e.o))}">${esc(e.name)} ›</button>` : ""}
       <a class="lk" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${pt.lat}&mlon=${pt.lon}#map=17/${pt.lat}/${pt.lon}">OpenStreetMap ↗</a>
       <button class="lk" data-ancopy>Copy link</button>${exportBtn("prop")}</div>
     ${e ? headlineHtml(e) : ""}
-    ${e ? `<p class="cap">Figures are read on the pin's finest published area — ${esc(e.typeLabel.toLowerCase())} <b>${esc(e.name)}</b>. A figure that area does not publish is its kunta's, and says so.</p>` : ""}
   </div>`;
 }
+/* the label input sits on the header's one line now, so it is sized to its own text rather than to
+   the card — clamped so a 60-character name cannot push the action buttons off the line */
+const anLabSize = s => Math.max(11, Math.min(26, (s || "").length + 1));
 function vAnalysis() {
   const pt = anLoc();
   if (!pt) return anEmpty();
@@ -4093,18 +4103,18 @@ function vAnalysis() {
   if (!AN.showSet) AN.show = ["infra"];
   return `
   <div id="tptop">${tpTop(pt, r, e)}</div>
-  ${studyRow(e, ind, "anmap", tpMapNote(e), TP_LEGENDS)}
+  ${studyRow(e, ind, "anmap", tpMapNote(e), TP_LEGENDS, tpBar())}
   <div id="tpsecs">${tpSections(pt, r, e)}</div>`;
 }
 /* the mini map's one line: what the fill is anchored on and how far the rings reach (TP17) */
 const tpMapNote = e => `${e.typeLabel.toLowerCase()} ${e.name} · rings out to ${nf(TP_RINGS[TP_RINGS.length - 1] / 1000, 1)} km`;
-/* the header and the toolbar: everything above the study row */
-function tpTop(pt, r, e) {
-  return `${tpHead(pt, r, e)}
-  <div class="card accent">
-    <div class="card-head tools-only"><div class="tools" data-row="1">${layersBtn()}${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
-  </div>`;
-}
+/* everything above the study row is the header now — one card, not two (W3 §1) */
+const tpTop = (pt, r, e) => tpHead(pt, r, e);
+/* the study row's own header strip: what is studied (the picker and its chips), how far back
+   (the period control) and what the mini map draws (Layers ▾, whose count badge stays) */
+const tpBar = () => `<div class="card accent strhead" id="tpbar" data-testid="study-head">
+  <div class="card-head tools-only"><div class="tools" data-row="1">${layersBtn()}${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
+</div>`;
 /* the eight toggles below the study row */
 function tpSections(pt, r, e) {
   const profile = e.inds.filter(i => !["Safety", "Climate"].includes(i.group || "") && eVal(e, i.key).v != null);
@@ -4140,6 +4150,9 @@ function tpRefresh() {
   const row = document.querySelector("[data-testid=study-row]"); if (!row) return false;
   const ind = curInd();
   const top = document.getElementById("tptop"); if (top) top.innerHTML = tpTop(pt, r, e);
+  /* the picker, the chips and Layers ▾ live in the study row's own header since W3 §1, so the
+     refresh has to reach in there too — they used to ride along inside #tptop */
+  const bar = document.getElementById("tpbar"); if (bar) bar.outerHTML = tpBar();
   const panel = row.querySelector("[data-testid=chart-panel]");
   if (panel) panel.outerHTML = chartPanel(e, ind);
   const h = row.querySelector(".minimap .card-head h3"); if (h) h.textContent = ind.short || ind.label;

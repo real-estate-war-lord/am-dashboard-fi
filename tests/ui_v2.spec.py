@@ -2046,6 +2046,10 @@ def _tp_export(page, base):
     assert "property" in items, items
     box = boxes(page, ".anhead [data-testid=export-menu]")[0]
     assert box["w"] > 10 and box["right"] <= page.evaluate("window.innerWidth") + 1, box
+    # …and the whole menu is on the screen: W3 §1 moved this button to the end of a one-line header,
+    # where the footer's "open upward" default put 340 px of it above the top of the page
+    assert box["x"] >= -1, box
+    assert box["y"] >= -1 and box["bottom"] <= page.evaluate("window.innerHeight") + 1, box
     txt = download_text(page, lambda: page.click(".anhead [data-testid=export-menu] [data-export=property]"))
     assert txt.splitlines()[0].startswith("property_label;lat;lon;"), txt.splitlines()[0]
     assert not ERRORS, ERRORS[:3]
@@ -2069,14 +2073,17 @@ def _tp_radius(page, base):
 
 @check("V4-property-head-one-line", phase="V4", viewport="1536x864")
 def _tp_head_one_line(page, base):
-    """at 1536 the identity block still owns its own line (audit TP18, DK Q2)"""
+    """at 1536 the name, its area tags and the actions share one line (W3 §1 replaces TP18/DK Q2:
+    the identity block used to claim a line of its own, which cost the first screen 46 px)"""
     goto(page, base, PROP)
     page.wait_for_timeout(3000)
     rid = boxes(page, ".anhead .arid")[0]
     tools = boxes(page, ".anhead .tools")[0]
-    assert tools["y"] >= rid["bottom"] - 2, ("the header split into two columns", rid, tools)
+    assert tools["y"] < rid["bottom"] - 2, ("the actions dropped to a line of their own", rid, tools)
+    assert tools["x"] >= rid["right"] - 2, ("the actions overlap the identity block", rid, tools)
     tiles = boxes(page, ".anhead [data-testid=tiles]")[0]
     assert abs(tiles["x"] - rid["x"]) <= 2, ("the tiles start at a different left edge", rid, tiles)
+    assert tiles["y"] >= rid["bottom"] - 2 and tiles["y"] >= tools["bottom"] - 2, (rid, tools, tiles)
     assert no_overflow(page)
 
 
@@ -3199,6 +3206,185 @@ def _w2_info_level(page, base):
     assert "osa-alueet" in tag, tag
     assert "municipalities" not in tag and "postal codes" not in tag, tag
     assert not ERRORS, ERRORS[:3]
+
+
+# ===========================================================================
+# W3 — Test property: the first screen
+# ===========================================================================
+
+
+# Helsinki (osa-alue) · Espoo (osa-alue) · Tampere · Oulu · a rural kunta — the five pins the
+# fallback audit is logged for in docs/v2_2/DECISIONS.md
+W3_PINS = ["60.2448,24.8665", "60.1757,24.8050", "61.4978,23.7610", "65.0121,25.4651",
+           "64.8680,27.6700"]
+
+W3_HEAD = """() => {
+  const g = s => { const e = document.querySelector(s); if (!e) return null;
+    const r = e.getBoundingClientRect();
+    return {x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom}; };
+  return {row: g('[data-testid=study-row]'), panel: g('[data-testid=chart-panel]'),
+          arid: g('.anhead .arid'), tools: g('.anhead .tools'), tiles: g('[data-testid=tiles]'),
+          bar: g('#tpbar'), picker: g('#tpbar [data-testid=ind-picker]'),
+          layers: g('#tpbar [data-testid=layers-btn]'),
+          badge: g('#tpbar [data-testid=layers-btn] .tbn'),
+          basis: g('[data-testid=tp-basis]'),
+          headCards: document.querySelectorAll('#tptop > .card').length,
+          caps: document.querySelectorAll('.anhead p.cap').length};
+}"""
+
+
+def _w3_first_screen(page, base, limit, tiles_max):
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    g = page.evaluate(W3_HEAD)
+    assert g["row"] and g["panel"], g
+    assert g["row"]["y"] <= limit, f"the study row starts {g['row']['y']:.0f} px down (limit {limit})"
+    assert g["panel"]["y"] <= limit, f"the chart starts {g['panel']['y']:.0f} px down (limit {limit})"
+    # the header is one card now, the toolbar card is gone, and the sentence under the tiles is an ⓘ
+    assert g["headCards"] == 1, ("the header is more than one card", g["headCards"])
+    assert g["caps"] == 0, "the 'Figures are read on…' sentence is still a paragraph"
+    assert g["basis"], "no ⓘ explains which area the figures are read on"
+    # title + area chips + action buttons share one line; the tiles are directly below
+    assert g["tools"]["y"] < g["arid"]["bottom"] - 2, ("the actions dropped to their own line", g)
+    assert abs(g["tiles"]["x"] - g["arid"]["x"]) <= 2, ("the tiles start at a different left edge", g)
+    assert g["tiles"]["h"] <= tiles_max, f"the tile row is {g['tiles']['h']:.2f} px tall"
+    assert g["tiles"]["y"] >= g["arid"]["bottom"] - 2, g
+    # the picker, the period and Layers ▾ (with its count badge) are the study row's own header
+    assert g["bar"] and g["picker"] and g["layers"], ("the toolbar did not move into the study row", g)
+    assert g["bar"]["y"] >= g["row"]["y"] - 1 and g["bar"]["bottom"] <= g["row"]["bottom"] + 1, g
+    assert g["panel"]["y"] >= g["bar"]["bottom"] - 1, g
+    assert g["badge"], "the Layers ▾ count badge is gone"
+    assert no_overflow(page)
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W3-first-screen-1440", phase="W3", viewport="1440x900")
+def _w3_first_screen_1440(page, base):
+    """at 1440x900 the study row starts within 420 px of the top (it was 496)"""
+    _w3_first_screen(page, base, 420, 84)
+
+
+@check("W3-first-screen-1366", phase="W3", viewport="1366x768")
+def _w3_first_screen_1366(page, base):
+    """at 1366x768 the whole study row starts inside the first screen"""
+    # 112, not 84: at 200 px of tile "21,3 EUR/m²/month" takes two lines, exactly as it does on the
+    # area page and did before W3. The unit is NUM3's unbreakable token — forcing it onto one line
+    # is what used to paint it over the next tile (audit TILE5).
+    _w3_first_screen(page, base, 767, 113)
+
+
+@check("W3-mobile-stays-stacked", phase="W3", viewport="390x844")
+def _w3_mobile(page, base):
+    """the phone keeps the stacked header: name, then actions, then tiles"""
+    goto(page, base, PROP)
+    page.wait_for_timeout(3200)
+    g = page.evaluate(W3_HEAD)
+    assert g["tools"]["y"] >= g["arid"]["bottom"] - 2, ("the header went one-line on a phone", g)
+    assert g["tiles"]["y"] >= g["tools"]["bottom"] - 2, g
+    assert no_overflow(page)
+
+
+# what each tile is reading, straight off the page's own state: which level answered, and whether
+# the level *below* the one that answered had a figure it should have been asked for first
+W3_LEVELS = """() => {
+  const r = anRes(), e = tpEntity(r); if (!e) return null;
+  const lab = {postinumero: 'postal-code figure', kunta: 'municipality figure'};
+  const rows = [...document.querySelectorAll('[data-testid=tiles] > *')].map(el => {
+    const k = el.dataset.arind, c = eVal(e, k);
+    const em = el.querySelector('em');
+    return {k, from: c.from, own: c.own, chip: (em ? em.textContent : '').trim().split('\\n')[0],
+            pno: r.postinumero ? V(r.postinumero, k) : null,
+            kunta: r.kunta ? V(r.kunta, k) : null,
+            osaOwn: typeof osaOwn === 'function' ? osaOwn(k) : false};
+  });
+  return {type: e.type, lab, rows};
+}"""
+
+
+@check("W3-fallback-order", phase="W3")
+def _w3_fallback(page, base):
+    """osa-alue → postal code → kunta, for five sample pins, with the level named on the tile"""
+    seen = set()
+    for pin in W3_PINS:
+        goto(page, base, "#property?p=" + pin)
+        page.wait_for_timeout(3600)
+        g = page.evaluate(W3_LEVELS)
+        assert g, (pin, "the pin resolved to no area")
+        assert len(g["rows"]) == 5, (pin, g["rows"])
+        for t in g["rows"]:
+            seen.add(t["from"])
+            if t["own"]:
+                assert t["from"] == g["type"], (pin, t)
+                continue
+            # a figure the pin's own area does not publish must come from the FINEST level that does
+            if t["pno"] is not None:
+                assert t["from"] == "postinumero", (pin, "a postal-code figure exists and was skipped", t)
+            else:
+                assert t["from"] == "kunta", (pin, t)
+                assert t["kunta"] is not None, (pin, t)
+            assert t["chip"] == g["lab"][t["from"]], (pin, "the tile names the wrong level", t)
+        # an indicator the osa-alue layer publishes itself is never taken from a coarser area.
+        # Only on an osa-alue: `osaOwn` is about the quarter layer's own definitions, and a postal
+        # code that happens to share a key name (`vacant`) inherits by the ordinary rule.
+        if g["type"] == "osa_alue":
+            assert not [t for t in g["rows"] if t["osaOwn"] and not t["own"]], g["rows"]
+    # the pin the plan names read four of its five tiles off the municipality; two are finer now
+    assert "postinumero" in seen, "no tile on any sample pin resolved to a postal code"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W3-profile-table-levels", phase="W3")
+def _w3_profile_levels(page, base):
+    """the Area profile table never calls a postal-code figure the municipality's"""
+    goto(page, base, PROP + "&show=profile")
+    page.wait_for_timeout(3600)
+    bad = page.evaluate("""() => {
+      const r = anRes(), e = tpEntity(r); if (!e) return [];
+      return e.inds.filter(i => {
+        const c = eVal(e, i.key);
+        return c.v != null && !c.own && c.from === 'kunta'
+               && r.postinumero && V(r.postinumero, i.key) != null;
+      }).map(i => i.key);
+    }""")
+    assert not bad, ("read from the kunta while the postal code publishes it", bad)
+    # and the mark in the cell says which level, not "muni" for everything inherited
+    tags = texts(page, "[data-testid=tp-sec-profile] td.inh .tag-muni")
+    assert tags, "no inherited cell is marked at all"
+    assert set(tags) <= {"muni", "pno"}, tags
+    assert "pno" in tags, "no cell is marked as a postal-code figure"
+
+
+@check("W3-minimap-legends-at-load", phase="W3")
+def _w3_minimap_legends(page, base):
+    """no legend covers more than half the property mini map before it is asked for"""
+    goto(page, base, PROP + "&lay=infra,public,services")
+    page.wait_for_timeout(3600)
+    cov = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      if (!w) return null;
+      const b = w.getBoundingClientRect(), area = b.width * b.height;
+      let worst = 0, sum = 0;
+      w.querySelectorAll('.maplegend, .maplegs').forEach(el => {
+        const r = el.getBoundingClientRect();
+        const ov = Math.max(0, Math.min(b.right, r.right) - Math.max(b.left, r.left))
+                 * Math.max(0, Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top));
+        if (el.classList.contains('maplegs')) sum = ov; else worst = Math.max(worst, ov);
+      });
+      return {pill: !!w.querySelector('.legpill'), area, worst: worst / area, stack: sum / area};
+    }""")
+    assert cov, "no property mini map"
+    assert cov["pill"], "the mini map has no Legend ▾ pill"
+    assert cov["worst"] <= 0.5, f"a legend covers {cov['worst'] * 100:.0f} % of the mini map at load"
+    assert cov["stack"] <= 0.5, f"the legend stack covers {cov['stack'] * 100:.0f} % of the mini map"
+    # …and opening them keeps the half-map cap the pill promises
+    open_legends(page)
+    page.wait_for_timeout(400)
+    after = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      const b = w.getBoundingClientRect(), s = w.querySelector('.maplegs').getBoundingClientRect();
+      return (s.height * s.width) / (b.height * b.width);
+    }""")
+    assert after <= 0.5, f"the opened stack covers {after * 100:.0f} % of the mini map"
 
 
 # ===========================================================================
