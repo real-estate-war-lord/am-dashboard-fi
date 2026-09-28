@@ -211,7 +211,8 @@ def main():
     args = ap.parse_args()
 
     check_js([SRC / "route_core.js", SRC / "picker_core.js", SRC / "scale_core.js",
-              SRC / "geom_core.js", SRC / "testprop.js", SRC / "app.js"])
+              SRC / "geom_core.js", SRC / "testprop.js", SRC / "present.js",
+              SRC / "app.js"])
     makro = load(pathlib.Path(args.data)) or {}
     osa = load(pathlib.Path(args.osa))
     micro_idx = load(PROC / "micro" / "index.json")
@@ -285,6 +286,7 @@ def main():
                 .replace("{{SCALE_JS}}", (SRC / "scale_core.js").read_text(encoding="utf-8"))
                 .replace("{{GEOM_JS}}", (SRC / "geom_core.js").read_text(encoding="utf-8"))
                 .replace("{{TESTPROP_JS}}", (SRC / "testprop.js").read_text(encoding="utf-8"))
+                .replace("{{PRESENT_JS}}", (SRC / "present.js").read_text(encoding="utf-8"))
                 .replace("{{APP_JS}}", (SRC / "app.js").read_text(encoding="utf-8"))
                 .replace("{{DATA}}", payload)
                 .replace("{{BUILT}}", built))

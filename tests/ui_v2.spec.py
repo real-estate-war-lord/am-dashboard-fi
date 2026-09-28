@@ -1366,6 +1366,17 @@ SHEET_ROUTES = [
     ("public", "#public/091/arabianrannan-kirjasto@60.20898,24.97678"),
 ]
 
+# W4 — present mode on the four views the plan names. A screenshot list of its own rather than
+# another row in SHEET_ROUTES: eight earlier checks sweep that list, and quietly extending them to
+# a layout this phase invented is the kind of change that belongs in its own check, not in someone
+# else's. W6's QA pass asks for these shots by name.
+PRESENT_ROUTES = [
+    ("present_map", "#map?present=1"),
+    ("present_area", "#area/kunta/091?present=1"),
+    ("present_property", "#property?p=60.2448,24.8665&present=1"),
+    ("present_charts", "#charts?ind=growth&a=kunta:091&present=1"),
+]
+
 
 @check("P10-retired-words", phase="P10")
 def _retired_words(page, base):
@@ -3388,6 +3399,207 @@ def _w3_minimap_legends(page, base):
 
 
 # ===========================================================================
+# W4 — present mode, the study row's PNG, and print
+# ===========================================================================
+
+# the four views the plan names. Charts needs an area on it or there is no chart to present.
+W4_VIEWS = [
+    ("map", "#map"),
+    ("area", "#area/kunta/091"),
+    ("property", PROP),
+    ("charts", "#charts?ind=growth&a=kunta:091"),
+]
+
+# what present mode is, measured rather than described: is the sidebar on the screen, is the one
+# source line at the bottom of it, and did the toolbars go
+W4_STATE = """() => {
+  const vis = el => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+  };
+  const foot = document.getElementById('srcfoot');
+  const tools = [...document.querySelectorAll('.card-head.tools-only, .card.toolcard, #tpbar')];
+  return {
+    present: document.body.classList.contains('present'),
+    sidebar: vis(document.getElementById('sidebar')),
+    foot: vis(foot), footText: foot ? foot.textContent.trim() : '',
+    footBottom: foot ? foot.getBoundingClientRect().bottom : null,
+    line: vis(document.querySelector('[data-testid=present-line]')),
+    lineText: (document.querySelector('[data-testid=present-line]') || {}).textContent || '',
+    crumbs: vis(document.querySelector('.crumbs')),
+    tools: tools.filter(vis).length,
+    btn: !!document.querySelector('[data-testid=present-btn]'),
+    hash: location.hash,
+  };
+}"""
+
+
+@check("W4-present-hides-sidebar", phase="W4")
+def _w4_present(page, base):
+    """present=1 hides the sidebar and shows the one source footer on all four views"""
+    for name, h in W4_VIEWS:
+        goto(page, base, h + ("&" if "?" in h else "?") + "present=1")
+        page.wait_for_timeout(1800)
+        g = page.evaluate(W4_STATE)
+        assert g["present"], (name, "the body never entered present mode")
+        assert not g["sidebar"], (name, "the sidebar is still on the screen")
+        assert g["foot"], (name, "no source footer")
+        assert g["footText"].startswith("Source: "), (name, g["footText"])
+        assert "real-estate-war-lord.github.io/am-dashboard-fi" in g["footText"], (name, g["footText"])
+        # it is pinned to the bottom of the window, not left somewhere up the page
+        assert abs(g["footBottom"] - page.viewport_size["height"]) <= 2, (name, g["footBottom"])
+        # the toolbars collapsed into the one thin line, which names what is on screen
+        assert g["line"], (name, "no present line")
+        assert not g["crumbs"], (name, "the breadcrumb is still there as well as the present line")
+        assert g["tools"] == 0, (name, f"{g['tools']} toolbars survived present mode")
+        assert len(g["lineText"].strip()) > 3, (name, g["lineText"])
+        # the link says so, so a presented view can be sent to someone
+        assert "present=1" in g["hash"], (name, g["hash"])
+        assert no_overflow(page)
+        assert not ERRORS, (name, ERRORS[:3])
+
+
+@check("W4-present-key-toggles", phase="W4")
+def _w4_key(page, base):
+    """P enters and leaves present mode, Esc leaves it, and the URL follows"""
+    goto(page, base, "#map")
+    assert page.evaluate("document.body.classList.contains('present')") is False
+    page.keyboard.press("p")
+    page.wait_for_timeout(500)
+    g = page.evaluate(W4_STATE)
+    assert g["present"] and not g["sidebar"], g
+    assert "present=1" in g["hash"], g["hash"]
+    page.keyboard.press("p")
+    page.wait_for_timeout(500)
+    g = page.evaluate(W4_STATE)
+    assert not g["present"] and g["sidebar"], g
+    assert "present=1" not in g["hash"], g["hash"]
+    # Esc leaves it too, and the button is the third way in
+    page.keyboard.press("p")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is True
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is False
+    assert "present=1" not in hash_of(page), hash_of(page)
+    # the top bar's button is the third way in
+    page.click("[data-testid=present-btn]")
+    page.wait_for_timeout(400)
+    assert page.evaluate("document.body.classList.contains('present')") is True
+    # …and a p typed into a box is a letter, not a shortcut
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    page.click("#mq")
+    page.keyboard.type("Tamp")
+    page.wait_for_timeout(300)
+    assert page.evaluate("document.body.classList.contains('present')") is False, \
+        "typing into the search box entered present mode"
+    assert not ERRORS, ERRORS[:3]
+
+
+@check("W4-present-numbers-bigger", phase="W4")
+def _w4_numbers(page, base):
+    """the headline figures are a quarter larger in present mode, and nothing is removed"""
+    sizes = """() => {
+      const px = sel => { const e = document.querySelector(sel); return e ? parseFloat(getComputedStyle(e).fontSize) : 0; };
+      return {tile: px('[data-testid=tiles] .hlc b'), panel: px('.pnv'),
+              tiles: document.querySelectorAll('[data-testid=tiles] .hlc').length,
+              secs: document.querySelectorAll('.seclist .sec').length,
+              caps: document.querySelectorAll('.cap').length};
+    }"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2200)
+    plain = page.evaluate(sizes)
+    goto(page, base, AREA + "?present=1")
+    page.wait_for_timeout(2200)
+    big = page.evaluate(sizes)
+    assert plain["tile"] > 0 and plain["panel"] > 0, plain
+    assert big["tile"] >= plain["tile"] * 1.2, (plain["tile"], big["tile"])
+    assert big["panel"] >= plain["panel"] * 1.2, (plain["panel"], big["panel"])
+    # "nothing is removed from the data": the same tiles, the same sections, the same caveats
+    assert big["tiles"] == plain["tiles"], (plain, big)
+    assert big["secs"] == plain["secs"], (plain, big)
+    assert big["caps"] == plain["caps"], (plain, big)
+
+
+@check("W4-present-legends-open", phase="W4")
+def _w4_legends(page, base):
+    """present mode opens the mini map's legends instead of leaving them behind the pill"""
+    goto(page, base, AREA + "?present=1")
+    page.wait_for_timeout(2600)
+    g = page.evaluate("""() => {
+      const w = document.querySelector('[data-testid=minimap] .mapwrap');
+      if (!w) return null;
+      const s = w.querySelector('.maplegs'), p = w.querySelector('.legpill');
+      const b = w.getBoundingClientRect(), r = s.getBoundingClientRect();
+      return {open: getComputedStyle(s).display !== 'none',
+              pill: p ? getComputedStyle(p).display !== 'none' : false,
+              inside: r.left >= b.left - 2 && r.right <= b.right + 2 && r.bottom <= b.bottom + 2,
+              share: (r.width * r.height) / (b.width * b.height)};
+    }""")
+    assert g, "no mini map"
+    assert g["open"], "the legends are still folded away in present mode"
+    assert not g["pill"], "the Legend pill is still offered in present mode"
+    assert g["inside"], ("the opened legend stack leaves the map", g)
+    assert g["share"] <= 0.62, f"the legends cover {g['share'] * 100:.0f} % of the mini map"
+
+
+@check("W4-study-png", phase="W4")
+def _w4_png(page, base):
+    """⤓ PNG on the study row downloads one non-empty image, on the area page and the property"""
+    for name, h in [("area", AREA), ("property", PROP)]:
+        goto(page, base, h)
+        page.wait_for_timeout(3000)
+        btn = page.query_selector("[data-testid=study-png]")
+        assert btn, (name, "no ⤓ PNG button on the study row")
+        with page.expect_download(timeout=20000) as dl:
+            btn.click()
+        path = dl.value.path()
+        data = pathlib.Path(path).read_bytes()
+        assert data[:8] == b"\x89PNG\r\n\x1a\n", (name, "that download is not a PNG", data[:8])
+        # a blank 1 600 x 700 PNG still compresses to a few kB; a real one is much larger
+        assert len(data) > 8000, (name, f"the image is only {len(data)} B — nothing was drawn")
+        assert dl.value.suggested_filename.endswith(".png"), dl.value.suggested_filename
+        # kept where the screenshots go, so the phase's own artefact can be looked at rather than
+        # only counted (docs/ui_v2/ is build output and is not committed)
+        SHOTDIR.mkdir(parents=True, exist_ok=True)
+        (SHOTDIR / f"study_png_{name}.png").write_bytes(data)
+        assert not ERRORS, (name, ERRORS[:3])
+
+
+@check("W4-print-no-sidebar", phase="W4")
+def _w4_print(page, base):
+    """print media hides the sidebar and the controls and shows the source footer"""
+    goto(page, base, AREA)
+    page.wait_for_timeout(2200)
+    page.emulate_media(media="print")
+    page.wait_for_timeout(400)
+    try:
+        g = page.evaluate("""() => {
+          const d = sel => { const e = document.querySelector(sel); return e ? getComputedStyle(e).display : null; };
+          const foot = document.getElementById('srcfoot');
+          return {side: d('#sidebar'), toolcard: d('.card.toolcard'), pill: d('.legpill'),
+                  hdact: d('#hdact'),
+                  foot: foot ? getComputedStyle(foot).display : null,
+                  footText: foot ? foot.textContent.trim() : '',
+                  legs: d('[data-testid=minimap] .maplegs'),
+                  map: (document.getElementById('armap') || {}).clientHeight || 0,
+                  brk: getComputedStyle(document.querySelector('.studyrow')).breakAfter};
+        }""")
+    finally:
+        page.emulate_media(media="screen")
+    assert g["side"] == "none", ("the sidebar prints", g["side"])
+    assert g["toolcard"] == "none" and g["hdact"] == "none", g
+    assert g["pill"] == "none", "the Legend pill prints"
+    assert g["legs"] == "flex", "the legends are folded away on paper"
+    assert g["foot"] == "block", "no source footer on the printed page"
+    assert g["footText"].startswith("Source: "), g["footText"]
+    assert g["map"] > 100, f"the printed mini map is {g['map']} px tall — it would be clipped"
+    assert g["brk"] in ("page", "always"), ("the study row is not a page of its own", g["brk"])
+
+
+# ===========================================================================
 # runner
 # ===========================================================================
 
@@ -3446,7 +3658,7 @@ def run(phase_upto="P10", shots=False, only=None):
                     ctx = browser.new_context(viewport={"width": w, "height": h})
                     ctx.route("**://*/**", block_external)
                     pg = ctx.new_page()
-                    for name, route in ROUTES + SHEET_ROUTES:
+                    for name, route in ROUTES + SHEET_ROUTES + PRESENT_ROUTES:
                         goto(pg, base, route)
                         pg.wait_for_timeout(900)
                         pg.screenshot(path=str(SHOTDIR / f"{name}_{w}.png"), full_page=(w == 390))

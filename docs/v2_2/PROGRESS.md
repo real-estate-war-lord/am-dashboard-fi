@@ -250,3 +250,95 @@ all in this commit.
   postal code covers it. Only a pin can use the middle step. A future phase could offer the
   postal-code figure there as a *range* across the codes the district overlaps — but a range is not
   the figure, and inventing one would be a model.
+
+---
+
+## W4 — present mode, the study-row PNG and print ☑
+
+Gate: `./overnight.sh gate W4` green — build ✓, node tests ✓ (106: the 93 of W1–W3 and 13 new in
+Gate: `./overnight.sh gate W4` green — build ✓, node tests ✓ (109: the 93 of W1–W3 and 16 new in
+`tests/present.test.js`), the full ui suite up to W4 ✓ (151 checks, 6 of them new), budgets
+`src/app.js` 459,9 KB / 460, `src/style.css` 156,1 KB / 165. The python unit suite is green.
+
+New file: **`src/present.js`** → `window.PRESENT`, inlined as `{{PRESENT_JS}}` by
+`scripts/build_dashboard.py` (and added to its `check_js()` list) and wired into `src/index.html`
+**before app.js**, all in this commit. It is a feature module like `src/testprop.js`, not a pure
+`*_core.js`: its pure half is exported and node-tested, its browser half reads app.js's own globals
+— see DECISIONS W4 for why the whole phase had to live outside app.js.
+
+**Built**
+
+1. **Present mode** (`src/present.js`, `hashFor()`, `parseHash()`, `render()`, `renderTop()`,
+   `src/style.css`). `present=1` in the link, `▶ Present` in the top bar, or **`P`**; **Esc** leaves,
+   and so does `P` again. On the four views the plan names — Map, Area page, Test property, Charts —
+   the sidebar goes, the four toolbars (the map's row, the area page's picker card, the study row's
+   `#tpbar`, the Charts controls) collapse into **one thin line in the top bar**: the indicator, the
+   period and the area path. The headline numbers grow a quarter (the 26-px tile figure to 32,5,
+   the 30-px panel figure to 37,5, the 33-px hero to 41), the mini maps' legends come out from
+   behind W2's `Legend ▾` pill and stay open, and a **one-line source footer** is pinned to the
+   bottom of the window: *Source: Tilastokeskus, Aluesarjat … · as of … ·
+   real-estate-war-lord.github.io/am-dashboard-fi*. Nothing that carries a figure is hidden — the
+   check counts tiles, sections and caveats with and without `present=1` and requires the three
+   counts to match. Two of the rules are desktop-only and say so: below 1025 px the map is 55vh and
+   the pill stays (it is the only way the map and its key both fit), and the source line sits at the
+   end of the document rather than bolted across the bottom of an 844-px screen. Checks
+   `W4-present-hides-sidebar`, `W4-present-key-toggles`, `W4-present-numbers-bigger`,
+   `W4-present-legends-open`; the four views are also shot at 1440 and 390 into
+   `docs/ui_v2/present_*.png`, which is what W6 §1 asks to look at.
+2. **`⤓ PNG` on the study row** (area page and Test property), in the chart panel's own head. One
+   image, 1 600 × 508 at **2×** (3 200 × 1 016 px), with the chart on the left at its own aspect
+   ratio, its series key and the clipped-scale note under it, the mini map filling the full height
+   on the right with its own legend redrawn in the corner, a title (*area · indicator*), a
+   sub-title (*period · unit · definition*) and the same source footer along the bottom. It is made
+   **out of the page**: the panel's SVG is cloned with every drawn property inlined from its
+   computed style (a stylesheet does not travel inside a `data:` URL), and the map is copied tile by
+   tile, canvas by canvas, overlay by overlay, in pane z-index order, with the test property's pin
+   redrawn because it is a CSS shape with no text in it. Where the tiles are cross-origin — which is
+   what `tile.openstreetmap.org` is, and what the test harness always serves — the polygons and
+   labels are drawn on the page's own paper colour instead and the image's footer says
+   **· basemap omitted**. No library was added; nothing is fetched. Check `W4-study-png` asserts a
+   real PNG of non-trivial size on both routes and keeps the file in `docs/ui_v2/study_png_*.png`,
+   so the artefact can be looked at and not only counted. The Charts view's own `⤓ Download PNG` now
+   goes through the same rasteriser (`PRESENT.png`) — one place turns an SVG into a file.
+3. **A print stylesheet, A4 landscape** (`src/style.css`). `@page{size:A4 landscape;margin:11mm}`;
+   the sidebar, the top-bar actions, every toolbar, every popover and Leaflet's own controls are
+   gone; the legends are unfolded, because on paper they can never be behind a pill; the source
+   footer is the last thing on the page; every card, section and table is `break-inside:avoid` and
+   the study row is `break-after:page`, which is what "one view per page" means here. The maps get
+   a height in **millimetres** (108 mm macro, 88 mm mini) because W2 measures them against the
+   *window*, and a Leaflet container with no height prints as a clipped grey strip;
+   `beforeprint` tells every live map its container just changed shape. Check `W4-print-no-sidebar`
+   drives it under Playwright's print media emulation.
+
+**Left for a later phase (found, not fixed)**
+
+- **`src/app.js` ends the phase at 470 931 B of 471 040 — 109 bytes.** W4 spent almost nothing there
+  on purpose (six hooks and one flag; `chartPng()` got *smaller*), but the ceiling is now effectively
+  reached and **W5 cannot add a line to app.js before it moves a module out.** The move is already
+  scoped: **`chartSvg` … `chartSvgLine`** — the block from the comment *"self-contained SVG (inline
+  styles, title, legend)…"* down to the end of `chartSvgLine`, about 13 KB — is the natural
+  candidate, and only **four** of its names are used outside it: `chartSvg` (vCharts, chartPng),
+  `chTitleLive` (the `change` handler for `#chtitle`), `DIST_DEFS` (chartAutoTitle, vCharts,
+  chartCsv) and `fmtP` (vCharts's Data table). Everything else it declares — `CH_FONT`, `CH_MONO`,
+  `CH_W`, `CH_PAD`, `CH_MEAS`, `chTextW`, `chClip`, `chTitleFont`, `chSubFont`, `chTextMax`,
+  `chTitleBlock`, `chFoot`, `chartSvgBar`, `chartSvgDist`, `DIST_COLORS` — is used only inside it.
+  A `src/chartsvg.js` exposing those four, inlined before app.js, frees the room for the whole of
+  W5. W4 did not do it: an unattended re-typing of 136 lines of dense SVG template literals, in a
+  phase that also had three new features to land, is the wrong risk to take with the one file every
+  check reads. The analysis is here so W5 does not have to redo it.
+- **`dist/index.html` is 3 237 kB of the 3 300 kB ceiling** — 62 kB for W5 and W6. W4 added ~19 kB
+  of source (present.js and the W4 CSS). If W5's seven items approach it, the honest next step is
+  still the one W3 named: strip comments from the *inlined* copy while the repo keeps them.
+- **The PNG draws no HTML marker that is neither text nor the pin.** Area labels and the test
+  property's pin are redrawn; a public-building or services marker that is a pure CSS shape would
+  be missed. None of the three layers the study row's mini maps draw by default is one — they are
+  `L.circleMarker`s on a canvas renderer, which *is* copied — so nothing is currently lost, but a
+  future HTML-icon layer would need a line here.
+- **Present mode does not re-fit the camera.** Leaving the sidebar gives the map ~250 px more width;
+  the map is told its container changed (`invalidateSize`) but keeps its centre and zoom, because a
+  zoom change on entering present mode would be the app moving the reader's view out from under
+  them mid-sentence. A deliberate `fitBounds` on entering is a defensible future choice, not this
+  phase's.
+- **Print is asserted by media emulation, not by a rendered PDF.** Playwright's `emulate_media`
+  proves the rules apply; it does not prove the pagination. A real `page.pdf()` in the suite would,
+  and would add a binary artefact to every run — W6's manual QA pass is the cheaper place to look.

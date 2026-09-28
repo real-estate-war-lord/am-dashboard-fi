@@ -39,6 +39,9 @@ const APP_VERSION = "2.2";
 const GC = (typeof window !== "undefined" && window.GEOM_CORE) || {};
 const pip = GC.pip, inPoly = GC.inPoly, bboxOf = GC.bboxOf, inBox = GC.inBox, areaOf = GC.areaOf,
       R_EARTH = GC.R_EARTH, havM = GC.havM, featDistM = GC.featDistM;
+/* Present mode, the study row's ⤓ PNG and the print sheet are W4 and live in `src/present.js`;
+   app.js keeps only the state (`UI.present`), the `present=1` key and these few hooks. */
+const PRE = (typeof window !== "undefined" && window.PRESENT) || {};
 
 /* ---------- helpers ---------- */
 const nf = (n, d = 1) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleString(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -342,7 +345,7 @@ const curMind = () => MICRO_INDS.find(i => i.key === MK.mind) || MICRO_INDS[0];
 const AR = { type: null, code: null, sub: "osa_alue", show: [], showSet: false };   /* area page; `show` = which <details> are open (URL key show=) */
 const UI = { indxOpen: false, mfOpen: false, climLegOpen: true, mapCard: true, exOpen: false, navOpen: false, lyOpen: false, mmFull: false,
              /* which trigger opened the menu — Esc hands the focus back to that one (V6, A11Y4) */
-             exBtn: null, lyBtn: null };   /* fold states that survive a re-render */
+             exBtn: null, lyBtn: null, present: false };   /* fold states that survive a re-render */
 const CH = { ind: (IND[0] || {}).key, areas: [], y0: "", y1: "", median: true, title: "", mode: "auto", dist: "size", fq: "year", ov: [], nat: true };   /* chart generator; fq = year | q, ov = overlay indicators, nat = Finland line */
 const PR = { id: null };                                                          /* project datasheet */
 const PB = { kom: null, id: null };                                               /* public-building sheet */
@@ -581,6 +584,9 @@ function hashFor() {
   else if (S.view === "schoollist") { p = `schoollist/${SL.key}`; }
   else if (S.view === "makro") p = "map" + (MK.muni ? "/" + MK.muni + (isOsaMuni(MK.muni) && MK.osaView === "postinumero" ? "/postinumero" : "") : "");
   else p = S.view;
+  /* W4 — present mode is a property of the link, not of the machine: it is written last so the
+     two views that clear `q` above (charts, property) carry it too. */
+  if (UI.present) q.push("present=1");
   return p + "?" + q.join("&");
 }
 /* a comma list in the URL, e.g. show=outlook,figures — the one place a <details> set is read */
@@ -590,6 +596,7 @@ function parseHash() {
   const r = RC.toInternal(location.hash || "#map");
   const parts = r.parts, q = r.query;
   const prevView = S.view;
+  UI.present = q.present === "1";        /* W4 — every view reads it, so it is read before any of them */
   if (q.ind) MK.ind = q.ind;
   MK.year = q.y && YEARS.includes(q.y) ? q.y : LATEST;
   const v = r.view;
@@ -729,11 +736,15 @@ function crumbs() {
 }
 function renderTop() {
   const { c, tail, kind } = crumbs();
-  document.getElementById("hd").innerHTML = `<nav class="crumbs">${c.map(([l, h]) => `<button data-go="${esc(h)}">${esc(l)}</button><i>›</i>`).join("")}<b>${esc(tail)}</b>${kind ? `<span class="dim">${esc(kind)}</span>` : ""}</nav>`;
+  /* W4 §1 — in present mode the breadcrumb's place is taken by the one thin line the toolbars
+     collapse into: indicator · period · area. `PRE.line()` builds it. */
+  document.getElementById("hd").innerHTML = UI.present && PRE.line ? PRE.line()
+    : `<nav class="crumbs">${c.map(([l, h]) => `<button data-go="${esc(h)}">${esc(l)}</button><i>›</i>`).join("")}<b>${esc(tail)}</b>${kind ? `<span class="dim">${esc(kind)}</span>` : ""}</nav>`;
   /* page-level actions live on the right of the top bar, not in the map toolbar */
   const act = document.getElementById("hdact");
-  if (act) act.innerHTML = S.view === "makro"
-    ? `<button class="tbtn" data-testid="map-full" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>` : "";
+  if (act) act.innerHTML = (S.view === "makro" && !UI.present
+    ? `<button class="tbtn" data-testid="map-full" data-fs title="Full screen (Esc to exit)">⤢ Full screen</button>` : "")
+    + (PRE.btn ? PRE.btn() : "");
 }
 const RENDER = { makro: vMakro, table: vTable, area: vArea, charts: vCharts, sources: vSources, pipeline: vPipeline, project: vProject,
                  public: vPublic, publist: vPubList, school: vSchool, schoollist: vSchoolList, property: vAnalysis };
@@ -760,6 +771,7 @@ function render() {
   const body = document.getElementById("body");
   body.innerHTML = (RENDER[S.view] || vMakro)();
   enableSort(body);
+  if (PRE.apply) PRE.apply();     /* W4 — the present class, the source footer, the open legends */
 }
 function renderKeep() { const m = document.getElementById("main"), y = m.scrollTop; render(); m.scrollTop = y; }
 
@@ -2699,7 +2711,7 @@ function chartPanel(e, ind) {
   const link = indSrcLink(ind, e.type === "postinumero" ? e.o.nr : srcCode(e.o, e.type), null, e.type);
   const per = panelPeriod(e, ind);
   return `<div class="card panel" data-testid="chart-panel" data-mode="${mode}">
-    <div class="card-head"><h3 data-testid="panel-title">${esc(e.name)}${per ? ` · ${esc(per)}` : ""}</h3><span class="hint">${esc(unitLabel(ind))}</span></div>
+    <div class="card-head"><h3 data-testid="panel-title">${esc(e.name)}${per ? ` · ${esc(per)}` : ""}</h3><span class="hint">${esc(unitLabel(ind))}</span>${PRE.pngBtn ? PRE.pngBtn() : ""}</div>
     ${panelHead(e, ind)}
     ${body}
     <p class="cap">${esc(ind.desc || "")}${ind.warn ? `<br>⚠ ${esc(ind.warn)}` : ""}</p>
@@ -2751,7 +2763,7 @@ function areaTop(e) {
     <div class="tools"><button class="lk" data-go="${withQ(mapHash)}">Show on map</button><button class="lk" data-go="${chartLink(MK.ind, e.type, e.code)}">↗ Chart</button>${microAvail(microCode) ? `<button class="lk primary" data-go="map/${microCode}?ind=${MK.ind}&micro=1&mind=${MK.mind}">Buildings ›</button>` : ""}</div>
     ${headlineHtml(e)}
   </div>
-  <div class="card accent">
+  <div class="card accent toolcard">
     <div class="card-head tools-only"><div class="tools" data-row="1">${indPicker("ind")}${periodControl("ind")}</div>${indChips("ind")}</div>
   </div>`;
 }
@@ -4868,12 +4880,12 @@ function vCharts() {
   ${schoolsChartCard()}`;
 }
 function chartAddMany(ids) { ids.forEach(id => { if (!CH.areas.includes(id) && CH.areas.length < 8) CH.areas.push(id); }); syncHash(); renderKeep(); }
+/* the rasteriser itself moved to src/present.js in W4, so the Charts PNG and the study row's PNG
+   are made the same way; this SVG is self-contained already and only needs a size */
 function chartPng() {
-  const svg = chartSvg(true).replace('class="chart" ', 'width="1200" height="640" ').replace(' id="chsvg"', "");
-  const img = new Image(); const scale = 2; const W = 1200, H = 640;
-  img.onload = () => { const c = document.createElement("canvas"); c.width = W * scale; c.height = H * scale; const ctx = c.getContext("2d"); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0, W, H);
-    c.toBlob(b => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `chart_${CH.ind}_${chartYears()[0]}-${chartYears().slice(-1)[0]}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }, "image/png"); };
-  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  const ys = chartYears();
+  PRE.png(chartSvg(true).replace('class="chart" ', 'width="1200" height="640" ').replace(' id="chsvg"', ""),
+          `chart_${CH.ind}_${ys[0]}-${ys.slice(-1)[0]}.png`, 1200, 640);
 }
 function chartCsv() {
   if (chartMode() === "dist") { const ents = CH.areas.map(chEntity).filter(e => e && e.o.bbr && e.o.bbr.dist); const [dl, labels] = DIST_DEFS[CH.dist] || DIST_DEFS.size;

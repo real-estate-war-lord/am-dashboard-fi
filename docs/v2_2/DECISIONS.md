@@ -272,3 +272,87 @@ The decisions v2.0 took are in `docs/UI_PLAN.md` §2 (D1–D16) and v2.1's are i
   comments in `src/*.js` are where every decision of the last three releases is written down, so
   they are worth more than the bytes. The reason is written at the constant, beside v1.1's own
   raise, and 3,3 MB still fails loudly if a *series* is ever inlined again (~94 KB for W4–W6).
+- **W4** — **Present mode is a whole file, `src/present.js` (`window.PRESENT`), because app.js had
+  787 bytes left.** W3 ended at 459,2 KB of the 460 KB budget, so the three W4 items could not be
+  written where the code they touch lives. The file is *not* a `*_core.js`: it reads `S`, `UI`,
+  `MK`, `D` and calls `renderTop()`, `syncHash()`, `esc()` by name, the way `src/testprop.js`
+  already shares app.js's global lexical scope, and it is inlined **before** app.js so its own
+  `click` and `keydown` listeners run first — that is what lets `P` and Esc be answered without
+  reopening the key handling of three earlier phases. What is genuinely pure — the footer line, the
+  composite PNG's geometry, the file name — takes arguments and is covered by 13 tests in
+  `tests/present.test.js`. app.js keeps six hooks and `UI.present`, and ends the phase at
+  **470 931 B of 471 040** — see the note at the end of PROGRESS W4: **W5 must move the chart-SVG
+  builders out before it adds a line.**
+- **W4** — **`present=1` is written last in `hashFor()`, after the two views that clear the query.**
+  Charts and Test property both do `q.length = 0` and rebuild their own key list, so a push placed
+  with the other map keys would have been dropped on exactly the two views the plan names. Present
+  mode is a property of the *link*, not of the machine: a presented view can be mailed to someone,
+  and every old link (which carries no `present=`) opens as it always did.
+- **W4** — **Present mode hides controls and nothing else.** The plan's "nothing is removed from the
+  data" is asserted rather than promised: `W4-present-numbers-bigger` counts the tiles, the
+  `<details>` sections and the `.cap` caveats with and without `present=1` and requires the three
+  counts to be equal. What goes is the sidebar, the four toolbars, the chips rows and the Data tab
+  bar — every one of them an affordance for a reader with a mouse, and together the first ~300 px of
+  each screen. The `Legend ▾` pill W2 §2 introduced goes too, with the legends left *open*: clicking
+  a pill in front of an audience to find out what the colours mean is the thing the pill was
+  supposed to save them from.
+- **W4** — **The one thin line takes the breadcrumb's place rather than sitting under it.** The plan
+  asks for "indicator name, period, area" and the top bar was already carrying the area as a crumb
+  trail with a link on every step. Two rows saying overlapping things is what W2 §4 removed from the
+  chart card, so in present mode `#hd` renders `PRESENT.line()` instead of `crumbs()`: the
+  indicator in the display face, then the period and the area path in mono. The period is
+  `panelPeriod()` on the area page and the property — the same function the chart card's own head
+  uses — so the bar cannot claim a span the chart is not drawing.
+- **W4** — **The source footer names the publishers, not the tables, and its as-of is the newest one
+  in the build.** A screen that is being photographed in a meeting has to carry its own provenance,
+  but a line that lists twenty table ids is not read by anyone. So: the distinct publishers behind
+  the build's sources (the parenthetical in "Tilastokeskus (Paavo)" dropped first, so the same body
+  is not named twice), at most four with the rest counted, then the newest `asof` any source
+  carries, then the address of the live page. The full source list is one Esc and one *Data
+  information* fold away, and Sources has never moved.
+- **W4** — **The study-row PNG is made out of the page, not re-derived from the data.** The panel's
+  chart is already an SVG and the mini map is already a stack of tiles, `<canvas>` renderers and
+  overlay `<svg>`s that each know where they are; the export copies them onto one canvas in painting
+  order — by the z-index of the pane, not by DOM order, because the custom panes (services 450,
+  public 440, zones 455) are appended in creation order and would otherwise land under the markers.
+  No library was added and nothing is fetched. Two things had to be handled by hand: the panel
+  charts are styled by `src/style.css` and a stylesheet does not travel inside a `data:` URL, so the
+  clone carries every drawn property inline, copied from the original's *computed* style; and the
+  pin is a CSS-drawn `divIcon` with no text in it, so it is redrawn rather than copied.
+- **W4** — **The chart in the PNG is never stretched, and the map has a floor.** The area page's
+  panel chart is a 900 × 240 strip; drawn to fill a square it would be a chart whose slopes lie, and
+  drawn at its own ratio with the map matched to it the map came out as a 100-px band of colour
+  with nothing readable in it. So the chart keeps its aspect exactly, the body of the picture has a
+  **360-px floor**, and the map takes the full body height beside it. The chart's own key is HTML
+  next to the SVG rather than inside it (`.bleg`), and so is W2 §3's clipped-scale note — both are
+  redrawn under the chart, because a picture of a chart whose lines are not named is not a chart,
+  and a scale that excludes years has to say so wherever it is shown.
+- **W4** — **On a phone, present mode keeps the `Legend ▾` pill and un-pins the source line.** Both
+  rules that make present mode work on a projector are wrong below 1025 px: the map there is 55vh,
+  so an open five-card stack would cover most of it (the pill is the only way both the map and its
+  key fit), and the page scrolls as a document, so a bar bolted across the bottom of an 844-px
+  screen costs a tenth of it for a line nobody is presenting from a phone. Both are scoped; the
+  sidebar, the toolbars and the bigger numbers apply at every width.
+- **W4** — **"basemap omitted" is measured, not assumed.** `tile.openstreetmap.org` sends no CORS
+  header, so drawing one of its tiles taints the canvas and `toBlob` then throws — which would lose
+  the whole picture rather than the basemap. So before anything is composed, one loaded tile is
+  drawn into a 2 × 2 scratch canvas and a single pixel is read back: if that throws, the map panel
+  is filled with the page's own paper colour, only the polygons and labels are drawn on it, and the
+  footer of the image says **· basemap omitted**. When the tiles *are* readable — a same-origin or
+  CORS-enabled basemap, which this build could switch to without touching this code — they are
+  drawn and the footer says nothing. The test environment answers every off-machine image with a
+  cross-origin pixel, so `W4-study-png` exercises the omitted path deliberately.
+- **W4** — **The print sheet gives the maps a height in millimetres.** W2 §1 measures the map card
+  against the window in JavaScript, and `100vh` means nothing on paper: printed, a Leaflet container
+  with no height is a clipped grey strip. So `@page{size:A4 landscape}` plus a fixed 108 mm for the
+  macro map and 88 mm for a mini map, the legends unfolded (on paper they can never be behind a
+  pill), `break-inside:avoid` on every card and `break-after:page` on the study row, which is what
+  "one view per page" means here. `beforeprint` tells every live map its container changed shape —
+  without it Leaflet prints the tiles it had at the old size.
+- **W4** — **The `P` and Esc keys are answered in `present.js`, before app.js sees them.** app.js's
+  own `keydown` handler ends with the map's camera jumps (H/T/U/O/F) and, two lines above them,
+  `Escape` on the area page means *go back*. Rather than thread present mode through that, the new
+  listener is registered first and calls `stopImmediatePropagation()` on the two keys it takes.
+  Neither is taken while the reader is typing, with a modifier held, or — for Esc — while a popover,
+  the drawer or a full-screen mini map is open: those own Esc already, and leaving present mode with
+  a menu still on the screen would close the wrong thing.

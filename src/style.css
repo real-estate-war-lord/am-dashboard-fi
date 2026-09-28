@@ -2328,3 +2328,97 @@ abbr.cmark{text-decoration:none;border:0;font-family:var(--mono);font-size:.78em
 /* §2. A figure inherited from the pin's postal code is not the municipality's, and the two are
    told apart by their word — the chip is styled the same, so neither reads as the more reliable. */
 .tag-muni.pno{color:var(--ink2)}
+
+/* ===================================================================================
+   v2.2 W4 — present mode, the study row's PNG and the print sheet
+   =================================================================================== */
+/* §1. PRESENT MODE (`present=1`, the top bar's button, or `P`).
+   The dashboard on a projector is read from four metres away by people who cannot click anything:
+   the sidebar, the toolbars and the chips are all affordances for a reader with a mouse, and they
+   are the first 300 px of every screen. So they go, the numbers grow a quarter, the mini maps'
+   legends open, and one line at the bottom says where the figures came from — because a screen
+   that is being photographed in a meeting has to carry its own provenance.
+
+   **Nothing that holds a figure is hidden.** Only controls: every card, section, caveat and source
+   note the page had is still on it, and Esc puts the controls back. */
+.presentline{display:flex;align-items:baseline;gap:12px;min-width:0}
+.presentline b{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presentline .pdim{font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+.presentline .pdim:before{content:"· "}
+
+body.present aside,body.present .navtoggle,body.present .navscrim{display:none}
+body.present .app{grid-template-columns:1fr}
+body.present main{padding-top:0}
+/* the toolbars — one thin line in the top bar has just said what they were setting */
+body.present .card-head.tools-only,body.present #tpbar,body.present .card.toolcard,
+body.present .tfilters,body.present .chips,body.present .mm-chips,body.present .datatabs{display:none}
+/* the legends are the key to what is on the projector, so present mode opens the pill W2 §2 put
+   them behind rather than leaving the reader to click it in front of an audience */
+/* Specificity, not !important: W2's own rule is `.mapwrap.mini>.legpill` inside a media query, so
+   a bare `.legpill` here would lose to it at every desktop width. Scoped to ≥ 1025 px, because on
+   a phone the map is 55vh and an open five-card stack would cover most of it — there the pill is
+   not a nuisance, it is the only way both the map and its key fit on the screen. */
+@media (min-width:1025px){
+  body.present .legpill,body.present .mapwrap.mini>.legpill{display:none}
+  body.present .mapwrap.mini>.maplegs{display:flex;max-height:60%}
+  body.present .mapwrap.mini>.maplegend{display:block}
+}
+/* +25 %: the two places a headline figure is set in a fixed size (26 px tiles, 30 px panel head),
+   and the 33-px hero, which is already `em`-free */
+body.present .hlc b{font-size:32.5px}
+body.present .pnv{font-size:37.5px}
+body.present .hero b{font-size:41px}
+body.present .hero .u{font-size:17px}
+body.present .pnd,body.present .pnr,body.present .pnm{font-size:1.15em}
+
+/* the one-line source footer: pinned to the bottom in present mode, at the end of the paper in
+   print, and never on screen otherwise */
+.srcfoot{display:none}
+body.present .srcfoot{display:block;position:fixed;left:0;right:0;bottom:0;z-index:60;
+  background:var(--bg);border-top:1px solid var(--line);padding:7px var(--gutter);
+  font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.present #body{padding-bottom:58px}
+/* ≤ 1024 px the page scrolls as a document rather than inside a column, and a bar bolted across
+   the bottom of an 844-px screen costs a tenth of it for a line nobody is presenting from a phone.
+   So there it is the last thing on the page instead of the first thing over it. */
+@media (max-width:1024px){
+  body.present .srcfoot{position:static;padding:10px var(--gutter) 18px;white-space:normal}
+  body.present #body{padding-bottom:12px}
+}
+
+/* §2. ⤓ PNG on the study row — the same shape as the mini map's ⤢, at the other end of the row */
+.pngbtn{margin-left:auto;height:26px;padding:0 9px;font-size:11.5px;font-family:var(--mono);letter-spacing:.04em}
+
+/* §3. PRINT — A4 landscape, one view per page.
+   The print box is 297 × 210 mm less the margin, so the map gets a fixed height in millimetres
+   rather than the measured pixel height W2 gives it on screen: `100vh` means nothing on paper and
+   a Leaflet container with no height prints as a clipped grey strip. `beforeprint` in
+   src/present.js tells every live map its container just changed shape. */
+@page{size:A4 landscape;margin:11mm}
+@media print{
+  html,body{background:#fff;overflow:visible}
+  .app{display:block;height:auto}
+  main{display:block;overflow:visible;height:auto;padding-top:0}
+  .topbar{position:static;border-bottom:1px solid #CFD5CD;padding:0 0 4mm}
+  #body{padding:0;gap:0}
+  aside,.navtoggle,.navscrim,#hdact,.legpill,.mapwrap.mini>.legpill,.mm-chips,.datatabs,
+  .tfilters,.chips,.card-head.tools-only,#tpbar,.card.toolcard,.exwrap,.exmenu,.lypop,.ipkpop,
+  .mqpop,.leaflet-control-container,.tpchoices,.tperr{display:none}
+  /* the legends are the key to the colours; on paper they can never be behind a pill */
+  .mapwrap.mini>.maplegs,.maplegs{display:flex;max-height:none}
+  .mapwrap.mini>.maplegend{display:block}
+  /* nothing is cut in half across a page break, and the study row is a page of its own */
+  .card,.sec,.studyrow,.hero,.hl,table{break-inside:avoid;page-break-inside:avoid}
+  .studyrow{break-after:page;page-break-after:always;grid-template-columns:1fr 1fr}
+  .seclist{display:block}
+  /* maps in millimetres, so none of them prints clipped */
+  #lfmap{height:108mm !important}
+  .mapwrap.mini>div[id]{height:88mm !important}
+  .card{box-shadow:none;border:1px solid #CFD5CD;break-inside:avoid}
+  .dinfo{display:block}
+  .srcfoot{display:block;position:static;margin:4mm 0 0;border-top:1px solid #CFD5CD;
+    padding-top:2mm;font-family:var(--mono);font-size:8.5pt;color:#4A4C43;white-space:normal}
+  a[href]:after{content:""}
+}
