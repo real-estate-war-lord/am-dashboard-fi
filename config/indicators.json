@@ -796,7 +796,7 @@
         40
       ],
       "chip": true,
-      "desc": "Average price per square metre of old dwellings in housing companies (kerrostalo, all room counts), from realised transactions. The yearly figure is the published annual one; the quarterly series behind the Yearly | Quarterly toggle is the publisher's own quarterly table.",
+      "desc": "Average price per square metre of old dwellings in housing companies (kerrostalo, all room counts), from realised transactions. The figure is the published annual one.",
       "calc": "weighted_mean",
       "num": [
         "1|keskihinta_aritm_nw",
@@ -815,29 +815,6 @@
           "table": "ashi/13mu",
           "area_var": "postinumeroalue_4_20220101",
           "time_var": "timeperiod_y",
-          "key_vars": [
-            "talotyyppi_6_20131021",
-            "contentscode"
-          ],
-          "vars": {
-            "talotyyppi_6_20131021": [
-              "1",
-              "2",
-              "3",
-              "5"
-            ],
-            "contentscode": [
-              "keskihinta_aritm_nw",
-              "lkm_julk20"
-            ]
-          }
-        },
-        {
-          "src": "statfin",
-          "geo": "postinumero",
-          "table": "ashi/13mt",
-          "area_var": "postinumeroalue_4_20220101",
-          "time_var": "timeperiod_q",
           "key_vars": [
             "talotyyppi_6_20131021",
             "contentscode"
@@ -889,16 +866,15 @@
         },
         {
           "geo": "postinumero",
-          "table": "ashi/13mt"
+          "table": "ashi/13mu"
         }
       ],
-      "source": "Tilastokeskus ashi 13mu (postinumero, yearly) · 13mt (postinumero, quarterly) · 13mx (kunta, yearly)",
+      "source": "Tilastokeskus ashi 13mu (postinumero, yearly) · 13mx (kunta, yearly)",
       "tables": [
-        "ashi/13mt",
         "ashi/13mu",
         "ashi/13mx"
       ],
-      "note": "ashi publishes the arithmetic mean price per square metre and the number of sales for every building-type class. A class total is the sales-weighted mean of its classes — exactly the arithmetic mean over the underlying transactions, since the weight is each class's own transaction count. No class is estimated: a suppressed class is left out of both sums and the area reads – when nothing is left. At kunta level the same figure comes from 13mx, whose building-type classification differs (0 = all types, 1 = terraced, 3 = blocks of flats); the blocks-of-flats class is used, so the two levels mean the same thing.",
+      "note": "ashi publishes the arithmetic mean price per square metre and the number of sales for every building-type class. A class total is the sales-weighted mean of its classes — exactly the arithmetic mean over the underlying transactions, since the weight is each class's own transaction count. No class is estimated: a suppressed class is left out of both sums and the area reads – when nothing is left. At kunta level the same figure comes from 13mx, whose building-type classification differs (0 = all types, 1 = terraced, 3 = blocks of flats); the blocks-of-flats class is used, so the two levels mean the same thing. Statistics Finland no longer serves the quarterly postal-code table (ashi 13mt, gone by November 2026); its successor 15is is published by region, not by postal code, so this indicator is yearly only.",
       "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
     },
     {
@@ -929,29 +905,6 @@
           "table": "ashi/13mu",
           "area_var": "postinumeroalue_4_20220101",
           "time_var": "timeperiod_y",
-          "key_vars": [
-            "talotyyppi_6_20131021",
-            "contentscode"
-          ],
-          "vars": {
-            "talotyyppi_6_20131021": [
-              "1",
-              "2",
-              "3",
-              "5"
-            ],
-            "contentscode": [
-              "keskihinta_aritm_nw",
-              "lkm_julk20"
-            ]
-          }
-        },
-        {
-          "src": "statfin",
-          "geo": "postinumero",
-          "table": "ashi/13mt",
-          "area_var": "postinumeroalue_4_20220101",
-          "time_var": "timeperiod_q",
           "key_vars": [
             "talotyyppi_6_20131021",
             "contentscode"
@@ -1005,13 +958,12 @@
           "table": "ashi/13mu"
         }
       ],
-      "source": "Tilastokeskus ashi 13mu / 13mt / 13mx (asset transfer tax data from 2020)",
+      "source": "Tilastokeskus ashi 13mu / 13mx (asset transfer tax data from 2020)",
       "tables": [
-        "ashi/13mt",
         "ashi/13mu",
         "ashi/13mx"
       ],
-      "note": "Counts come from asset transfer tax data from 2020 onwards (lkm_julk20). Where the publisher suppressed a class, that class is missing from the count as well as from the price.",
+      "note": "Counts come from asset transfer tax data from 2020 onwards (lkm_julk20). Where the publisher suppressed a class, that class is missing from the count as well as from the price. Statistics Finland no longer serves the quarterly postal-code table (ashi 13mt, gone by November 2026); its successor 15is is published by region, not by postal code, so this indicator is yearly only.",
       "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
     },
     {
@@ -1043,29 +995,6 @@
           "table": "ashi/13mu",
           "area_var": "postinumeroalue_4_20220101",
           "time_var": "timeperiod_y",
-          "key_vars": [
-            "talotyyppi_6_20131021",
-            "contentscode"
-          ],
-          "vars": {
-            "talotyyppi_6_20131021": [
-              "1",
-              "2",
-              "3",
-              "5"
-            ],
-            "contentscode": [
-              "keskihinta_aritm_nw",
-              "lkm_julk20"
-            ]
-          }
-        },
-        {
-          "src": "statfin",
-          "geo": "postinumero",
-          "table": "ashi/13mt",
-          "area_var": "postinumeroalue_4_20220101",
-          "time_var": "timeperiod_q",
           "key_vars": [
             "talotyyppi_6_20131021",
             "contentscode"
@@ -1120,13 +1049,12 @@
           "table": "ashi/13mu"
         }
       ],
-      "source": "Tilastokeskus ashi 13mu / 13mt (postinumero) · 13mx (kunta)",
+      "source": "Tilastokeskus ashi 13mu (postinumero) · 13mx (kunta)",
       "tables": [
-        "ashi/13mt",
         "ashi/13mu",
         "ashi/13mx"
       ],
-      "note": "Terraced houses are far fewer transactions than flats, so this is suppressed in many areas. A missing figure means too few sales to publish, not cheap housing.",
+      "note": "Terraced houses are far fewer transactions than flats, so this is suppressed in many areas. A missing figure means too few sales to publish, not cheap housing. Statistics Finland no longer serves the quarterly postal-code table (ashi 13mt, gone by November 2026); its successor 15is is published by region, not by postal code, so this indicator is yearly only.",
       "warn": "Postal-code prices are published on the 2022 postal-code classification (1 724 areas), while the map is drawn on the 2026 one (3 018 areas). Only areas whose code exists in both carry a price; the rest read – rather than a neighbour's figure."
     },
     {
