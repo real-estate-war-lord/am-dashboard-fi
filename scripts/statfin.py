@@ -72,9 +72,54 @@ def api_id(database, db, tid):
     return tid
 
 
-def table_url(name):
+# "uusin" (latest) is how this repo names the current Paavo edition. Statistics Finland
+# stopped serving a folder by that name in November 2026: the database now holds one folder
+# per publication year (2015 … 2026) and the tables in it carry the year in their id
+# ("12f7_ja2026.px"). So "uusin" is resolved here, once per run, to the newest year folder
+# and to whichever table in it starts with the short id — read from the publisher's own
+# listing rather than spelled by us, so next year's edition is picked up without an edit.
+# The table NAME ("…:uusin/12f7") is unchanged everywhere else: config, file stamps, build.
+LATEST = "uusin"
+_latest_cache = {}
+
+
+def _list(path):
+    req = urllib.request.Request(f"{HOST}/{LANG}/{path}",
+                                 headers={"User-Agent": UA, "Accept-Encoding": "gzip"})
+    body, _ = _open(req)
+    return json.loads(body)
+
+
+def resolve_latest(database, tid):
+    """("Postinumeroalueittainen_avoin_tieto", "12f7") -> ("2026", "12f7_ja2026")."""
+    if database not in _latest_cache:
+        years = sorted(e["id"] for e in _list(f"{database}/")
+                       if e.get("type") == "l" and str(e.get("id", "")).isdigit())
+        if not years:
+            raise RuntimeError(f"{database}: no year folders in the publisher's listing")
+        year = years[-1]
+        ids = [e["id"][:-3] if e["id"].endswith(".px") else e["id"]
+               for e in _list(f"{database}/{year}/") if e.get("id")]
+        _latest_cache[database] = (year, ids)
+    year, ids = _latest_cache[database]
+    hits = [i for i in ids if i == tid or i.startswith(tid + "_")]
+    if len(hits) != 1:
+        raise RuntimeError(f"{database}/{year}: expected one table for {tid!r}, found {hits}")
+    return year, hits[0]
+
+
+def _path(name):
+    """(database, folder, id) as the API and the table page spell them."""
     database, db, tid = split_table(name)
-    return f"{HOST}/{LANG}/{database}/{db}/{api_id(database, db, tid)}.px"
+    if db == LATEST:
+        db, tid = resolve_latest(database, tid)
+        return database, db, tid
+    return database, db, api_id(database, db, tid)
+
+
+def table_url(name):
+    database, db, tid = _path(name)
+    return f"{HOST}/{LANG}/{database}/{db}/{tid}.px"
 
 
 def ui_url(name):
@@ -84,9 +129,9 @@ def ui_url(name):
     .../PxWeb/pxweb/en/<database>/<database>__<db>/<id>.px/  (probed 2026-09-24; the
     statfin_<db>_pxt_<id> spelling that appears in older links answers HTTP 500).
     """
-    database, db, tid = split_table(name)
+    database, db, tid = _path(name)
     return (f"https://pxdata.stat.fi/PxWeb/pxweb/{LANG}/{database}/{database}__{db}/"
-            f"{api_id(database, db, tid)}.px/")
+            f"{tid}.px/")
 
 
 def _open(req):
