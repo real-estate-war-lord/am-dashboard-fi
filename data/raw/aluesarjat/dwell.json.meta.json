@@ -26,11 +26,11 @@
    "*"
   ]
  },
- "updated": "2025-10-28T06:00:00Z",
+ "updated": "2026-11-16T06:00:00Z",
  "label": "Pääkaupunkiseudun asunnot muuttujina Alue, Käytössäolotilanne, Talotyyppi, Hallintaperuste, Vuosi ja Tiedot",
- "fetched": "2026-10-03",
+ "fetched": "2026-11-23",
  "publisher": "Aluesarjat (Helsingin kaupunki / Uudenmaan liitto)",
  "licence": "Aluesarjat — open for both non-commercial and commercial use (\"Tietoaineistoa voi käyttää sekä ei-kaupallisiin että kaupallisiin tarkoituksiin\"). Attribution required, naming both the database and the underlying source, and it must not imply the publisher endorses the use. Lähde: Helsingin seudun aluesarjat -tilastokanta ja Tilastokeskus.",
  "note": "osa-alue layer: dwell",
- "cells": 69840
+ "cells": 74496
 }

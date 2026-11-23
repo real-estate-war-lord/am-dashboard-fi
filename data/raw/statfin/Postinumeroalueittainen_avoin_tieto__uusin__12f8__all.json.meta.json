@@ -1,7 +1,7 @@
 {
  "table": "Postinumeroalueittainen_avoin_tieto:uusin/12f8",
- "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/Postinumeroalueittainen_avoin_tieto/uusin/12f8.px",
- "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/Postinumeroalueittainen_avoin_tieto/Postinumeroalueittainen_avoin_tieto__uusin/12f8.px/",
+ "url": "https://pxdata.stat.fi/PxWeb/api/v1/en/Postinumeroalueittainen_avoin_tieto/2026/12f8_ja2026.px",
+ "verify_at_source": "https://pxdata.stat.fi/PxWeb/pxweb/en/Postinumeroalueittainen_avoin_tieto/Postinumeroalueittainen_avoin_tieto__2026/12f8_ja2026.px/",
  "query": {
   "contentscode": [
    "hr_mtu",
@@ -32,7 +32,7 @@
  },
  "updated": "2026-09-15T05:00:00Z",
  "label": "10. All data groups by Area, Year and Information",
- "fetched": "2026-10-03",
+ "fetched": "2026-11-23",
  "publisher": "Tilastokeskus",
  "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
  "note": "for avg_m2, flats, higher_ed, income_hh, income_med, kela, m2_person, renters, single, unemp, young",
