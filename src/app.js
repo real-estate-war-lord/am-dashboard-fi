@@ -158,6 +158,11 @@ function srcUrl(src, code) {
   if (t.includes(":")) { const i = t.indexOf(":"); database = t.slice(0, i); t = t.slice(i + 1); }
   const [db, id] = t.split("/");
   if (!db || !id) return "";
+  /* "uusin" is this repo's name for the current Paavo edition, not a folder the publisher
+     serves any more: Paavo is one folder per publication year, with the year in the table id.
+     The build resolves that at fetch time; the page links to the database's own table list,
+     which is stable across editions, rather than spelling a year that goes stale. */
+  if (db === "uusin") return `${STATFIN_UI}/${database}/`;
   const pid = database.endsWith("Passiivi") && !id.startsWith("statfinpas_")
     ? `statfinpas_${db}_pxt_${id}` : id;
   return `${STATFIN_UI}/${database}/${database}__${db}/${pid}.px/`;

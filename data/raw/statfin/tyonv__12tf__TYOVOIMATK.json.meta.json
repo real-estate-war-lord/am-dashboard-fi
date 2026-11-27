@@ -13,11 +13,11 @@
    "*"
   ]
  },
- "updated": "2026-09-22T05:00:00Z",
+ "updated": "2026-10-20T05:00:00Z",
  "label": "Percentage of unemployed jobseekers of the entire workforce at the end of the month by Region, Month and Information",
- "fetched": "2026-10-03",
+ "fetched": "2026-11-23",
  "publisher": "Tilastokeskus",
  "licence": "CC BY 4.0 — Lähde: Tilastokeskus",
  "note": "for unemp_m",
- "cells": 89252
+ "cells": 89673
 }
